@@ -1,0 +1,105 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("POSTGRES_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id          String        @id @default(uuid())
+  email       String @unique @db.Citext // Case-insensitive
+  password    String
+  name        String
+  siteRoles   SiteRole[]    // Roles tied to specific sites
+  teams       Team[]        @relation("UserTeams")
+  captainedTeams Team[]     @relation("Captain") // Relation to teams they captain
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model HostingSite {
+  id          String        @id @default(uuid())
+  name        String        @unique
+  location    String
+  siteRoles   SiteRole[]
+  games       Game[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+
+model SiteRole {
+  id          String        @id @default(uuid())
+  user        User          @relation(fields: [userId], references: [id])
+  userId      String
+  hostingSite HostingSite   @relation(fields: [siteId], references: [id], onDelete: Cascade) // Specify cascading delete here
+  siteId      String
+  role        Role          // Role at this specific site
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model Game {
+  id          String        @id @default(uuid())
+  hostingSite HostingSite   @relation(fields: [hostingSiteId], references: [id], onDelete: Cascade) // Specify cascading delete here
+  hostingSiteId String
+  name        String
+  date        DateTime
+  rounds      Round[]
+  teams       Team[]        // Relation to teams in this game
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model Round {
+  id          String        @id @default(uuid())
+  game        Game          @relation(fields: [gameId], references: [id])
+  gameId      String
+  questions   Question[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model Question {
+  id          String        @id @default(uuid())
+  text        String
+  type        QuestionType  // SINGLE, MULTIPLE_CHOICE, ORDERED, WAGER
+  pointValue  Int?
+  timeLimit   Int?          // In seconds
+  maxWagerLimit Int?        // Optional for wager questions
+  correctAnswers String[]   // Array to handle multiple or ordered answers
+  round       Round         @relation(fields: [roundId], references: [id])
+  roundId     String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model Team {
+  id          String        @id @default(uuid())
+  name        String
+  players     User[]        @relation("UserTeams")
+  captainId   String?       // Optional reference to the current captain
+  captain     User?         @relation("Captain", fields: [captainId], references: [id])
+  game        Game?         @relation(fields: [gameId], references: [id])
+  gameId      String?
+  score       Int           @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+enum Role {
+  ADMIN
+  HOST
+  PLAYER
+  TEAM_CAPTAIN
+}
+
+enum QuestionType {
+  SINGLE
+  MULTIPLE_CHOICE
+  ORDERED
+  WAGER
+}

@@ -1,32 +1,32 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Game } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
 export async function GET() {
-    try {
-      const games = await prisma.game.findMany({
-        select: {
-          id: true,
-          name: true,
-          date: true,
-          hostingSiteId: true,
-          createdAt: true,  // Include createdAt
-          updatedAt: true,  // Include updatedAt
-        },
-      });
-  
-      return NextResponse.json(
-        games.map((game) => ({
-          ...game,
-          date: new Date(game.date).toLocaleString('en-US', { timeZone: 'America/Chicago' }),
-        }))
-      );
-    } catch (error) {
-      console.error('Error fetching games:', error);
-      return NextResponse.json({ error: 'Failed to fetch games' }, { status: 500 });
-    }
+  try {
+    const games = await prisma.game.findMany({
+      select: {
+        id: true,
+        name: true,
+        date: true,
+        hostingSiteId: true,
+        createdAt: true,  // Include createdAt
+        updatedAt: true,  // Include updatedAt
+      },
+    });
+
+    return NextResponse.json(
+      games.map((game: Game) => ({
+        ...game,
+        date: new Date(game.date).toLocaleString('en-US', { timeZone: 'America/Chicago' }),
+      }))
+    );
+  } catch (error) {
+    console.error('Error fetching games:', error);
+    return NextResponse.json({ error: 'Failed to fetch games' }, { status: 500 });
   }
+}
 
 export async function POST(req: Request) {
   try {

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient, Game } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';  // Remove Game import
 
 const prisma = new PrismaClient();
 
@@ -11,13 +11,13 @@ export async function GET() {
         name: true,
         date: true,
         hostingSiteId: true,
-        createdAt: true,  // Include createdAt
-        updatedAt: true,  // Include updatedAt
+        createdAt: true,
+        updatedAt: true,
       },
     });
 
     return NextResponse.json(
-      games.map((game: Game) => ({
+      games.map((game) => ({
         ...game,
         date: new Date(game.date).toLocaleString('en-US', { timeZone: 'America/Chicago' }),
       }))
@@ -27,6 +27,7 @@ export async function GET() {
     return NextResponse.json({ error: 'Failed to fetch games' }, { status: 500 });
   }
 }
+
 
 export async function POST(req: Request) {
   try {

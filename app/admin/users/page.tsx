@@ -1,4 +1,4 @@
-'use client';
+"use client"
 
 import { useState, useEffect } from 'react';
 
@@ -60,9 +60,12 @@ export default function ManageUsers() {
 
       if (!res.ok) throw new Error('Failed to update user');
       const updatedUser = await res.json();
+
+      // Update the users state with the updated user
       setUsers((prev) =>
         prev.map((user) => (user.id === updatedUser.id ? updatedUser : user))
       );
+
       setEditUserModal(null);
     } catch (err) {
       console.error(err);
@@ -91,8 +94,9 @@ export default function ManageUsers() {
               <td className="border border-gray-300 px-4 py-2">{user.name || 'N/A'}</td>
               <td className="border border-gray-300 px-4 py-2">{user.email}</td>
               <td className="border border-gray-300 px-4 py-2">
-                {user.roles.length > 0 ? user.roles.join(', ') : 'No roles'}
-              </td>
+  {user.roles && user.roles.length > 0 ? user.roles.join(', ') : 'No roles'}
+</td>
+
               <td className="border border-gray-300 px-4 py-2">
                 <button
                   onClick={() => openEditModal(user)}

@@ -23,7 +23,22 @@ export default function LoginPage() {
       const result = await response.json();
 
       if (response.ok) {
-        router.push('/admin/dashboard'); // Redirect after successful login
+        // Store token in cookie (HttpOnly flag should be set by backend)
+        const { token, roles } = result;
+
+        if (token) {
+          // Store token in cookie using document.cookie
+          document.cookie = `token=${token}; path=/; secure; HttpOnly`; // Secure and HttpOnly flags for better security
+
+          // Perform redirect based on user roles
+          if (roles.includes('ADMIN')) {
+            router.push('/admin/dashboard');
+          } else if (roles.includes('HOST')) {
+            router.push('/dashboard/host');
+          } else {
+            router.push('/dashboard');
+          }
+        }
       } else {
         setError(result.error || 'Login failed.');
       }
@@ -34,10 +49,11 @@ export default function LoginPage() {
   }
 
   return (
-    <div>
-      <h1>Login</h1>
-      <form onSubmit={handleLogin}>
+    <div className="form-container">
+      <h1 className="form-heading">Login</h1>
+      <form className="form" onSubmit={handleLogin}>
         <input
+          className="input-field"
           type="email"
           placeholder="Email"
           value={email}
@@ -45,15 +61,16 @@ export default function LoginPage() {
           required
         />
         <input
+          className="input-field"
           type="password"
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
         />
-        <button type="submit">Login</button>
+        <button className="submit-button" type="submit">Login</button>
       </form>
-      {error && <p style={{ color: 'red' }}>{error}</p>}
+      {error && <p className="error-message">{error}</p>}
     </div>
   );
 }

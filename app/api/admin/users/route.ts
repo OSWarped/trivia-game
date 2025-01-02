@@ -5,25 +5,21 @@ const prisma = new PrismaClient();
 
 export async function GET() {
   try {
-    const users = await prisma.user.findMany({
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        siteRoles: true, // Fetch roles from SiteRole
-      },
-    });
+    // Explicitly type the users array
+    const users: Array<{ id: string; email: string; name: string; roles: string[] }> = await prisma.user.findMany();
 
+    // Format the response to include roles directly from the 'roles' field
     const formattedUsers = users.map((user) => ({
       id: user.id,
       email: user.email,
       name: user.name,
-      roles: user.siteRoles.map((role) => role.role), // Extract roles
+      roles: user.roles || [], // Fetch roles directly from the 'roles' array
     }));
 
     return NextResponse.json(formattedUsers);
   } catch (error) {
-    console.error(error);
+    // Safeguard against null or undefined errors
+    console.error('Error fetching users:', error instanceof Error ? error.message : error);
     return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 });
   }
 }

@@ -26,7 +26,7 @@ interface User {
 
 export default function ManageTeams() {
   const [teams, setTeams] = useState<Team[]>([]);
-  const [games, setGames] = useState<Game[]>([]);
+  const [games, setGames] = useState<Game[]>([]); // Initialize as an empty array
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,6 +36,7 @@ export default function ManageTeams() {
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
   const [selectedCaptainId, setSelectedCaptainId] = useState<string | null>(null);
 
+  // Fetch teams, games, and users
   useEffect(() => {
     async function fetchTeams() {
       setLoading(true);
@@ -55,7 +56,7 @@ export default function ManageTeams() {
       try {
         const res = await fetch('/api/admin/games');
         const data = await res.json();
-        setGames(data);
+        setGames(Array.isArray(data) ? data : []); // Ensure 'games' is an array
       } catch (err) {
         console.error('Failed to fetch games:', err);
       }
@@ -135,7 +136,7 @@ export default function ManageTeams() {
             className="flex justify-between items-center bg-white p-4 rounded shadow-md"
           >
             <div>
-              <Link href={`/admin/teams/${team.id}/members`}>
+              <Link href={`/admin/teams/${team.id}`}>
                 <h2 className="text-lg font-semibold text-blue-500 hover:underline cursor-pointer">
                   {team.name}
                 </h2>

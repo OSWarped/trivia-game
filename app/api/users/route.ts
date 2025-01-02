@@ -21,8 +21,7 @@ export async function GET(req: Request) {
   try {
     // Fetch the user from the database, including roles
     const user = await prisma.user.findUnique({
-      where: { id: decoded.id },
-      include: { siteRoles: true }, // Adjust based on your schema
+      where: { id: decoded.id }, // Adjust based on your schema
     });
 
     if (!user) {
@@ -30,7 +29,7 @@ export async function GET(req: Request) {
     }
 
     // Extract roles from the user's siteRoles relation
-    const userRoles = user.siteRoles.map((role) => role.role);
+    const userRoles = user.roles.map((role) => role);
 
     if (!authorize(userRoles, 'ADMIN')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });

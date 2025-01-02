@@ -12,9 +12,6 @@ export async function POST(req: Request) {
   try {
     const user = await prisma.user.findUnique({
       where: { email },
-      include: {
-        siteRoles: true,
-      },
     });
 
     if (!user) {
@@ -27,25 +24,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
     }
 
-    const token = jwt.sign(
-      { id: user.id, email: user.email, roles: user.siteRoles.map((role) => role.role) },
-      JWT_SECRET,
-      { expiresIn: '1d' }
-    );
+    const roles = user.roles || [];
+    const token = jwt.sign({ userId: user.id, roles }, JWT_SECRET, { expiresIn: '1h' });
 
-    // Set the token as a cookie
-    const response = NextResponse.json({ message: 'Login successful' });
-    response.cookies.set('token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      path: '/',
-      maxAge: 60 * 60 * 24, // 1 day
-    });
-
-    return response;
+    return NextResponse.json({ token, roles }); // This should return the token and roles
   } catch (error) {
     console.error(error);
-    return NextResponse.json({ error: 'Login failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
   }
 }

@@ -10,9 +10,11 @@ function RegisterPageContent() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [error, setError] = useState('');
 
   async function handleRegister(event: React.FormEvent) {
     event.preventDefault();
+    setError('');
 
     try {
       const res = await fetch('/api/auth/register', {
@@ -26,49 +28,49 @@ function RegisterPageContent() {
         router.push(`/join?siteId=${searchParams.get('siteId')}&gameId=${searchParams.get('gameId')}`);
       } else {
         const result = await res.json();
-        alert(result.error || 'Registration failed');
+        setError(result.error || 'Registration failed');
       }
     } catch (err) {
       console.error('Error during registration:', err);
-      alert('An error occurred. Please try again.');
+      setError('An error occurred. Please try again.');
     }
   }
 
   return (
-    <form onSubmit={handleRegister}>
-      <h1>Register</h1>
-      <label>
-        Name:
+    <div className="form-container">
+      <h1 className="form-heading">Register</h1>
+      <form className="form" onSubmit={handleRegister}>
         <input
+          className="input-field"
           type="text"
           name="name"
           value={name}
           onChange={(e) => setName(e.target.value)}
+          placeholder="Name"
           required
         />
-      </label>
-      <label>
-        Email:
         <input
+          className="input-field"
           type="email"
           name="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          placeholder="Email"
           required
         />
-      </label>
-      <label>
-        Password:
         <input
+          className="input-field"
           type="password"
           name="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          placeholder="Password"
           required
         />
-      </label>
-      <button type="submit">Register</button>
-    </form>
+        <button className="submit-button" type="submit">Register</button>
+      </form>
+      {error && <p className="error-message">{error}</p>}
+    </div>
   );
 }
 

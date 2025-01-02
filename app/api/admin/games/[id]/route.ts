@@ -3,85 +3,96 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-export async function GET(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params;
-
+export async function GET(req: Request) {
   try {
-    const game = await prisma.game.findUnique({
-      where: { id },
+    console.log(req);
+    const games = await prisma.game.findMany({
       include: {
+        teams: true,  // Include associated teams for each game
         hostingSite: true, // Include hosting site details
-        teams: true,       // Include associated teams
-        rounds: {
-          include: {
-            questions: true, // Include associated questions
-          },
-        },
       },
     });
 
-    if (!game) {
-      return NextResponse.json({ error: 'Game not found' }, { status: 404 });
-    }
-
-    return NextResponse.json(game);
+    // If no games found, return an empty array
+    return NextResponse.json(games || []);
   } catch (error) {
-    console.error('Error fetching game:', error);
-    return NextResponse.json({ error: 'Failed to fetch game' }, { status: 500 });
+    console.error('Error fetching games:', error);
+    return NextResponse.json({ error: 'Failed to fetch games' }, { status: 500 });
   }
 }
 
-export async function PUT(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params;
+export async function POST(req: Request) {
+  const { name, date, hostingSiteId, hostId } = await req.json();
+  
+  // Validation
+  if (!name || typeof name !== 'string') {
+    return NextResponse.json({ error: 'Invalid name' }, { status: 400 });
+  }
+  if (!date || isNaN(Date.parse(date))) {
+    return NextResponse.json({ error: 'Invalid date' }, { status: 400 });
+  }
+  if (!hostingSiteId || typeof hostingSiteId !== 'string') {
+    return NextResponse.json({ error: 'Invalid hostingSiteId' }, { status: 400 });
+  }
+  if (!hostId || typeof hostId !== 'string') {
+    return NextResponse.json({ error: 'Invalid hostId' }, { status: 400 });
+  }
 
   try {
-    const { name, date, hostingSiteId } = await req.json();
+    console.log("trying to add Game");
+    // Create a new game with the given data
+    const newGame = await prisma.game.create({
+      data: {
+        name,
+        date: new Date(date), // Ensure the date is properly formatted
+        hostingSiteId,
+        hostId, // Directly assign the hostId to the game
+      },
+    });
 
-    if (!name || !date || !hostingSiteId) {
-      return NextResponse.json(
-        { error: 'Name, date, and hosting site are required' },
-        { status: 400 }
-      );
+    return NextResponse.json(newGame);
+  } catch(error) {
+    console.log("FOUND ERROR");
+    if (error instanceof Error){
+        console.log("Error: ", error.stack)
     }
+}
+}
 
+export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params; // Get the game ID from the URL parameters
+  const { name, date, hostingSiteId, hostId } = await req.json();
+
+  // Validation
+  if (!name || typeof name !== 'string') {
+    return NextResponse.json({ error: 'Invalid name' }, { status: 400 });
+  }
+  if (!date || isNaN(Date.parse(date))) {
+    return NextResponse.json({ error: 'Invalid date' }, { status: 400 });
+  }
+  if (!hostingSiteId || typeof hostingSiteId !== 'string') {
+    return NextResponse.json({ error: 'Invalid hostingSiteId' }, { status: 400 });
+  }
+  if (!hostId || typeof hostId !== 'string') {
+    return NextResponse.json({ error: 'Invalid hostId' }, { status: 400 });
+  }
+
+  try {
+    // Update the game details with the new values
     const updatedGame = await prisma.game.update({
       where: { id },
       data: {
         name,
         date: new Date(date),
-        hostingSite: {
-          connect: { id: hostingSiteId },
-        },
+        hostingSiteId,
+        hostId, // Update the hostId if provided
       },
     });
 
     return NextResponse.json(updatedGame);
-  } catch (error) {
-    console.error('Error updating game:', error);
-    return NextResponse.json({ error: 'Failed to update game' }, { status: 500 });
-  }
+  } catch(error) {
+    if (error instanceof Error){
+        console.log("Error: ", error.stack)
+    }
 }
-
-export async function DELETE(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params;
-
-  try {
-    const deletedGame = await prisma.game.delete({
-      where: { id },
-    });
-
-    return NextResponse.json({ message: 'Game deleted successfully', deletedGame });
-  } catch (error) {
-    console.error('Error deleting game:', error);
-    return NextResponse.json({ error: 'Failed to delete game' }, { status: 500 });
-  }
 }

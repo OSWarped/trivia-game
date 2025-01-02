@@ -1,39 +1,66 @@
 'use client';
 
+import { Round } from '@prisma/client';
 import { useState, useEffect } from 'react';
+
+interface HostingSite {
+  id: string;
+  name: string;
+  location: string;
+}
+
+interface Team {
+  id: string;
+  name: string;
+  captainId: string;
+  gameId: string;
+  score: number;
+}
 
 interface Game {
   id: string;
   name: string;
   date: string;
   hostingSiteId: string;
-  hostingSiteName: string;
+  hostingSite: HostingSite | null;
+  hostId: string; // Directly store hostId in the Game model
+  teams: Team[];
+  rounds: Round[];
 }
 
-interface HostingSite {
+interface User {
   id: string;
   name: string;
+  roles: string[];
 }
 
 export default function ManageGames() {
   const [games, setGames] = useState<Game[]>([]);
   const [hostingSites, setHostingSites] = useState<HostingSite[]>([]);
+  const [hosts, setHosts] = useState<User[]>([]);
   const [editGame, setEditGame] = useState<Game | null>(null);
-  const [newGame, setNewGame] = useState({ name: '', date: '', hostingSiteId: '' });
-
+  const [newGame, setNewGame] = useState({ name: '', date: '', hostingSiteId: '', hostId: '' });
   const [showModal, setShowModal] = useState(false);
 
-  useEffect(() => {
-    async function fetchGames() {
-      try {
-        const res = await fetch('/api/admin/games');
-        const data = await res.json();
-        setGames(data);
-      } catch (err) {
-        console.error('Error fetching games:', err);
-      }
-    }
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
+  // Function to fetch games
+  const fetchGames = async () => {
+    try {
+      const res = await fetch('/api/admin/games');
+      const data = await res.json();
+      setGames(data);
+    } catch (err) {
+      console.error('Error fetching games:', err);
+      setError('Failed to fetch games');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    // Fetch the initial data when the component mounts
     async function fetchHostingSites() {
       try {
         const res = await fetch('/api/admin/sites');
@@ -44,23 +71,30 @@ export default function ManageGames() {
       }
     }
 
+    async function fetchHosts() {
+      try {
+        const res = await fetch('/api/admin/users');
+        const data = await res.json();
+        const hosts = data.filter((user: User) => user.roles.includes('HOST'));
+        setHosts(hosts);
+      } catch (err) {
+        console.error('Error fetching hosts:', err);
+      }
+    }
+
     fetchGames();
     fetchHostingSites();
+    fetchHosts();
   }, []);
 
-  async function handleSaveGame() {
+  // Save or update game
+  const handleSaveGame = async () => {
     const endpoint = editGame ? `/api/admin/games/${editGame.id}` : '/api/admin/games';
     const method = editGame ? 'PUT' : 'POST';
+
     const body = editGame
-  ? { 
-      name: editGame.name, 
-      date: new Date(editGame.date).toISOString(), 
-      hostingSiteId: editGame.hostingSiteId 
-    }
-  : { 
-      ...newGame, 
-      date: new Date(newGame.date).toISOString() 
-    };
+      ? { ...editGame, hostId: editGame.hostId }
+      : { ...newGame, hostId: newGame.hostId };
 
     try {
       const res = await fetch(endpoint, {
@@ -71,27 +105,23 @@ export default function ManageGames() {
 
       if (res.ok) {
         const updatedGame = await res.json();
-
-        if (editGame) {
-          setGames((prevGames) =>
-            prevGames.map((game) => (game.id === updatedGame.id ? updatedGame : game))
-          );
-        } else {
-          setGames((prevGames) => [...prevGames, updatedGame]);
-        }
-
+        // Update the game list
+        setGames((prevGames) =>
+          prevGames.map((game) => (game.id === updatedGame.id ? updatedGame : game))
+        );
         setEditGame(null);
-        setNewGame({ name: '', date: '', hostingSiteId: '' });
+        setNewGame({ name: '', date: '', hostingSiteId: '', hostId: '' });
         setShowModal(false);
+        fetchGames(); // Re-fetch the games list after saving
       } else {
         alert('Failed to save game');
       }
     } catch (err) {
       console.error('Error saving game:', err);
     }
-  }
+  };
 
-  async function handleDeleteGame(gameId: string) {
+  const handleDeleteGame = async (gameId: string) => {
     try {
       const res = await fetch(`/api/admin/games/${gameId}`, {
         method: 'DELETE',
@@ -105,6 +135,25 @@ export default function ManageGames() {
     } catch (err) {
       console.error('Error deleting game:', err);
     }
+  };
+
+  const handleEditGame = (game: Game) => {
+    setEditGame(game);
+    setNewGame({
+      name: game.name,
+      date: game.date,
+      hostingSiteId: game.hostingSiteId,
+      hostId: game.hostId, // Directly use hostId
+    });
+    setShowModal(true);
+  };
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
+  if (error) {
+    return <div className="text-red-500">{error}</div>;
   }
 
   return (
@@ -115,47 +164,49 @@ export default function ManageGames() {
         onClick={() => {
           setShowModal(true);
           setEditGame(null);
-          setNewGame({ name: '', date: '', hostingSiteId: '' });
+          setNewGame({ name: '', date: '', hostingSiteId: '', hostId: '' });
         }}
       >
         Add New Game
       </button>
       <ul className="space-y-4">
-        {games.map((game) => (
-          <li
-            key={game.id}
-            className="flex justify-between items-center bg-white p-4 rounded shadow-md"
+  {games.map((game) => {
+    const host = hosts.find((host) => host.id === game.hostId); // Find the host by hostId
+    return (
+      <li key={game.id} className="flex justify-between items-center bg-white p-4 rounded shadow-md">
+        <div>
+          <h2 className="text-lg font-semibold">{game.name}</h2>
+          <p className="text-sm text-gray-600">
+            Date: {new Date(game.date).toLocaleDateString('en-US')}
+          </p>
+          <p className="text-sm text-gray-600">
+            Hosting Site: {game.hostingSite ? game.hostingSite.name : 'No hosting site assigned'}
+          </p>
+          <p className="text-sm text-gray-600">
+            Host: {host ? host.name : 'No host assigned'} {/* Display the host's name */}
+          </p>
+        </div>
+        <div className="flex space-x-2">
+          <button
+            className="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600"
+            onClick={() => handleEditGame(game)}
           >
-            <div>
-              <h2 className="text-lg font-semibold">{game.name}</h2>
-              <p className="text-sm text-gray-600">
-  Date: {new Date(game.date).toLocaleDateString('en-US', { timeZone: 'UTC' })}
-</p>
+            Edit
+          </button>
+          <button
+            className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+            onClick={() => handleDeleteGame(game.id)}
+          >
+            Delete
+          </button>
+        </div>
+      </li>
+    );
+  })}
+</ul>
 
 
-              <p className="text-sm text-gray-600">Site: {game.hostingSiteName}</p>
-            </div>
-            <div className="flex space-x-2">
-              <button
-                className="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600"
-                onClick={() => {
-                  setEditGame(game);
-                  setShowModal(true);
-                }}
-              >
-                Edit
-              </button>
-              <button
-                className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
-                onClick={() => handleDeleteGame(game.id)}
-              >
-                Delete
-              </button>
-            </div>
-          </li>
-        ))}
-      </ul>
-
+      {/* Modal to Add/Edit Game */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
           <div className="bg-white p-6 rounded shadow-md w-1/2">
@@ -178,7 +229,7 @@ export default function ManageGames() {
                 <input
                   type="date"
                   className="border border-gray-300 p-2 rounded w-full"
-                  value={editGame ? editGame.date : newGame.date}
+                  value={editGame ? editGame.date.substring(0, 10) : newGame.date.substring(0, 10)}
                   onChange={(e) =>
                     editGame
                       ? setEditGame({ ...editGame, date: e.target.value })
@@ -201,6 +252,25 @@ export default function ManageGames() {
                   {hostingSites.map((site) => (
                     <option key={site.id} value={site.id}>
                       {site.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block font-medium mb-1">Assign Host</label>
+                <select
+                  className="border border-gray-300 p-2 rounded w-full"
+                  value={editGame ? editGame.hostId : newGame.hostId}
+                  onChange={(e) =>
+                    editGame
+                      ? setEditGame({ ...editGame, hostId: e.target.value })
+                      : setNewGame({ ...newGame, hostId: e.target.value })
+                  }
+                >
+                  <option value="">Select a host</option>
+                  {hosts.map((host) => (
+                    <option key={host.id} value={host.id}>
+                      {host.name}
                     </option>
                   ))}
                 </select>

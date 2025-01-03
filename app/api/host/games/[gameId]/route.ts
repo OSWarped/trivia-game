@@ -4,13 +4,15 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export async function GET(req: Request, { params }: { params: Promise<{ gameId: string }> }) {
+  // Await the params promise
+  const { gameId } = await params;
+
   try {
     const game = await prisma.game.findUnique({
-      where: { id: id },
+      where: { id: gameId },
       include: {
-        hostingSite: true
+        hostingSite: true, // Include hosting site details
       },
     });
 

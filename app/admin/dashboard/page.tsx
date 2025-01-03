@@ -10,25 +10,31 @@ export default function AdminDashboard() {
         <Link href="/admin/sites">
           <div className="p-6 bg-blue-500 text-white rounded-lg shadow cursor-pointer hover:bg-blue-600">
             <h2 className="text-xl font-bold">Manage Sites</h2>
-            <p className="mt-2">Create, edit, and delete hosting sites.</p>
+            <p className="mt-2 text-white">Create, edit, and delete hosting sites.</p>
           </div>
         </Link>
         <Link href="/admin/users">
           <div className="p-6 bg-green-500 text-white rounded-lg shadow cursor-pointer hover:bg-green-600">
             <h2 className="text-xl font-bold">Manage Users</h2>
-            <p className="mt-2">Edit roles and assign users to sites.</p>
+            <p className="mt-2 text-white">Edit roles and assign users to sites.</p>
           </div>
         </Link>
         <Link href="/admin/teams">
           <div className="p-6 bg-yellow-500 text-white rounded-lg shadow cursor-pointer hover:bg-yellow-600">
             <h2 className="text-xl font-bold">Manage Teams</h2>
-            <p className="mt-2">Assign players and manage team details.</p>
+            <p className="mt-2 text-white">Assign players and manage team details.</p>
           </div>
         </Link>
         <Link href="/admin/games">
           <div className="p-6 bg-red-500 text-white rounded-lg shadow cursor-pointer hover:bg-red-600">
             <h2 className="text-xl font-bold">Manage Games</h2>
-            <p className="mt-2">View and edit game settings.</p>
+            <p className="mt-2 text-white">View and edit game settings.</p>
+          </div>
+        </Link>
+        <Link href="/dashboard/host">
+          <div className="p-6 bg-red-500 text-white rounded-lg shadow cursor-pointer hover:bg-red-600">
+            <h2 className="text-xl font-bold"> Hosting Dashboard</h2>
+            <p className="mt-2 text-white">View and edit game settings.</p>
           </div>
         </Link>
       </div>

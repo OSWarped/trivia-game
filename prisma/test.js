@@ -1,24 +1,27 @@
-import { PrismaClient } from '@prisma/client';
+const { PrismaClient } = require('@prisma/client');
 
 const prisma = new PrismaClient();
 
-async function test() {
+const createCorrectAnswer = async () => {
+  const correctAnswerData = {
+    answerText: 'Mike Judge',
+    questionId: '3cef5082-c3a2-44ba-b84d-e686145733dd',
+  };
+
   try {
-    const newGame = await prisma.game.create({
+    const newCorrectAnswer = await prisma.correctAnswer.create({
       data: {
-        name: "tnt",
-        date: new Date("2025-01-07"),
-        hostingSiteId: "afbc87bb-3efe-4890-a39e-8fbd0fdf89f3",
-        hostId: "3c1f78ff-34ca-4239-bd5f-2ecea2f1c55a",
+        answer: correctAnswerData.answerText, // Correct answer text
+        questionId: correctAnswerData.questionId, // Associated question ID
       },
     });
-    console.log(newGame);
-    //console.log('Games:', games);
-  } catch (error) {
-    console.error('Error fetching games:', error);
-  } finally {
-    await prisma.$disconnect();
-  }
-}
 
-test();
+    console.log('Correct answer created successfully:', newCorrectAnswer);
+  } catch (error) {
+    console.error('Error creating correct answer:', error);
+  } finally {
+    await prisma.$disconnect(); // Ensure the Prisma client is properly disconnected
+  }
+};
+
+createCorrectAnswer();

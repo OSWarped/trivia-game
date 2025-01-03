@@ -8,130 +8,15 @@ generator client {
 }
 
 model User {
-  id             String     @id @default(uuid())
-  email          String     @unique @db.Citext
+  id             String   @id @default(uuid())
+  email          String   @unique @db.Citext
   password       String
-  name           String     // Keeps the name field for nickname or handle
-  roles          String[]   // Array of roles (e.g., 'ADMIN', 'HOST', etc.)
-  teams          Team[]     @relation("UserTeams")
-  captainedTeams Team[]     @relation("Captain")
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
-  answers        Answer[]   // Answers to questions
-}
-
-model HostingSite {
-  id        String     @id @default(uuid())
-  name      String     @unique
-  location  String
-  games     Game[]
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-}
-
-// Game model - Tracks the game rounds, game type, and host
-model Game {
-  id            String      @id @default(uuid())
-  hostingSiteId String
-  hostingSite   HostingSite @relation(fields: [hostingSiteId], references: [id])
-  hostId        String      // Directly reference the hostId
-  date          DateTime
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-  teams         Team[]      // Teams participating in the game
-  rounds        Round[]     // Each game has multiple rounds
-  name          String      // Make sure the name field exists here
-}
-
-// Round model - Each game has multiple rounds
-model Round {
-  id             String       @id @default(uuid())
-  gameId         String
-  game           Game         @relation(fields: [gameId], references: [id])
-  roundType      RoundType
-  roundQuestions RoundQuestion[] @relation("RoundQuestions")  // Relation to RoundQuestion
-  questions      Question[]    @relation("RoundToQuestions")   // Relation to Question
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  maxPoints      Int?         // Max points in a round (if applicable)
-  timeLimit      Int?         // Time limit for time-based rounds
-  wagerLimit     Int?         // Wager limit for wager rounds
-}
-
-// RoundQuestion model - Links questions to rounds with point values
-model RoundQuestion {
-  id           String    @id @default(uuid())
-  roundId      String
-  questionId   String
-  pointValue   Int       // Points for the question (1, 3, 5, etc.)
-  round        Round     @relation(fields: [roundId], references: [id], name: "RoundQuestions") // Relation to Round
-  question     Question  @relation(fields: [questionId], references: [id], name: "QuestionInRound") // Relation to Question
-}
-
-// Question model - Flexible schema for various question types
-model Question {
-  id             String       @id @default(uuid())
-  text           String       // The question text (can also include image prompt for image-based questions)
-  type           QuestionType // SINGLE, MULTIPLE_CHOICE, ORDERED, WAGER, IMAGE
-  pointValue     Int?         // Points for the question, optional for some types
-  timeLimit      Int?         // Time limit in seconds (used for TIME_BASED and LIGHTNING rounds)
-  imageUrl       String?      // URL for image-based questions
-  correctAnswers String[]     // Array to handle multiple or ordered answers
-  roundId        String
-  round          Round        @relation(fields: [roundId], references: [id], name: "RoundToQuestions") // Relation to Round
-  answers        Answer[]     // Answers related to the question
-  roundQuestions RoundQuestion[] @relation("QuestionInRound") // Reverse relation to RoundQuestion
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-}
-
-// Enum for game modes (point-based, time-based, wager)
-enum GameMode {
-  TIME_BASED
-  POINT_ASSIGNMENT
-  COMBO
-}
-
-// Enum for round types (Point-based, Time-based, Wager, etc.)
-enum RoundType {
-  POINT_BASED
-  TIME_BASED
-  WAGER
-  LIGHTNING
-  IMAGE
-}
-
-// Answer model - Stores answers, point value, time taken, and whether the answer is correct
-model Answer {
-  id           String      @id @default(uuid())
-  questionId   String
-  question     Question   @relation(fields: [questionId], references: [id])
-  playerId     String
-  player       User       @relation(fields: [playerId], references: [id])
-  answer       Json       // Flexible field to store the answer (text, multiple choice, etc.)
-  pointValue   Int        // Points awarded for the answer
-  timeTaken    Int?       // Time taken in seconds (for time-based scoring)
-  wagerPoints  Int?       // Points wagered in wager rounds
-  isCorrect    Boolean    // Whether the answer is correct
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-}
-
-// Enum for different question types (single, multiple-choice, ordered, wager, image)
-enum QuestionType {
-  SINGLE
-  MULTIPLE_CHOICE
-  ORDERED
-  WAGER
-  IMAGE
-}
-
-// Enum for roles (admin, host, player, team captain)
-enum Role {
-  ADMIN
-  HOST
-  PLAYER
-  TEAM_CAPTAIN
+  name           String // Keeps the name field for nickname or handle
+  roles          String[] // Array of roles (e.g., 'ADMIN', 'HOST', etc.)
+  teams          Team[]   @relation("UserTeams")
+  captainedTeams Team[]   @relation("Captain")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
 
 // Team model - Teams that participate in games
@@ -146,4 +31,137 @@ model Team {
   score     Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  answers   Answer[] // Add reverse relation to answers
+}
+
+model HostingSite {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  location  String
+  games     Game[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Game model - Tracks the game rounds, game type, and host
+model Game {
+  id            String      @id @default(uuid())
+  hostingSiteId String
+  hostingSite   HostingSite @relation(fields: [hostingSiteId], references: [id])
+  hostId        String // Directly reference the hostId
+  date          DateTime
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  teams         Team[] // Teams participating in the game
+  rounds        Round[] // Each game has multiple rounds
+  name          String // Make sure the name field exists here
+}
+
+enum GameMode {
+  TIME_BASED
+  POINT_ASSIGNMENT
+  COMBO
+}
+
+enum RoundType {
+  POINT_BASED
+  TIME_BASED
+  WAGER
+  LIGHTNING
+  IMAGE
+}
+
+enum PointSystem {
+  POOL
+  FLAT
+}
+
+enum Role {
+  ADMIN
+  HOST
+  PLAYER
+  TEAM_CAPTAIN
+}
+
+model Question {
+  id            String         @id @default(uuid())
+  text          String // The text of the question (e.g., "What is the capital of France?")
+  type          QuestionType // Type of the question (e.g., 'SINGLE', 'MULTIPLE_CHOICE', etc.)
+  pointValue    Int? // Points for the question (only for flat rounds)
+  roundId       String // Foreign key to Round
+  round         Round          @relation(fields: [roundId], references: [id])
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  correctAnswer CorrectAnswer? @relation // No need to manually specify fields, Prisma will automatically manage it
+  answers       Answer[] // A question can have multiple answers (one per team)
+  Subquestion   Subquestion[]
+}
+
+model CorrectAnswer {
+  id         String   @id @default(uuid())
+  answer     String // Correct answer (e.g., "Paris" or "42")
+  questionId String   @unique // Mark questionId as unique for a one-to-one relation
+  question   Question @relation(fields: [questionId], references: [id])
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+enum QuestionType {
+  SINGLE
+  MULTIPLE_CHOICE
+  ORDERED
+  WAGER
+  IMAGE
+}
+
+model Round {
+  id          String      @id @default(uuid())
+  name        String // Name of the round
+  gameId      String // Foreign key to Game
+  game        Game        @relation(fields: [gameId], references: [id])
+  roundType   RoundType // The type of round (e.g., 'POINT_BASED', 'TIME_BASED', 'WAGER')
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  maxPoints   Int? // Max points for wager rounds
+  timeLimit   Int? // Time limit for time-based rounds
+  wagerLimit  Int? // Wager limit for wager rounds
+  pointSystem PointSystem // Point system (POOL or FLAT)
+  pointPool   Int[] // Array for available point pool (only for POOL rounds)
+  pointValue  Int? // Point value for each question in flat rounds
+  sortOrder   Int // Sort order for rounds in the game
+  questions   Question[] // A round has many questions
+}
+
+model Answer {
+  id            String   @id @default(uuid())
+  questionId    String // Foreign key to Question
+  question      Question @relation(fields: [questionId], references: [id])
+  teamId        String // Foreign key to Team
+  team          Team     @relation(fields: [teamId], references: [id])
+  answer        String // Answer submitted by the team
+  isCorrect     Boolean // Whether the answer is correct (host reviews)
+  pointsAwarded Int // Points awarded for this answer (0 if incorrect)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Subquestion {
+  id              String              @id @default(uuid())
+  questionId      String // Foreign key to Question
+  question        Question            @relation(fields: [questionId], references: [id]) // Relating Subquestion to Question
+  text            String // Text of the subquestion (e.g., "What year was this movie released?")
+  correctAnswer   CorrectSubquestion? // Remove @relation(fields: [correctAnswerId], references: [id]) from here
+  correctAnswerId String? // Foreign key to CorrectSubquestion
+  pointsAwarded   Int // Points awarded for this subquestion
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+}
+
+model CorrectSubquestion {
+  id            String      @id @default(uuid())
+  answer        String // Correct answer for the subquestion (e.g., "1992")
+  subquestion   Subquestion @relation(fields: [subquestionId], references: [id])
+  subquestionId String      @unique // Ensure the foreign key is unique for one-to-one relationship
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 }

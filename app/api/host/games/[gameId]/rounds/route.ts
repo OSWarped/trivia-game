@@ -9,6 +9,17 @@ export async function GET(req: Request, { params }: { params: Promise<{ gameId: 
   try {
     const rounds = await prisma.round.findMany({
       where: { gameId },
+      include: {
+        questions: {
+          select: {
+            id: true,
+            text: true,
+          },
+        },
+      },
+      orderBy: {
+        sortOrder: 'asc', // Ensure the next round is the smallest greater sortOrder
+      },
     });
 
     return NextResponse.json(rounds.length > 0 ? rounds : []);
@@ -29,12 +40,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ gameId:
         name: roundData.name,
         roundType: roundData.roundType,
         pointSystem: roundData.pointSystem,
-        maxPoints: roundData.maxPoints, // Can be null
-        timeLimit: roundData.timeLimit, // Can be null
-        wagerLimit: roundData.wagerLimit, // Can be null
-        pointPool: roundData.pointPool, // Array of integers
-        pointValue: roundData.pointValue, // Can be null
-        sortOrder: roundData.sortOrder, // Integer
+        maxPoints: roundData.maxPoints || null, // Allow null
+        timeLimit: roundData.timeLimit || null, // Allow null
+        wagerLimit: roundData.wagerLimit || null, // Allow null
+        pointPool: roundData.pointPool || [], // Default to an empty array
+        pointValue: roundData.pointValue || null, // Allow null
+        sortOrder: roundData.sortOrder,
       },
     });
 

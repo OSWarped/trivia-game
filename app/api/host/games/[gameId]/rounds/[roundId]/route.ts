@@ -61,7 +61,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ gameId: 
 
   try {
     const round = await prisma.round.findUnique({
-      where: { id: roundId },      
+      where: { id: roundId },
+      include: {
+        questions: {
+          select: {
+            id: true,
+            text: true,
+          },
+        },  
+      }   
     });
 
     if (!round) {

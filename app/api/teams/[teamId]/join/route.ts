@@ -1,60 +1,57 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { jwtVerify } from 'jose';
 
 const prisma = new PrismaClient();
-const JWT_SECRET = process.env.JWT_SECRET || 'your_secret_key';
 
-interface JwtPayload {
-  id: string;
-  email: string;
-}
-
-export async function POST(req: Request, { params }: { params: Promise<{ teamId: string }> }) {
+export async function POST(
+  req: Request,
+  { params }: { params: Promise<{ teamId: string }> }
+) {
   const { teamId } = await params; // Await the params as per Next.js 15+ requirements
-  const token = req.headers.get('authorization')?.split(' ')[1];
+  const body = await req.json();
+  const { userId, gameId } = body; // Extract userId and gameId from the request body
 
-  if (!token) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!userId || !gameId) {
+    return NextResponse.json(
+      { error: 'Missing userId or gameId' },
+      { status: 400 }
+    );
   }
 
   try {
-    // Verify JWT token
-    const { payload } = await jwtVerify(token, new TextEncoder().encode(JWT_SECRET)) as { payload: JwtPayload };
-    const userId = payload.id;
-
-    // Check if the user is already part of the team
-    const existingMembership = await prisma.team.findFirst({
+    // Check if the user is already part of the team for the given game
+    const existingMembership = await prisma.teamMembership.findFirst({
       where: {
-        id: teamId,
-        players: {
-          some: {
-            id: userId,
-          },
-        },
+        teamId,
+        userId,
+        gameId,
       },
     });
 
     if (existingMembership) {
-      return NextResponse.json({ message: 'User is already a member of this team' });
+      return NextResponse.json({
+        message: 'User is already a member of this team for the specified game',
+      });
     }
 
-    // Add user to the team
-    const updatedTeam = await prisma.team.update({
-      where: { id: teamId },
+    // Create a new team membership
+    const newMembership = await prisma.teamMembership.create({
       data: {
-        players: {
-          connect: { id: userId },
-        },
-      },
-      include: {
-        players: true, // Optional: Return the updated list of players
+        teamId,
+        userId,
+        gameId,
       },
     });
 
-    return NextResponse.json({ message: 'Joined team successfully', team: updatedTeam });
+    return NextResponse.json({
+      message: 'Joined team successfully',
+      membership: newMembership,
+    });
   } catch (error) {
     console.error('Error joining team:', error);
-    return NextResponse.json({ error: 'Failed to join team' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to join team' },
+      { status: 500 }
+    );
   }
 }

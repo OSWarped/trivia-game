@@ -1,21 +1,9 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { useParams } from 'next/navigation';
-
-// interface Team {
-//   id: string;
-//   name: string;
-//   captain: {
-//     id: string;
-//     name: string;
-//   } | null;
-//   players: {  // Assuming team members are called players
-//     id: string;
-//     name: string;
-//   }[];
-// }
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
+import { TeamMembership } from "@prisma/client";
 
 interface User {
   id: string;
@@ -25,12 +13,12 @@ interface User {
 export default function EditTeam() {
   const router = useRouter();
   const { id } = useParams();
-  //const [team, setTeam] = useState<Team | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [warnings, setWarnings] = useState<string[] | null>(null); // State to handle warnings
 
-  const [newTeamName, setNewTeamName] = useState('');
+  const [newTeamName, setNewTeamName] = useState("");
   const [selectedCaptainId, setSelectedCaptainId] = useState<string | null>(null);
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
 
@@ -40,48 +28,46 @@ export default function EditTeam() {
       try {
         const res = await fetch(`/api/admin/teams/${id}`);
         const data = await res.json();
-  
+
         if (data) {
-         // setTeam(data);
           setNewTeamName(data.name);
-          setSelectedCaptainId(data.captain ? data.captain.id : null);
-          setSelectedMembers(data.players ? data.players.map((member: User) => member.id) : []);
+          setSelectedCaptainId(data.captain?.id || null);
+          setSelectedMembers(data.memberships?.map((membership: TeamMembership) => membership.userId) || []);
         }
       } catch (err) {
-        console.error('Error fetching team:', err);
-        setError('Failed to fetch team data');
+        console.error("Error fetching team:", err);
+        setError("Failed to fetch team data");
       } finally {
-        setLoading(false);  // Ensure loading is set to false here
+        setLoading(false);
       }
     }
-  
+
     async function fetchUsers() {
       try {
-        const res = await fetch('/api/admin/users');
+        const res = await fetch("/api/admin/users");
         const data = await res.json();
         setUsers(data);
       } catch (err) {
-        console.error('Error fetching users:', err);
-        setError('Failed to fetch users');
+        console.error("Error fetching users:", err);
+        setError("Failed to fetch users");
       }
     }
-  
+
     fetchTeam();
     fetchUsers();
-  }, [id]);  // Ensure this depends on the 'id' from params
-  
+  }, [id]);
 
   const handleSaveChanges = async () => {
     if (!newTeamName || !selectedCaptainId) {
-      alert('Please fill in all fields');
+      alert("Please fill in all fields");
       return;
     }
 
     try {
       const res = await fetch(`/api/admin/teams/${id}`, {
-        method: 'PUT',
+        method: "PUT",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           name: newTeamName,
@@ -90,21 +76,28 @@ export default function EditTeam() {
         }),
       });
 
+      const result = await res.json();
+
       if (!res.ok) {
-        throw new Error('Failed to update team');
+        throw new Error(result.error || "Failed to update team");
       }
 
-      //const updatedTeam = await res.json();
-      //setTeam(updatedTeam); // Update the team state with the new data
-      router.push(`/admin/teams/${id}`); // Redirect back to the team details page
+      // Update warnings if present
+      if (result.warnings) {
+        setWarnings(result.warnings);
+      } else {
+        setWarnings(null);
+      }
+
+      router.push(`/admin/teams/${id}`); // Redirect to the team details page
     } catch (err) {
-      console.error('Error saving changes:', err);
-      alert('Failed to save changes');
+      console.error("Error saving changes:", err);
+      alert("Failed to save changes");
     }
   };
 
   const handleCancel = () => {
-    router.push(`/admin/teams/${id}`); // Redirect back to the team details page without saving
+    router.push(`/admin/teams/${id}`);
   };
 
   if (loading) {
@@ -122,6 +115,18 @@ export default function EditTeam() {
       <div className="bg-white p-6 rounded shadow-md">
         <h2 className="text-xl font-semibold mb-4">Team Information</h2>
 
+        {/* Show warnings if they exist */}
+        {warnings && (
+          <div className="mb-4 p-4 bg-yellow-100 border border-yellow-400 rounded text-yellow-800">
+            <h3 className="font-semibold">Warnings:</h3>
+            <ul className="list-disc ml-6">
+              {warnings.map((warning, index) => (
+                <li key={index}>{warning}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <div className="space-y-4 mb-6">
           <div>
             <label className="block font-medium mb-1">Team Name</label>
@@ -137,7 +142,7 @@ export default function EditTeam() {
             <label className="block font-medium mb-1">Select Captain</label>
             <select
               className="border border-gray-300 p-2 rounded w-full"
-              value={selectedCaptainId || ''}
+              value={selectedCaptainId || ""}
               onChange={(e) => setSelectedCaptainId(e.target.value)}
             >
               <option value="">Select a captain</option>
@@ -155,7 +160,9 @@ export default function EditTeam() {
               multiple
               className="border border-gray-300 p-2 rounded w-full"
               value={selectedMembers}
-              onChange={(e) => setSelectedMembers(Array.from(e.target.selectedOptions, (option) => option.value))}
+              onChange={(e) =>
+                setSelectedMembers(Array.from(e.target.selectedOptions, (option) => option.value))
+              }
             >
               {users.map((user) => (
                 <option key={user.id} value={user.id}>

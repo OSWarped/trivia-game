@@ -26,3 +26,29 @@ export async function GET(req: Request, { params }: { params: Promise<{ gameId: 
     return NextResponse.json({ error: 'Failed to fetch game' }, { status: 500 });
   }
 }
+
+export async function PUT(
+  req: Request,
+  { params }: { params: Promise<{ gameId: string }> }
+) {
+  const { gameId } = await params;
+
+  try {
+    // Update the game's status to COMPLETED
+    const updatedGame = await prisma.game.update({
+      where: { id: gameId },
+      data: { status: "COMPLETED" },
+    });
+
+    return NextResponse.json({
+      message: "Game status updated to COMPLETED",
+      game: updatedGame,
+    });
+  } catch (error) {
+    console.error("Error updating game status:", error);
+    return NextResponse.json(
+      { error: "Failed to update game status" },
+      { status: 500 }
+    );
+  }
+}

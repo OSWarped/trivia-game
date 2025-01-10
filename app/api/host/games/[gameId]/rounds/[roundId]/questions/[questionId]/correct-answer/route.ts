@@ -11,7 +11,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ gameId:
     // Create a correct answer for the specified question
     const newCorrectAnswer = await prisma.correctAnswer.create({
       data: {
-        answer: correctAnswerData.answer, // The correct answer text
+        answer: correctAnswerData.answerText, // The correct answer text
         questionId: questionId,           // Linking it to the questionId
       },
     });

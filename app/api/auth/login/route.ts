@@ -31,7 +31,7 @@ export async function POST(req: Request) {
 
     // Sign the JWT with the user roles and userId
     const token = jwt.sign({ userId: user.id, roles }, JWT_SECRET, {
-      expiresIn: '2h',
+      expiresIn: '3h',
     });
 
     // Set the cookie in the response

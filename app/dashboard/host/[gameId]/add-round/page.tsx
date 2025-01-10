@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { useParams } from 'next/navigation';
-import router from 'next/router';
+import { useParams, useRouter } from 'next/navigation';
+
 
 export default function CreateRound() {
+  const router = useRouter();
   const { gameId } = useParams(); // Get the gameId from the URL parameters
   const [round, setRound] = useState({
     name: '',

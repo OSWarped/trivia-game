@@ -2,7 +2,7 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { Server } = require("socket.io");
 
-const PORT = 3001; // Choose a port for your WebSocket server
+const PORT = 3009; // Choose a port for your WebSocket server
 
 // Create a new WebSocket server
 const io = new Server(PORT, {
@@ -62,23 +62,23 @@ io.on("connection", (socket) => {
   });
 
   // Listen for the host updating the current round
-  socket.on("host:updateRound", async ({ gameId, roundId }) => {
-    try {
-      const round = await prisma.round.findUnique({
-        where: { id: roundId },
-      });
+  // socket.on("host:updateRound", async ({ gameId, roundId }) => {
+  //   try {
+  //     const round = await prisma.round.findUnique({
+  //       where: { id: roundId },
+  //     });
 
-      if (!round) {
-        console.error("Round not found");
-        return;
-      }
+  //     if (!round) {
+  //       console.error("Round not found");
+  //       return;
+  //     }
 
-      console.log(`Round ${round.name} started with updated points pool.`);
-      io.emit("game:roundUpdated", { round }); // Notify clients
-    } catch (error) {
-      console.error("Error updating round:", error);
-    }
-  });
+  //     console.log(`Round ${round.name} started with updated points pool.`);
+  //     io.emit("game:roundUpdated", { round }); // Notify clients
+  //   } catch (error) {
+  //     console.error("Error updating round:", error);
+  //   }
+  // });
 
   // Listen for host moving to a transition
   socket.on("host:transition", (data) => {

@@ -4,7 +4,13 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { io } from "socket.io-client";
 
-const socket = io("http://localhost:3001"); // Ensure this matches your WebSocket server URL
+const websocketURL = process.env.NEXT_PUBLIC_WEBSOCKET_URL;
+console.log("connection to " + websocketURL);
+
+//const socket = io(websocketURL); // Ensure this matches your WebSocket server URL
+//const socket = io('http://192.168.1.75:3009');
+const socket = io('http://104.56.124.234:3009');
+
 
 
 interface GameState {

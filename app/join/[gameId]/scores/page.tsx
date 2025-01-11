@@ -4,7 +4,14 @@ import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { io } from 'socket.io-client';
 
-const socket = io('http://localhost:3001'); // WebSocket server URL
+//const websocketURL = process.env.WEBSOCKET_URL
+//const socket = io(websocketURL); // WebSocket server URL
+const socket = io('http://192.168.1.75:3009');
+// const socket = io('http://104.56.124.234:443', {
+//   transports: ['websocket'],
+// });
+
+
 
 interface Team {
   id: string;

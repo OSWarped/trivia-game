@@ -8,30 +8,35 @@ generator client {
 }
 
 model User {
-  id             String   @id @default(uuid())
-  email          String   @unique @db.Citext
-  password       String
-  name           String
-  roles          String[] // Array of roles (e.g., 'ADMIN', 'HOST', etc.)
-  memberships    TeamMembership[] // Join table for teams and games
-  captainedTeams Team[]   @relation("Captain")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id              String            @id @default(uuid())
+  email           String            @unique @db.Citext
+  password        String
+  name            String
+  roles           String[] // Array of roles (e.g., 'ADMIN', 'HOST', etc.)
+  memberships     TeamMembership[] // Join table for teams and games
+  captainedTeams  Team[]            @relation("Captain")
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  SiteMembership  SiteMembership[]
+  TeamJoinRequest TeamJoinRequest[]
+  Notification    Notification[]
 }
 
 model Team {
-  id              String   @id @default(uuid())
+  id              String            @id @default(uuid())
   name            String
   memberships     TeamMembership[] // Join table for users in this team
   captainId       String? // Optional reference to the captain
-  captain         User?    @relation("Captain", fields: [captainId], references: [id])
-  gameId          String
-  game            Game     @relation(fields: [gameId], references: [id])
-  score           Int      @default(0)
-  remainingPoints Int[]    // Array of remaining points per round
+  captain         User?             @relation("Captain", fields: [captainId], references: [id])
+  hostingSites    HostingSite[]     @relation("TeamHostingSites")
+  score           Int               @default(0)
+  remainingPoints Int[] // Array of remaining points per round
   answers         Answer[] // Add reverse relation to answers
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  TeamHostingSite TeamHostingSite[]
+  TeamJoinRequest TeamJoinRequest[]
+  teamGames       TeamGame[] // Many-to-many relationship with Games
 }
 
 model TeamMembership {
@@ -40,18 +45,43 @@ model TeamMembership {
   user      User     @relation(fields: [userId], references: [id])
   teamId    String
   team      Team     @relation(fields: [teamId], references: [id])
-  gameId    String
+  status    String   @default("ACTIVE") // ACTIVE, PENDING, REMOVED
+  createdAt DateTime @default(now())
 
-  @@unique([userId, gameId]) // Enforce one team per user per game
+  @@unique([userId]) // Enforce one team per user per game
 }
 
 model HostingSite {
+  id              String            @id @default(uuid())
+  name            String            @unique
+  location        String
+  games           Game[]
+  teams           Team[]            @relation("TeamHostingSites")
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  TeamHostingSite TeamHostingSite[]
+  SiteMembership  SiteMembership[]
+}
+
+model TeamHostingSite {
+  id            String      @id @default(uuid())
+  teamId        String
+  team          Team        @relation(fields: [teamId], references: [id])
+  hostingSiteId String
+  hostingSite   HostingSite @relation(fields: [hostingSiteId], references: [id])
+
+  @@unique([teamId, hostingSiteId]) // Prevent duplicate assignments
+}
+
+model TeamGame {
   id        String   @id @default(uuid())
-  name      String   @unique
-  location  String
-  games     Game[]
+  teamId    String
+  gameId    String
+  team      Team     @relation(fields: [teamId], references: [id])
+  game      Game     @relation(fields: [gameId], references: [id])
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+
+  @@unique([teamId, gameId]) // Ensure a team can't join the same game twice
 }
 
 model Game {
@@ -63,26 +93,28 @@ model Game {
   name          String
   status        String      @default("PENDING") // PENDING, STARTED, COMPLETED
   startedAt     DateTime? // Optional field for when the game is started
-  teams         Team[]     // Teams participating in the game
-  rounds        Round[]    // Each game has multiple rounds
-  gameState     GameState? @relation // No `fields` or `references` here
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  rounds        Round[] // Each game has multiple rounds
+  gameState     GameState?  @relation // No `fields` or `references` here
+  teamGames     TeamGame[] // Many-to-many relationship with Teams
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 }
 
 model GameState {
-  id              String   @id @default(uuid())
-  gameId          String   @unique
-  game            Game     @relation(fields: [gameId], references: [id]) // Specify `fields` and `references` here
-  currentRoundId  String?  // Tracks the current round
-  currentQuestionId String? // Tracks the current question
-  isTransitioning Boolean   @default(false) // Indicates if the game is in a transition
-  transitionMessage String? // Custom message for the transition page
-  transitionMedia  String?  // Media URL for the transition page
-  adEmbedCode      String?  // HTML or JavaScript embed code for ads/videos
-  scoresVisibleToPlayers Boolean @default(false) // New flag for score visibility
-  updatedAt       DateTime @updatedAt
-  createdAt       DateTime @default(now())
+  id                     String   @id @default(uuid())
+  gameId                 String   @unique
+  game                   Game     @relation(fields: [gameId], references: [id]) // Specify `fields` and `references` here
+  currentRoundId         String? // Tracks the current round
+  currentQuestionId      String? // Tracks the current question
+  isTransitioning        Boolean  @default(false) // Indicates if the game is in a transition
+  transitionMessage      String? // Custom message for the transition page
+  transitionMedia        String? // Media URL for the transition page
+  adEmbedCode            String? // HTML or JavaScript embed code for ads/videos
+  scoresVisibleToPlayers Boolean  @default(false) // New flag for score visibility
+  pointPool              Int[] // Array of points available for the pool round
+  pointsRemaining        Json? // JSON object to track remaining points for each team
+  updatedAt              DateTime @updatedAt
+  createdAt              DateTime @default(now())
 }
 
 model Round {
@@ -132,14 +164,14 @@ model Answer {
 }
 
 model Subquestion {
-  id            String      @id @default(uuid())
+  id            String              @id @default(uuid())
   questionId    String
-  question      Question    @relation(fields: [questionId], references: [id])
+  question      Question            @relation(fields: [questionId], references: [id])
   text          String
   correctAnswer CorrectSubquestion?
   pointsAwarded Int
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
 }
 
 model CorrectAnswer {
@@ -158,6 +190,42 @@ model CorrectSubquestion {
   subquestion   Subquestion @relation(fields: [subquestionId], references: [id])
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
+}
+
+model SiteMembership {
+  id            String      @id @default(uuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id])
+  hostingSiteId String
+  hostingSite   HostingSite @relation(fields: [hostingSiteId], references: [id])
+  createdAt     DateTime    @default(now())
+
+  @@unique([userId, hostingSiteId]) // Prevent duplicate memberships
+}
+
+model TeamJoinRequest {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  teamId      String
+  team        Team      @relation(fields: [teamId], references: [id])
+  status      String    @default("PENDING") // PENDING, APPROVED, DECLINED
+  requestedAt DateTime  @default(now())
+  approvedBy  String? // ID of the approver (captain, host, or admin)
+  approvedAt  DateTime?
+
+  @@unique([userId, teamId]) // Prevent duplicate requests
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  message   String
+  link      String? // Optional link to the relevant page
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 enum GameMode {

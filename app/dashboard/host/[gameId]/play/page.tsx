@@ -8,8 +8,8 @@ const websocketURL = process.env.NEXT_PUBLIC_WEBSOCKET_URL
 
 console.log("connection to " + websocketURL);
 //const socket = io(websocketURL); // WebSocket server URL
-//const socket = io('http://192.168.1.75:3009');
-const socket = io('http://104.56.124.234:3009');
+const socket = io('http://192.168.1.75:3009');
+//const socket = io('http://104.56.124.234:3009');
 
 
 

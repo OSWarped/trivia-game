@@ -8,7 +8,11 @@ export async function GET(req: Request) {
     console.log(req);
     const games = await prisma.game.findMany({
       include: {
-        teams: true,  // Include associated teams for each game
+        teamGames: {
+          include: {
+            team: true, // Include details of the associated teams
+          },
+        },
         hostingSite: true, // Include hosting site details
       },
     });

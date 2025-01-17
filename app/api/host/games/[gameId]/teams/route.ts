@@ -8,11 +8,18 @@ export async function GET(req: Request, { params }: { params: Promise<{ gameId: 
   const { gameId } = await params;
 
   try {
-    const teams = await prisma.team.findMany({
+    const teamGames = await prisma.teamGame.findMany({
       where: {
-        gameId,
+        gameId, // Filter by the gameId
+      },
+      include: {
+        team: true, // Include the details of the associated team
       },
     });
+    
+    // Extract the teams from the teamGames result
+    const teams = teamGames.map((teamGame) => teamGame.team);
+    
 
     return NextResponse.json(teams);
   } catch (error) {
@@ -22,8 +29,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ gameId: 
 }
 
 // POST: Add a new team to a specific game
-export async function POST(req: Request, { params }: { params: Promise<{ gameId: string }> }) {
-  const { gameId } = await params;
+export async function POST(req: Request) {
+  //const { gameId } = await params;
   const { name } = await req.json();
 
   if (!name) {
@@ -34,7 +41,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ gameId:
     const newTeam = await prisma.team.create({
       data: {
         name,
-        gameId,
       },
     });
 

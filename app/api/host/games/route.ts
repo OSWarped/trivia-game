@@ -1,82 +1,76 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import jwt from 'jsonwebtoken';
+import { getUserFromToken } from '@/utils/auth'; // Import the new utility function
 
 const prisma = new PrismaClient();
 
-interface DecodedToken {
-  userId: string;
-  email: string;
-  roles: string[];
-}
-
-export async function GET(req: Request) {
-  const user = await getUserFromRequest(req);
-
-  if (!user || !user.roles.includes('HOST')) {
-    console.error('Unauthorized access - no host role');
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
-  }
-
+export async function GET() {
   try {
-    const hostId = user.userId; // The id of the current host
+    // Get the authenticated user from the token
+    const user = await getUserFromToken();
+
+    if (!user || !user.roles.includes('HOST')) {
+      console.error('Unauthorized access - user does not have the HOST role');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    }
+
+    // Look up the user's name by email
+    const dbUser = await prisma.user.findUnique({
+      where: { email: user.email },
+      select: { id: true, name: true }, // Fetch only the necessary fields
+    });
+
+    if (!dbUser) {
+      console.error('User not found in the database');
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    const hostId = dbUser.id; // Use the ID from the database
     console.log('Host ID:', hostId);
 
-    // Fetch games for the host
+    // Fetch games hosted by the user
     const games = await prisma.game.findMany({
       where: {
         hostId: hostId, // Match the hostId from the user
       },
       include: {
         hostingSite: true, // Include hosting site details
+        teamGames: {
+          include: {
+            team: {
+              select: {
+                id: true,
+                name: true,
+              }, // Include team IDs and names
+            },
+          },
+        },
       },
     });
+    
+    // Transform the result to include the teams in the desired structure
+    const formattedGames = games.map((game) => ({
+      ...game,
+      teams: game.teamGames.map((teamGame) => teamGame.team),
+    }));
+    
+    
 
-    // Manually fetch the host (user) and attach it to each game
-    const gamesWithHost = await Promise.all(
-      games.map(async (game) => {
-        const host = await prisma.user.findUnique({
-          where: { id: game.hostId },
-          select: { name: true }, // Only select the name of the host
-        });
+    // Attach host information to the games
+    const gamesWithHost = formattedGames.map((game) => ({
+      ...game,
+      host: { name: dbUser.name }, // Use the database user's name
+    }));
 
-        return { ...game, host };
-      })
-    );
-
-    console.log('Fetched games with hosts:', gamesWithHost);
+    console.log('Fetched games with host information:', gamesWithHost);
 
     return NextResponse.json(gamesWithHost);
   } catch (error) {
     console.error('Error fetching host games:', error);
-    return NextResponse.json({ error: 'Failed to fetch host games' }, { status: 500 });
-  }
-}
-
-// Helper function to get user from request
-async function getUserFromRequest(req: Request) {
-  const token =
-    req.headers.get('Authorization')?.split(' ')[1] ||
-    req.headers.get('cookie')?.split('; ').find((cookie) => cookie.startsWith('token='))?.split('=')[1];
-
-  if (!token) return null;
-
-  try {
-    const decoded = await decodeJWT(token); // Decode the JWT to get user info
-    return decoded; // Return the decoded token directly
-  } catch (err) {
-    console.error('Failed to decode token:', err);
-    return null;
-  }
-}
-
-async function decodeJWT(token: string): Promise<DecodedToken> {
-  try {
-    const secretKey = process.env.JWT_SECRET || 'your-secret-key'; // Ensure this matches the key used when signing the JWT
-    const decoded = jwt.verify(token, secretKey) as DecodedToken;
-    return decoded;
-  } catch (error) {
-    console.error('Failed to decode JWT:', error);
-    throw new Error('Invalid or expired token');
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : 'An unexpected error occurred while fetching host games.';
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

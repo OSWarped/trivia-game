@@ -1,27 +1,30 @@
-// API: /api/teams/[teamId]/games
-
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-// GET: Fetch all upcoming games for a specific team
 export async function GET(req: Request, { params }: { params: Promise<{ teamId: string }> }) {
-  const { teamId } = await params;
-
   try {
-    const games = await prisma.game.findMany({
+    const { teamId } = await params;
+
+    if (!teamId) {
+      return NextResponse.json({ error: 'Team ID is required' }, { status: 400 });
+    }
+
+    // Fetch games joined by the team
+    const games = await prisma.teamGame.findMany({
       where: {
-        teams: {
-          some: { id: teamId },
-        },
-        date: {
-          gte: new Date(), // Filter for games on or after today
-        },
+        teamId,
+      },
+      include: {
+        game: true,
       },
     });
 
-    return NextResponse.json(games);
+    // Extract game details
+    const formattedGames = games.map((tg) => tg.game);
+
+    return NextResponse.json(formattedGames, { status: 200 });
   } catch (error) {
     console.error('Error fetching games for team:', error);
     return NextResponse.json({ error: 'Failed to fetch games' }, { status: 500 });

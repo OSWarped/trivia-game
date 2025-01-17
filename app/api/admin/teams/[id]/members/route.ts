@@ -13,16 +13,20 @@ export async function GET(
     const team = await prisma.team.findUnique({
       where: { id },
       include: {
-        game: true,
+        teamGames: {
+          include: {
+            game: true, // Include the games associated with this team
+          },
+        },
         memberships: {
           include: {
             user: true, // Fetch the user details through TeamMembership
           },
         },
-        captain: true,
+        captain: true, // Include the captain of the team
       },
     });
-
+    
     if (!team) {
       return NextResponse.json({ error: 'Team not found' }, { status: 404 });
     }
@@ -34,69 +38,76 @@ export async function GET(
   }
 }
 
-export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id: teamId } = await params;
-  const { userId } = await req.json();
+// export async function POST(
+//   req: Request,
+//   { params }: { params: Promise<{ id: string }> }
+// ) {
+//   const { id: teamId } = await params;
+//   const { userId } = await req.json();
 
-  if (!teamId || !userId) {
-    return NextResponse.json({ error: 'Team ID and User ID are required' }, { status: 400 });
-  }
+//   if (!teamId || !userId) {
+//     return NextResponse.json({ error: 'Team ID and User ID are required' }, { status: 400 });
+//   }
 
-  try {
-    // Find the team to get the associated game ID
-    const team = await prisma.team.findUnique({
-      where: { id: teamId },
-      include: { game: true },
-    });
+//   try {
+//     // Find the team to get the associated game ID
+//     const team = await prisma.team.findUnique({
+//       where: { id: teamId },
+//       include: {
+//         teamGames: {
+//           include: {
+//             game: true, // Include the associated games
+//           },
+//         },
+//       },
+//     });
+    
 
-    if (!team || !team.gameId) {
-      return NextResponse.json({ error: 'Team or game not found' }, { status: 404 });
-    }
+//     if (!team || !team.teamGames.gameId) {
+//       return NextResponse.json({ error: 'Team or game not found' }, { status: 404 });
+//     }
 
-    const gameId = team.gameId;
+//     const gameId = team.gameId;
 
-    // Check if the user is already part of another team in the same game
-    const existingMembership = await prisma.teamMembership.findFirst({
-      where: {
-        userId,
-        gameId,
-      },
-    });
+//     // Check if the user is already part of another team in the same game
+//     const existingMembership = await prisma.teamMembership.findFirst({
+//       where: {
+//         userId,
+//         gameId,
+//       },
+//     });
 
-    if (existingMembership) {
-      return NextResponse.json(
-        { error: 'User is already a member of another team in this game' },
-        { status: 400 }
-      );
-    }
+//     if (existingMembership) {
+//       return NextResponse.json(
+//         { error: 'User is already a member of another team in this game' },
+//         { status: 400 }
+//       );
+//     }
 
-    // Add the user to the team
-    await prisma.teamMembership.create({
-      data: {
-        userId,
-        teamId,
-        gameId,
-      },
-    });
+//     // Add the user to the team
+//     await prisma.teamMembership.create({
+//       data: {
+//         userId,
+//         teamId,
+//         gameId,
+//       },
+//     });
 
-    // Return the updated team information, including user memberships
-    const updatedTeam = await prisma.team.findUnique({
-      where: { id: teamId },
-      include: {
-        memberships: {
-          include: {
-            user: true, // Fetch the users through TeamMembership
-          },
-        },
-      },
-    });
+//     // Return the updated team information, including user memberships
+//     const updatedTeam = await prisma.team.findUnique({
+//       where: { id: teamId },
+//       include: {
+//         memberships: {
+//           include: {
+//             user: true, // Fetch the users through TeamMembership
+//           },
+//         },
+//       },
+//     });
 
-    return NextResponse.json(updatedTeam, { status: 200 });
-  } catch (error) {
-    console.error('Error adding user to team:', error);
-    return NextResponse.json({ error: 'Failed to add user to team' }, { status: 500 });
-  }
-}
+//     return NextResponse.json(updatedTeam, { status: 200 });
+//   } catch (error) {
+//     console.error('Error adding user to team:', error);
+//     return NextResponse.json({ error: 'Failed to add user to team' }, { status: 500 });
+//   }
+// }

@@ -14,9 +14,20 @@ export async function GET() {
           },
         },
         captain: true, // Include captain details
-        game: true,    // Include associated game details
+        teamGames: {
+          include: {
+            game: {
+              select: {
+                id: true,
+                name: true,
+                date: true,
+              },
+            },
+          },
+        },
       },
     });
+    
     return NextResponse.json(teams);
   } catch (error) {
     console.error('Error fetching teams:', error);
@@ -51,7 +62,6 @@ export async function POST(req: Request) {
           data: {
             teamId: team.id, // Use the team ID from the created team
             userId: captainId,
-            gameId: gameId || undefined, // Associate with the game if provided
           },
         });
       }

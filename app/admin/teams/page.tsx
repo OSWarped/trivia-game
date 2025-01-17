@@ -6,15 +6,16 @@ import Link from 'next/link';
 interface Team {
   id: string;
   name: string;
-  game: {
-    name: string | null;
-  } | null;
   captain: {
     name: string | null;
   } | null;
+  hostingSites: {
+    id: string;
+    name: string;
+  }[];
 }
 
-interface Game {
+interface HostingSite {
   id: string;
   name: string;
 }
@@ -26,60 +27,48 @@ interface User {
 
 export default function ManageTeams() {
   const [teams, setTeams] = useState<Team[]>([]);
-  const [games, setGames] = useState<Game[]>([]); // Initialize as an empty array
   const [users, setUsers] = useState<User[]>([]);
+  const [sites, setSites] = useState<HostingSite[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [showModal, setShowModal] = useState(false);
   const [newTeamName, setNewTeamName] = useState('');
-  const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
   const [selectedCaptainId, setSelectedCaptainId] = useState<string | null>(null);
+  const [selectedSites, setSelectedSites] = useState<string[]>([]);
 
-  // Fetch teams, games, and users
+  // Fetch teams, users, and sites
   useEffect(() => {
-    async function fetchTeams() {
+    async function fetchData() {
       setLoading(true);
       try {
-        const res = await fetch('/api/admin/teams');
-        const data = await res.json();
-        setTeams(data);
+        const [teamsRes, usersRes, sitesRes] = await Promise.all([
+          fetch('/api/admin/teams'),
+          fetch('/api/admin/users'),
+          fetch('/api/admin/sites'),
+        ]);
+        const [teamsData, usersData, sitesData] = await Promise.all([
+          teamsRes.json(),
+          usersRes.json(),
+          sitesRes.json(),
+        ]);
+        setTeams(teamsData);
+        setUsers(usersData);
+        setSites(sitesData);
       } catch (err) {
         console.error(err);
-        setError('Failed to fetch teams');
+        setError('Failed to fetch data');
       } finally {
         setLoading(false);
       }
     }
 
-    async function fetchGames() {
-      try {
-        const res = await fetch('/api/admin/games');
-        const data = await res.json();
-        setGames(Array.isArray(data) ? data : []); // Ensure 'games' is an array
-      } catch (err) {
-        console.error('Failed to fetch games:', err);
-      }
-    }
-
-    async function fetchUsers() {
-      try {
-        const res = await fetch('/api/admin/users');
-        const data = await res.json();
-        setUsers(data);
-      } catch (err) {
-        console.error('Failed to fetch users:', err);
-      }
-    }
-
-    fetchTeams();
-    fetchGames();
-    fetchUsers();
+    fetchData();
   }, []);
 
   async function handleAddTeam() {
-    if (!newTeamName || !selectedGameId || !selectedCaptainId) {
-      alert('Please fill in all fields');
+    if (!newTeamName.trim() || !selectedCaptainId) {
+      alert('Please fill in all required fields');
       return;
     }
 
@@ -91,8 +80,8 @@ export default function ManageTeams() {
         },
         body: JSON.stringify({
           name: newTeamName,
-          gameId: selectedGameId,
           captainId: selectedCaptainId,
+          siteIds: selectedSites,
         }),
       });
 
@@ -104,12 +93,18 @@ export default function ManageTeams() {
       setTeams((prev) => [...prev, newTeam]);
       setShowModal(false);
       setNewTeamName('');
-      setSelectedGameId(null);
       setSelectedCaptainId(null);
+      setSelectedSites([]);
     } catch (err) {
       console.error('Error adding team:', err);
       alert('Failed to add team');
     }
+  }
+
+  function toggleSiteSelection(siteId: string) {
+    setSelectedSites((prev) =>
+      prev.includes(siteId) ? prev.filter((id) => id !== siteId) : [...prev, siteId]
+    );
   }
 
   if (loading) {
@@ -136,17 +131,20 @@ export default function ManageTeams() {
             className="flex justify-between items-center bg-white p-4 rounded shadow-md"
           >
             <div>
-              <Link href={`/admin/teams/${team.id}`}>
-                <h2 className="text-lg font-semibold text-blue-500 hover:underline cursor-pointer">
-                  {team.name}
-                </h2>
-              </Link>
-              <p className="text-sm text-gray-600">
-                Game: {team.game?.name || 'Not Assigned'}
-              </p>
+              <h2 className="text-lg font-semibold">{team.name}</h2>
               <p className="text-sm text-gray-600">
                 Captain: {team.captain?.name || 'No Captain'}
               </p>
+              <p className="text-sm text-gray-600">
+  Hosting Sites: {team.hostingSites?.map((site) => site.name).join(', ') || 'None'}
+</p>
+            </div>
+            <div className="flex space-x-4">
+              <Link href={`/admin/teams/${team.id}`} passHref>
+                <button className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                  Edit
+                </button>
+              </Link>
             </div>
           </li>
         ))}
@@ -165,20 +163,6 @@ export default function ManageTeams() {
                 onChange={(e) => setNewTeamName(e.target.value)}
               />
 
-              <label className="block font-medium mb-1">Select Game</label>
-              <select
-                className="border border-gray-300 p-2 rounded w-full"
-                value={selectedGameId || ''}
-                onChange={(e) => setSelectedGameId(e.target.value)}
-              >
-                <option value="">Select a game</option>
-                {games.map((game) => (
-                  <option key={game.id} value={game.id}>
-                    {game.name}
-                  </option>
-                ))}
-              </select>
-
               <label className="block font-medium mb-1">Select Captain</label>
               <select
                 className="border border-gray-300 p-2 rounded w-full"
@@ -192,6 +176,20 @@ export default function ManageTeams() {
                   </option>
                 ))}
               </select>
+
+              <label className="block font-medium mb-1">Select Hosting Sites</label>
+              <ul className="space-y-2">
+                {sites.map((site) => (
+                  <li key={site.id} className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedSites.includes(site.id)}
+                      onChange={() => toggleSiteSelection(site.id)}
+                    />
+                    <span>{site.name}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
             <div className="flex justify-end space-x-4 mt-4">
               <button

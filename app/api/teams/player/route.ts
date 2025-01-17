@@ -26,13 +26,17 @@ export async function GET() {
 
     // Fetch teams via TeamMembership relation
     const memberships = await prisma.teamMembership.findMany({
-      where: {
-        userId: user.userId,
-      },
+      where: { userId: user.userId },
       include: {
         team: {
           include: {
-            game: true, // Include game details if necessary
+            teamGames: {
+              include: {
+                game: {
+                  select: { id: true, name: true, date: true },
+                },
+              },
+            },
           },
         },
       },
@@ -42,7 +46,7 @@ export async function GET() {
     const teams = memberships.map((membership) => ({
       id: membership.team.id,
       name: membership.team.name,
-      game: membership.team.game,
+      games: membership.team.teamGames,
     }));
 
     return NextResponse.json(teams);

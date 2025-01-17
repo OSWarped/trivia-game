@@ -89,7 +89,7 @@ export default function EditTeam() {
         setWarnings(null);
       }
 
-      router.push(`/admin/teams/${id}`); // Redirect to the team details page
+      router.push(`/admin/teams`); // Redirect to the team details page
     } catch (err) {
       console.error("Error saving changes:", err);
       alert("Failed to save changes");
@@ -115,17 +115,17 @@ export default function EditTeam() {
       <div className="bg-white p-6 rounded shadow-md">
         <h2 className="text-xl font-semibold mb-4">Team Information</h2>
 
-        {/* Show warnings if they exist */}
-        {warnings && (
-          <div className="mb-4 p-4 bg-yellow-100 border border-yellow-400 rounded text-yellow-800">
-            <h3 className="font-semibold">Warnings:</h3>
-            <ul className="list-disc ml-6">
-              {warnings.map((warning, index) => (
-                <li key={index}>{warning}</li>
-              ))}
-            </ul>
-          </div>
-        )}
+        {/* Warnings Section */}
+{warnings && warnings.length > 0 && (
+  <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-4 rounded">
+    <h3 className="font-semibold">Warnings:</h3>
+    <ul className="list-disc pl-5">
+      {warnings.map((warning, index) => (
+        <li key={index}>{warning}</li>
+      ))}
+    </ul>
+  </div>
+)}
 
         <div className="space-y-4 mb-6">
           <div>

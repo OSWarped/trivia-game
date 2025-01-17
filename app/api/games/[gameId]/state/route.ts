@@ -3,6 +3,9 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+type PointsRemaining = Record<string, number[]>;
+
+
 // GET: Fetch the current state of the game
 export async function GET(
   req: Request,
@@ -17,11 +20,15 @@ export async function GET(
       include: {
         game: {
           include: {
-            teams: {
+            teamGames: {
               include: {
-                memberships: {
+                team: {
                   include: {
-                    user: true, // Include user details through memberships
+                    memberships: {
+                      include: {
+                        user: true, // Include user details through memberships
+                      },
+                    },
                   },
                 },
               },
@@ -33,19 +40,19 @@ export async function GET(
         },
       },
     });
-
+  
     if (!gameState) {
       return NextResponse.json({ error: 'Game state not found' }, { status: 404 });
     }
-
+  
     const currentRound = gameState.currentRoundId
       ? gameState.game.rounds.find((round) => round.id === gameState.currentRoundId)
       : null;
-
+  
     const currentQuestion = gameState.currentQuestionId
       ? currentRound?.questions.find((question) => question.id === gameState.currentQuestionId)
       : null;
-
+  
     return NextResponse.json({
       game: {
         id: gameState.game.id,
@@ -69,15 +76,22 @@ export async function GET(
             }
           : null,
       },
-      teams: gameState.game.teams.map((team) => ({
-        id: team.id,
-        name: team.name,
-        players: team.memberships.map((membership) => ({
-          id: membership.user.id,
-          name: membership.user.name,
-        })),
-        remainingPoints: team.remainingPoints || currentRound?.pointPool || [],
-      })),
+      teams: gameState.game.teamGames.map((teamGame) => {
+        // Cast pointsRemaining to the defined type
+        const pointsRemaining = (gameState.pointsRemaining as PointsRemaining)[teamGame.team.id]
+          ? (gameState.pointsRemaining as PointsRemaining)[teamGame.team.id]
+          : currentRound?.pointPool || [];
+      
+        return {
+          id: teamGame.team.id,
+          name: teamGame.team.name,
+          players: teamGame.team.memberships.map((membership) => ({
+            id: membership.user.id,
+            name: membership.user.name,
+          })),
+          remainingPoints: pointsRemaining,
+        };
+      }), // Fixed missing closing parenthesis
     });
   } catch (error) {
     console.error('Error fetching game state:', error);
@@ -86,6 +100,7 @@ export async function GET(
       { status: 500 }
     );
   }
+  
 }
 
 // POST: Submit an answer for the team

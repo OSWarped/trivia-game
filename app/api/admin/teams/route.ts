@@ -7,7 +7,11 @@ export async function GET() {
   try {
     const teams = await prisma.team.findMany({
       include: {
-        game: true, // Include related game details
+        teamGames: {
+          include: {
+            game: true, // Include related game details through the TeamGame relationship
+          },
+        },
         captain: true, // Include the team captain
         memberships: {
           include: {
@@ -16,6 +20,7 @@ export async function GET() {
         },
       },
     });
+    
 
     // Map the data to include members in a readable format
     const teamsWithMembers = teams.map((team) => ({
@@ -35,37 +40,32 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-    try {
-      const { name, gameId, captainId } = await req.json();
-  
-      if (!name || !gameId) {
-        return NextResponse.json({ error: 'Name and game ID are required' }, { status: 400 });
-      }
-  
-      // Validate gameId and captainId before proceeding
-      const gameExists = await prisma.game.findUnique({ where: { id: gameId } });
-      if (!gameExists) {
-        return NextResponse.json({ error: 'Invalid game ID' }, { status: 400 });
-      }
-  
+  try {
+    const { name, captainId } = await req.json();
+
+    if (!name) {
+      return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+    }
+
+    // Validate captainId before proceeding
+    if (captainId) {
       const captainExists = await prisma.user.findUnique({ where: { id: captainId } });
       if (!captainExists) {
         return NextResponse.json({ error: 'Invalid captain ID' }, { status: 400 });
       }
-  
-      // Create the team with explicit connections
-      const newTeam = await prisma.team.create({
-        data: {
-          name,
-          game: { connect: { id: gameId } },
-          captain: captainId ? { connect: { id: captainId } } : undefined,
-        },
-      });
-  
-      return NextResponse.json(newTeam, { status: 201 });
-    } catch (error) {
-      console.error('Error creating team:', error);
-      return NextResponse.json({ error: 'Failed to create team' }, { status: 500 });
     }
+
+    // Create the team without referencing a game
+    const newTeam = await prisma.team.create({
+      data: {
+        name,
+        captain: captainId ? { connect: { id: captainId } } : undefined,
+      },
+    });
+
+    return NextResponse.json(newTeam, { status: 201 });
+  } catch (error) {
+    console.error('Error creating team:', error);
+    return NextResponse.json({ error: 'Failed to create team' }, { status: 500 });
   }
-  
+}

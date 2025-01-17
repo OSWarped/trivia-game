@@ -33,7 +33,13 @@ export async function GET(
 
     // Fetch teams and dynamically calculate scores
     const teams = await prisma.team.findMany({
-      where: { gameId },
+      where: {
+        teamGames: {
+          some: {
+            gameId, // Filter teams associated with the specific gameId
+          },
+        },
+      },
       select: {
         id: true,
         name: true,
@@ -44,6 +50,7 @@ export async function GET(
         },
       },
     });
+    
 
     // Calculate the total score for each team
     const teamsWithScores = teams.map((team) => {

@@ -10,22 +10,21 @@ export async function GET(
   const { userId } = await params;
 
   // Parse the `gameId` query parameter
-  const url = new URL(req.url);
-  const gameId = url.searchParams.get("gameId");
+  //const url = new URL(req.url);
+  //const gameId = url.searchParams.get("gameId");
 
-  if (!gameId) {
-    return NextResponse.json(
-      { error: "Missing gameId query parameter" },
-      { status: 400 }
-    );
-  }
+  // if (!gameId) {
+  //   return NextResponse.json(
+  //     { error: "Missing gameId query parameter" },
+  //     { status: 400 }
+  //   );
+  // }
 
   try {
     // Find the team for the user in the specified game
     const membership = await prisma.teamMembership.findFirst({
       where: {
         userId,
-        gameId,
       },
       include: {
         team: true, // Include team details

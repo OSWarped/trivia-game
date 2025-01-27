@@ -2,7 +2,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import { TeamGame } from '@prisma/client';
+import { Team } from '@prisma/client';
+import { io } from "socket.io-client";
+
+const socket = io('http://localhost:3009'); // Adjust WebSocket server URL
+
 
 interface HostingSite {
   id: string;
@@ -11,15 +15,20 @@ interface HostingSite {
   joined: boolean; // Indicates if the team is joined to the site
 
 }
+interface TeamGame {
+  id: string;
+  teamId: string;
+  createdAt: Date;
+  gameId: string;
+}
 
 interface Game {
   id: string;
   name: string;
   date: string;
-  teams: { id: string }[]; // List of team IDs already in the game
+  teams: { id: string }[];
   teamGames: TeamGame[];
 }
-
 interface TeamMember {
   id: string;
   name: string;
@@ -34,6 +43,7 @@ interface JoinRequest {
 
 export default function ManageTeamPage() {
   const { teamId } = useParams();
+  const [team, setTeam] = useState<Team | null>(null);
   const [hostingSites, setHostingSites] = useState<HostingSite[]>([]);
   const [upcomingGames, setUpcomingGames] = useState<{ [key: string]: Game[] }>({});
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
@@ -43,13 +53,15 @@ export default function ManageTeamPage() {
   useEffect(() => {
     if (!teamId) return;
   
-    // Fetch hosting sites, team members, and join requests
+    // Fetch team data and other related data
     Promise.all([
+      fetch(`/api/teams/${teamId}`).then((res) => res.json()),
       fetch(`/api/teams/${teamId}/sites`).then((res) => res.json()),
       fetch(`/api/teams/${teamId}/members`).then((res) => res.json()),
       fetch(`/api/teams/${teamId}/join-requests`).then((res) => res.json()),
     ])
-      .then(([sites, members, requests]) => {
+      .then(([teamData, sites, members, requests]) => {
+        setTeam(teamData); // Populate team data
         setHostingSites(sites);
         setTeamMembers(members);
         setJoinRequests(requests);
@@ -65,7 +77,6 @@ export default function ManageTeamPage() {
         );
       })
       .then((siteGames) => {
-        // Map games by siteId for easy access
         const gamesBySite = siteGames.reduce((acc, { siteId, games }) => {
           acc[siteId] = games;
           return acc;
@@ -77,6 +88,7 @@ export default function ManageTeamPage() {
         setError('Failed to fetch data');
       });
   }, [teamId]);
+  
   
 
   const toggleSiteMembership = async (siteId: string, joined: boolean) => {
@@ -161,7 +173,7 @@ export default function ManageTeamPage() {
   };
 
   const joinGame = async (gameId: string) => {
-    if (!teamId) return;
+    if (!teamId || !team) return;
   
     try {
       const response = await fetch(`/api/games/${gameId}/join`, {
@@ -176,17 +188,57 @@ export default function ManageTeamPage() {
         throw new Error(data.error || 'Failed to join the game.');
       }
   
-      alert('Team successfully joined the game.');
+      // Emit a WebSocket signal to notify other clients
+      socket.emit('team:addToGame', {
+        teamId,
+        teamName: team.name,
+        gameId,
+      });
   
-      // Refresh upcoming games for the site
-      const gamesRes = await fetch(`/api/sites/${gameId}/games`);
-      const gamesData = await gamesRes.json();
-      setUpcomingGames((prev) => ({ ...prev, [gameId]: gamesData }));
+      // Update the `upcomingGames` state
+      setUpcomingGames((prev) => {
+        const siteId = Object.keys(prev).find((id) =>
+          prev[id].some((game) => game.id === gameId)
+        );
+  
+        if (!siteId) {
+          console.warn('Site not found for the game.');
+          return prev; // Return unchanged state
+        }
+  
+        return {
+          ...prev,
+          [siteId]: prev[siteId].map((game) => {
+            if (game.id === gameId) {
+              // Ensure `teamGames` structure matches `TeamGame` type
+              const updatedTeamGames: TeamGame[] = [
+                ...game.teamGames,
+                {
+                  id: `${teamId}-${gameId}`, // Generate a unique ID
+                  teamId: teamId as string,
+                  createdAt: new Date(),
+                  gameId,
+                },
+              ];
+  
+              return {
+                ...game,
+                teamGames: updatedTeamGames, // Updated teamGames array
+              };
+            }
+            return game;
+          }),
+        };
+      });
+  
+      console.log('Successfully joined the game and updated UI.');
     } catch (error) {
       console.error('Error joining game:', error);
       setError('Failed to join the game.');
     }
   };
+  
+  
 
   // const leaveGame = async (gameId: string) => {
   //   if (!teamId) return;
@@ -223,59 +275,56 @@ export default function ManageTeamPage() {
 
       {/* Hosting Sites Section */}
       <section className="team-games mb-8">
-  <h2 className="text-xl font-semibold text-gray-700 mb-2">Hosting Sites</h2>
-  {hostingSites.map((site) => (
-    <div key={site.id} className="p-4 bg-white rounded-lg shadow mb-4">
-      <h3 className="text-lg font-medium text-gray-800">{site.name}</h3>
-      <p className="text-sm text-gray-600">{site.location}</p>
+        <h2 className="text-xl font-semibold text-gray-700 mb-2">Hosting Sites</h2>
+        {hostingSites.map((site) => (
+          <div key={site.id} className="p-4 bg-white rounded-lg shadow mb-4">
+            <h3 className="text-lg font-medium text-gray-800">{site.name}</h3>
+            <p className="text-sm text-gray-600">{site.location}</p>
 
-      {/* Join/Leave Button */}
-      <button
-        className={`mt-2 px-4 py-2 rounded-lg shadow ${
-          site.joined
-            ? 'bg-red-500 text-white hover:bg-red-600'
-            : 'bg-blue-500 text-white hover:bg-blue-600'
-        }`}
-        onClick={() => toggleSiteMembership(site.id, site.joined)}
-      >
-        {site.joined ? 'Leave' : 'Join'}
-      </button>
+            {/* Join/Leave Button */}
+            <button
+              className={`mt-2 px-4 py-2 rounded-lg shadow ${
+                site.joined
+                  ? 'bg-red-500 text-white hover:bg-red-600'
+                  : 'bg-blue-500 text-white hover:bg-blue-600'
+              }`}
+              onClick={() => toggleSiteMembership(site.id, site.joined)}
+            >
+              {site.joined ? 'Leave' : 'Join'}
+            </button>
 
-      {/* Games List */}
-      {site.joined && (
-        <ul className="mt-2 space-y-2">
-          {(upcomingGames[site.id] || []).map((game) => {
-            // Check if the team is already joined to this game
-            const isJoined = game.teamGames.some((tg) => tg.teamId === teamId);
+            {/* Games List */}
+            {site.joined && (
+              <ul className="mt-2 space-y-2">
+                {(upcomingGames[site.id] || []).map((game) => {
+                  // Check if the team is already joined to this game
+                  const isJoined = game.teamGames.some((tg) => tg.teamId === teamId);
 
-            return (
-              <li key={game.id} className="p-2 bg-gray-100 rounded-lg">
-                <h4 className="font-semibold">{game.name}</h4>
-                <p className="text-sm">Date: {new Date(game.date).toLocaleDateString()}</p>
+                  return (
+                    <li key={game.id} className="p-2 bg-gray-100 rounded-lg">
+                      <h4 className="font-semibold">{game.name}</h4>
+                      <p className="text-sm">Date: {new Date(game.date).toLocaleDateString()}</p>
 
-                {isJoined ? (
-                  // Indicate that the team is already in this game
-                  <p className="mt-1 text-green-600 font-medium">Already Joined</p>
-                ) : (
-                  // Show Join button if the team is not in the game
-                  <button
-                    className="mt-1 px-4 py-2 bg-blue-500 text-white rounded-lg shadow hover:bg-blue-600"
-                    onClick={() => joinGame(game.id)}
-                  >
-                    Join Game
-                  </button>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </div>
-  ))}
-</section>
-
-
-
+                      {isJoined ? (
+                        // Indicate that the team is already in this game
+                        <p className="mt-1 text-green-600 font-medium">Already Joined</p>
+                      ) : (
+                        // Show Join button if the team is not in the game
+                        <button
+                          className="mt-1 px-4 py-2 bg-blue-500 text-white rounded-lg shadow hover:bg-blue-600"
+                          onClick={() => joinGame(game.id)}
+                        >
+                          Join Game
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        ))}
+      </section>
 
       {/* Team Members */}
       <section className="mt-8">

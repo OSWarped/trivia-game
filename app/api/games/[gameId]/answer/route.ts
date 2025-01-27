@@ -9,11 +9,11 @@ export async function POST(
 ) {
   const { gameId } = await params;
   const body = await req.json();
-  const { teamId, questionId, answer, pointsUsed, subAnswers } = body;
+  const { teamId, questionId, answer, pointsUsed, subAnswers, pointSystem } = body;
 
-  if (!teamId || !questionId || (!answer && !subAnswers)) {
+  if (!teamId || !questionId || !pointSystem || (!answer && !subAnswers)) {
     return NextResponse.json(
-      { error: 'Missing required fields: teamId, questionId, or answer/subAnswers' },
+      { error: 'Missing required fields: teamId, questionId, point system, or answer/subAnswers' },
       { status: 400 }
     );
   }
@@ -34,12 +34,12 @@ export async function POST(
     // Parse the pointsRemaining from gameState
     const pointsRemaining = gameState.pointsRemaining as Record<string, number[]>;
 
-    if (!pointsRemaining || !pointsRemaining[teamId]) {
-      return NextResponse.json(
-        { error: 'Team points not found in the game state' },
-        { status: 404 }
-      );
-    }
+    // if (!pointsRemaining || !pointsRemaining[teamId]) {
+    //   return NextResponse.json(
+    //     { error: 'Team points not found in the game state' },
+    //     { status: 404 }
+    //   );
+    // }
 
     // Fetch the current round and question
     const [currentRound, currentQuestion] = await Promise.all([
@@ -60,6 +60,15 @@ export async function POST(
         { status: 404 }
       );
     }
+
+    // Validate the point system from the payload
+    if (pointSystem !== currentRound.pointSystem) {
+      return NextResponse.json(
+        { error: 'Point system mismatch between payload and current round' },
+        { status: 400 }
+      );
+    }
+
 
     // Handle point validation based on the point system
     if (currentRound.pointSystem === 'POOL') {

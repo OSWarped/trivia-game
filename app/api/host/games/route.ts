@@ -33,6 +33,9 @@ export async function GET() {
       where: {
         hostId: hostId, // Match the hostId from the user
       },
+      orderBy: {
+        date: 'asc',
+      },
       include: {
         hostingSite: true, // Include hosting site details
         teamGames: {

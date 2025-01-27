@@ -17,6 +17,7 @@ interface Game {
   name: string;
   date: string;
   hostingSite: HostingSite;
+  status: string;
 }
 
 interface Team {
@@ -197,36 +198,37 @@ export default function PlayerDashboard() {
       </section>
 
       <section className="games">
-        <h2 className="text-xl font-semibold text-gray-700 mb-2">Upcoming Games</h2>
-        {games.length > 0 ? (
-          <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {games.map((game) => {
-              const isToday = new Date(game.date).toDateString() === new Date().toDateString();
+  <h2 className="text-xl font-semibold text-gray-700 mb-2">Upcoming Games</h2>
+  {games.length > 0 ? (
+    <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {games.map((game) => {
+        //const isToday = new Date(game.date).toDateString() === new Date().toDateString();
 
-              return (
-                <li key={game.id} className="p-4 bg-white rounded-lg shadow">
-                  <h3 className="text-lg font-medium text-gray-800">{game.name}</h3>
-                  <p className="text-gray-600 text-sm">
-                    Date: {formatDateUTC(new Date(game.date).toISOString())}
-                    <br />
-                    Location: {game.hostingSite.name} ({game.hostingSite.location})
-                  </p>
-                  {isToday && (
-                    <button
-                      className="mt-2 px-4 py-2 bg-green-500 text-white rounded-lg shadow hover:bg-green-600"
-                      onClick={() => alert(`Join game: ${game.name}`)}
-                    >
-                      Join Game
-                    </button>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        ) : (
-          <p className="text-gray-600">No upcoming games found.</p>
-        )}
-      </section>
+        return (
+          <li key={game.id} className="p-4 bg-white rounded-lg shadow">
+            <h3 className="text-lg font-medium text-gray-800">{game.name}</h3>
+            <p className="text-gray-600 text-sm">
+              Date: {formatDateUTC(new Date(game.date).toISOString())}
+              <br />
+              Location: {game.hostingSite.name} ({game.hostingSite.location})
+            </p>
+            {game.status === "IN_PROGRESS" && (
+              <button
+                className="mt-2 px-4 py-2 bg-green-500 text-white rounded-lg shadow hover:bg-green-600"
+                onClick={() => router.push(`/join/${game.id}`)} // Navigate to /join/[gameId]
+              >
+                Join Game
+              </button>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  ) : (
+    <p className="text-gray-600">No upcoming games found.</p>
+  )}
+</section>
+
 
       {modalOpen && (
   <div className="fixed inset-0 bg-gray-800 bg-opacity-50 flex justify-center items-center z-50">

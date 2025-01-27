@@ -78,6 +78,7 @@ export async function GET() {
     const result = formattedGames.map((game) => ({
       id: game.id,
       name: game.name,
+      status: game.status,
       date: game.date.toISOString().split('T')[0], // Extract only the date
       hostingSite: game.hostingSite,
       teams: game.teams,

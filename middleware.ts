@@ -9,7 +9,7 @@ interface DecodedToken {
 
 export async function middleware(req: Request) {
   const { pathname } = new URL(req.url);
-  console.log("Middleware attempting to get token from cookies");
+  //console.log("Middleware attempting to get token from cookies");
 
   // Extract token from cookies (HttpOnly cookies)
   const token = req.headers.get('cookie')?.split('; ').find((cookie) => cookie.startsWith('token='))?.split('=')[1];
@@ -29,7 +29,7 @@ export async function middleware(req: Request) {
       new TextEncoder().encode(process.env.JWT_SECRET)
     ) as { payload: DecodedToken };
 
-    console.log('JWT payload:', payload); // Log the payload to ensure roles are present
+    //console.log('JWT payload:', payload); // Log the payload to ensure roles are present
 
     // Allow admin to access admin routes
     if (pathname.startsWith('/api/admin') && (!payload.roles || !payload.roles.includes('ADMIN'))) {

@@ -3,7 +3,10 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-export async function GET(req: Request, { params }: { params: Promise<{ questionId: string }> }) {
+export async function GET(
+  req: Request,
+  { params }: { params: Promise<{ questionId: string }> }
+) {
   const { questionId } = await params;
 
   try {
@@ -12,9 +15,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ question
         id: questionId,
       },
       include: {
-        correctAnswer: true, // Include the correct answer
-        answers: true, // Include other answers if needed
-        subquestions: true, // Include subquestions
+        correctAnswer: true, // Include the correct answer for the main question (if applicable)
+        answers: true, // Include submitted answers for the main question
+        subquestions: {
+          include: {
+            correctAnswer: true, // Include the correct answers for subquestions
+            subAnswers: true, // Include submitted answers for subquestions
+          },
+        },
         round: true, // Include the associated round
       },
     });
@@ -23,12 +31,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ question
       return NextResponse.json({ error: 'Question not found' }, { status: 404 });
     }
 
-    // Format the response to include the correct answer in the `answers` array
+    // Format the response to include subquestions with their respective correct answers
     const response = {
       ...question,
-      answers: question.correctAnswer
-        ? [question.correctAnswer.answer, ...question.answers.map((a) => a.answer)]
-        : question.answers.map((a) => a.answer),
+      subquestions: question.subquestions.map((subquestion) => ({
+        ...subquestion,
+        correctAnswer: subquestion.correctAnswer?.answer || null,
+        subAnswers: subquestion.subAnswers || [],
+      })),
     };
 
     return NextResponse.json(response);
@@ -58,6 +68,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ question
         type: body.type,
         pointValue: body.pointValue,
         roundId: body.roundId,
+        sortOrder: body.sortOrder,
         updatedAt: new Date(),
       },
     });

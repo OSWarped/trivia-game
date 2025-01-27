@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 
-
 export default function CreateRound() {
   const router = useRouter();
   const { gameId } = useParams(); // Get the gameId from the URL parameters
@@ -16,8 +15,10 @@ export default function CreateRound() {
     wagerLimit: null,
     pointPool: [''], // Keep it as an array of strings initially
     pointValue: null,
-    sortOrder: 0,
+    sortOrder: 1, // Default to 1 for new rounds
   });
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (field: string, value: string | string[]) => {
     setRound({
@@ -26,44 +27,74 @@ export default function CreateRound() {
     });
   };
 
-  const handleSubmit = async (e: { preventDefault: () => void; }) => {
+  const validateRound = () => {
+    if (!round.name.trim()) return 'Round name is required.';
+    if (round.pointSystem === 'FLAT' && (round.pointValue === null || round.pointValue <= 0)) {
+      return 'Point value must be greater than 0 for Flat Point System.';
+    }
+    if (round.pointSystem === 'POOL' && round.pointPool.every((p) => isNaN(parseInt(p, 10)))) {
+      return 'Point pool must include valid numbers.';
+    }
+    return null;
+  };
+
+  const handleSubmit = async (e: { preventDefault: () => void }) => {
     e.preventDefault();
+
+    const validationError = validateRound();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
 
     // Validate and convert the pointPool to an array of numbers
     const convertedPointPool = round.pointPool
       .map((value) => parseInt(value.trim(), 10))
       .filter((value) => !isNaN(value)); // Remove invalid values (NaN)
 
-    const payload = {
-      ...round,
-      maxPoints: round.maxPoints === '' ? null : Number(round.maxPoints),
-      timeLimit: round.timeLimit === '' ? null : Number(round.timeLimit),
-      wagerLimit: round.wagerLimit === '' ? null : Number(round.wagerLimit),
-      pointPool: convertedPointPool.length > 0 ? convertedPointPool : null, // Only send pointPool if it's valid
-      pointValue: round.pointValue === '' ? null : Number(round.pointValue),
-      sortOrder: Number(round.sortOrder),
-    };
+      const payload = {
+        ...round,
+        maxPoints: round.maxPoints ? Number(round.maxPoints) : null,
+        timeLimit: round.timeLimit ? Number(round.timeLimit) : null,
+        wagerLimit: round.wagerLimit ? Number(round.wagerLimit) : null,
+        pointPool: convertedPointPool.length > 0 ? convertedPointPool : null, // Only send pointPool if it's valid
+        pointValue: round.pointValue ? Number(round.pointValue) : null,
+        sortOrder: Number(round.sortOrder) || 1, // Default to 1 if invalid
 
-    const response = await fetch(`/api/host/games/${gameId}/rounds`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
+      };
+      
+    try {
+      const response = await fetch(`/api/host/games/${gameId}/rounds`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
 
-    if (response.ok) {
-      alert('Round created successfully');
-      // Redirect to the game page where rounds are displayed
-      router.push(`/dashboard/host/${gameId}`);
-    } else {
-      alert('Failed to create round');
+      if (response.ok) {
+        alert('Round created successfully');
+        router.push(`/dashboard/host/${gameId}`);
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || 'Failed to create round');
+      }
+    } catch (err) {
+      console.error('Error creating round:', err);
+      setError('An unexpected error occurred. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <div className="max-w-4xl mx-auto p-6 bg-white shadow-md rounded-lg">
       <h1 className="text-3xl font-semibold text-center mb-8">Create New Round</h1>
+
+      {error && <p className="text-red-500 mb-4">{error}</p>}
 
       <form onSubmit={handleSubmit}>
         {/* Round Name */}
@@ -105,7 +136,7 @@ export default function CreateRound() {
           </select>
         </div>
 
-        {/* Point Value (if flat point system) */}
+        {/* Conditional Inputs */}
         {round.pointSystem === 'FLAT' && (
           <div className="mb-6">
             <label className="block text-sm font-medium text-gray-700">Point Value</label>
@@ -119,7 +150,6 @@ export default function CreateRound() {
           </div>
         )}
 
-        {/* Point Pool (if point pool system) */}
         {round.pointSystem === 'POOL' && (
           <div className="mb-6">
             <label className="block text-sm font-medium text-gray-700">Point Pool</label>
@@ -133,7 +163,6 @@ export default function CreateRound() {
           </div>
         )}
 
-        {/* Max Points (if wager round) */}
         {round.roundType === 'WAGER' && (
           <div className="mb-6">
             <label className="block text-sm font-medium text-gray-700">Max Points</label>
@@ -147,7 +176,6 @@ export default function CreateRound() {
           </div>
         )}
 
-        {/* Time Limit (if time-based) */}
         {round.roundType === 'TIME_BASED' && (
           <div className="mb-6">
             <label className="block text-sm font-medium text-gray-700">Time Limit (seconds)</label>
@@ -166,7 +194,7 @@ export default function CreateRound() {
           <label className="block text-sm font-medium text-gray-700">Sort Order</label>
           <input
             type="number"
-            value={round.sortOrder || 1}
+            value={round.sortOrder}
             onChange={(e) => handleChange('sortOrder', e.target.value)}
             placeholder="Enter sort order"
             className="mt-2 w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -178,11 +206,12 @@ export default function CreateRound() {
           <button
             type="submit"
             className="bg-blue-500 text-white py-3 px-6 rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            disabled={loading}
           >
-            Save Round
+            {loading ? 'Saving...' : 'Save Round'}
           </button>
         </div>
       </form>
-    </div>
+      </div>
   );
 }

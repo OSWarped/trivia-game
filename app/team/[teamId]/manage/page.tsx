@@ -79,40 +79,41 @@ export default function ManageTeamPage() {
   }, [teamId]);
   
 
-  // const toggleSiteMembership = async (siteId: string, joined: boolean) => {
-  //   const endpoint = joined
-  //     ? `/api/teams/${teamId}/sites/leave`
-  //     : `/api/teams/${teamId}/sites/join`;
+  const toggleSiteMembership = async (siteId: string, joined: boolean) => {
+    const endpoint = joined
+      ? `/api/teams/${teamId}/sites/leave`
+      : `/api/teams/${teamId}/sites/join`;
 
-  //   try {
-  //     const res = await fetch(endpoint, {
-  //       method: 'POST',
-  //       headers: { 'Content-Type': 'application/json' },
-  //       body: JSON.stringify({ siteId }),
-  //     });
-  //     if (!res.ok) throw new Error();
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ siteId }),
+      });
+      if (!res.ok) throw new Error();
 
-  //     // Update hosting sites and games
-  //     setHostingSites((prev) =>
-  //       prev.map((site) => (site.id === siteId ? { ...site, joined: !joined } : site))
-  //     );
+      // Update hosting sites and games
+      setHostingSites((prev) =>
+        prev.map((site) => (site.id === siteId ? { ...site, joined: !joined } : site))
+      );
 
-  //     if (!joined) {
-  //       // Fetch games for the newly joined site
-  //       const gamesRes = await fetch(`/api/sites/${siteId}/games`);
-  //       const gamesData = await gamesRes.json();
-  //       setUpcomingGames((prev) => ({ ...prev, [siteId]: gamesData }));
-  //     } else {
-  //       // Remove games for the left site
-  //       setUpcomingGames((prev) => {
-  //         const { [siteId]: _, ...remaining } = prev;
-  //         return remaining;
-  //       });
-  //     }
-  //   } catch {
-  //     setError('Failed to update site membership');
-  //   }
-  // };
+      if (!joined) {
+        // Fetch games for the newly joined site
+        const gamesRes = await fetch(`/api/sites/${siteId}/games`);
+        const gamesData = await gamesRes.json();
+        setUpcomingGames((prev) => ({ ...prev, [siteId]: gamesData }));
+      } else {
+        // Remove games for the left site
+        setUpcomingGames((prev) => {
+          const { [siteId]: unused, ...remaining } = prev; // Replaced `_` with `unused`
+          console.log(unused + ": I used the unused variable!!!");
+          return remaining;
+        });
+      }      
+    } catch {
+      setError('Failed to update site membership');
+    }
+  };
 
   const handleRemoveMember = async (memberId: string) => {
     try {
@@ -187,30 +188,29 @@ export default function ManageTeamPage() {
     }
   };
 
-  const leaveGame = async (gameId: string) => {
-    if (!teamId) return;
+  // const leaveGame = async (gameId: string) => {
+  //   if (!teamId) return;
   
-    try {
-      const response = await fetch(`/api/games/${gameId}/leave`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teamId }),
-      });
+  //   try {
+  //     const response = await fetch(`/api/games/${gameId}/leave`, {
+  //       method: 'DELETE',
+  //       headers: { 'Content-Type': 'application/json' },
+  //       body: JSON.stringify({ teamId }),
+  //     });
   
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to leave the game.');
-      }
+  //     if (!response.ok) {
+  //       const errorData = await response.json();
+  //       throw new Error(errorData.error || 'Failed to leave the game.');
+  //     }
   
-      // Success: Reload upcoming games
-      const updatedGames = await response.json();
-      setUpcomingGames(updatedGames);
-    } catch (error) {
-      console.error('Error leaving game:', error);
-      setError('Failed to leave the game.');
-    }
-  };
-  
+  //     // Success: Reload upcoming games
+  //     const updatedGames = await response.json();
+  //     setUpcomingGames(updatedGames);
+  //   } catch (error) {
+  //     console.error('Error leaving game:', error);
+  //     setError('Failed to leave the game.');
+  //   }
+  // };  
   
 
   // const formatDate = (date: string) =>
@@ -223,43 +223,57 @@ export default function ManageTeamPage() {
 
       {/* Hosting Sites Section */}
       <section className="team-games mb-8">
-  <h2 className="text-xl font-semibold text-gray-700 mb-2">Upcoming Games</h2>
+  <h2 className="text-xl font-semibold text-gray-700 mb-2">Hosting Sites</h2>
   {hostingSites.map((site) => (
-  <div key={site.id} className="p-4 bg-white rounded-lg shadow mb-4">
-    <h3 className="text-lg font-medium text-gray-800">{site.name}</h3>
-    <p className="text-sm text-gray-600">{site.location}</p>
-    <ul className="mt-2 space-y-2">
-      {(upcomingGames[site.id] || []).map((game) => {
-        // Check if the team is already joined to this game
-        const isJoined = game.teamGames.some((tg) => tg.teamId === teamId);
+    <div key={site.id} className="p-4 bg-white rounded-lg shadow mb-4">
+      <h3 className="text-lg font-medium text-gray-800">{site.name}</h3>
+      <p className="text-sm text-gray-600">{site.location}</p>
 
-        return (
-          <li key={game.id} className="p-2 bg-gray-100 rounded-lg">
-            <h4 className="font-semibold">{game.name}</h4>
-            <p className="text-sm">Date: {new Date(game.date).toLocaleDateString()}</p>
-            {isJoined ? (
-              <button
-                className="mt-1 px-4 py-2 bg-red-500 text-white rounded-lg shadow hover:bg-red-600"
-                onClick={() => leaveGame(game.id)}
-              >
-                Leave
-              </button>
-            ) : (
-              <button
-                className="mt-1 px-4 py-2 bg-blue-500 text-white rounded-lg shadow hover:bg-blue-600"
-                onClick={() => joinGame(game.id)}
-              >
-                Join
-              </button>
-            )}
-          </li>
-        );
-      })}
-    </ul>
-  </div>
-))}
+      {/* Join/Leave Button */}
+      <button
+        className={`mt-2 px-4 py-2 rounded-lg shadow ${
+          site.joined
+            ? 'bg-red-500 text-white hover:bg-red-600'
+            : 'bg-blue-500 text-white hover:bg-blue-600'
+        }`}
+        onClick={() => toggleSiteMembership(site.id, site.joined)}
+      >
+        {site.joined ? 'Leave' : 'Join'}
+      </button>
 
+      {/* Games List */}
+      {site.joined && (
+        <ul className="mt-2 space-y-2">
+          {(upcomingGames[site.id] || []).map((game) => {
+            // Check if the team is already joined to this game
+            const isJoined = game.teamGames.some((tg) => tg.teamId === teamId);
+
+            return (
+              <li key={game.id} className="p-2 bg-gray-100 rounded-lg">
+                <h4 className="font-semibold">{game.name}</h4>
+                <p className="text-sm">Date: {new Date(game.date).toLocaleDateString()}</p>
+
+                {isJoined ? (
+                  // Indicate that the team is already in this game
+                  <p className="mt-1 text-green-600 font-medium">Already Joined</p>
+                ) : (
+                  // Show Join button if the team is not in the game
+                  <button
+                    className="mt-1 px-4 py-2 bg-blue-500 text-white rounded-lg shadow hover:bg-blue-600"
+                    onClick={() => joinGame(game.id)}
+                  >
+                    Join Game
+                  </button>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  ))}
 </section>
+
 
 
 

@@ -2,7 +2,10 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
+import { io } from "socket.io-client";
 
+const websocketURL = process.env.NEXT_PUBLIC_WEBSOCKET_URL;
+const socket = io(websocketURL);
 
 export default function TransitionPage() {
   const router = useRouter();
@@ -36,6 +39,18 @@ export default function TransitionPage() {
       transitionMedia: transitionMedia || '',
       adEmbedCode: adEmbedCode || '',
     });
+
+    // Listen for the resume event
+    socket.on("game:resume", (data) => {
+      if (data.gameId === gameId) {
+        console.log("Game resumed. Navigating back to /join/[gameId]...");
+        router.push(`/join/${gameId}`);
+      }
+    });
+
+    return () => {
+      socket.off("game:resume");
+    };
   }, [router]);
 
   if (!gameState) {

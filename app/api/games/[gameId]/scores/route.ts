@@ -48,16 +48,27 @@ export async function GET(
             pointsAwarded: true,
           },
         },
+        subQuestionAnswers: {
+          select: {
+            pointsAwarded: true,
+          },
+        },
       },
     });
-    
 
     // Calculate the total score for each team
     const teamsWithScores = teams.map((team) => {
-      const totalScore = team.answers.reduce(
+      const totalAnswerScore = team.answers.reduce(
         (sum, answer) => sum + (answer.pointsAwarded || 0),
         0
       );
+
+      const totalSubAnswerScore = team.subQuestionAnswers.reduce(
+        (sum, subAnswer) => sum + (subAnswer.pointsAwarded || 0),
+        0
+      );
+
+      const totalScore = totalAnswerScore + totalSubAnswerScore;
 
       return {
         id: team.id,

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { QRCodeCanvas } from 'qrcode.react';
 
 interface HostingSite {
@@ -24,6 +24,7 @@ interface Round {
   id: string;
   name: string;
   roundType: string;
+  pointSystem: string;
 }
 
 interface Team {
@@ -42,6 +43,7 @@ export default function GameSetup() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [copySuccess, setCopySuccess] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     if (!gameId) return;
@@ -129,6 +131,54 @@ export default function GameSetup() {
     }
   };
 
+  const handleStartGame = async () => {
+    try {
+      const response = await fetch(`/api/host/games/${gameId}/start`, {
+        method: 'POST',
+      });
+  
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to start the game");
+      }
+  
+      const data = await response.json();
+      alert(data.message || "Game started successfully!");
+  
+      // Refresh game data to reflect the new status
+      setGame((prev) => prev && { ...prev, status: 'IN_PROGRESS' });
+    } catch (error) {
+      console.error('Error starting game:', error);
+      alert('Failed to start the game.');
+    }
+  };
+
+  const handleJoinGame = async () => {
+    router.push(`/dashboard/host/${gameId}/play`)
+  };
+
+  const handleResetGame = async () => {
+    if (confirm("Are you sure you want to reset this game? This action cannot be undone.")) {
+      try {
+        const response = await fetch("/api/host/debug/reset-game", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ gameId }),
+        });
+  
+        if (!response.ok) {
+          throw new Error("Failed to reset the game.");
+        }
+  
+        alert("Game reset successfully!");
+      } catch (error) {
+        console.error("Error resetting game:", error);
+        alert("An error occurred while resetting the game.");
+      }
+    }
+  };
+  
+
   if (loading) return <div>Loading...</div>;
   if (error) return <div className="text-red-600">{error}</div>;
   if (!game) {
@@ -164,6 +214,33 @@ export default function GameSetup() {
         >
           Send Link via Email
         </button>
+        {/* Start Game Button */}
+        <button
+          onClick={handleStartGame}
+          className={`mt-4 bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 ${
+            game?.status === 'IN_PROGRESS' ? 'opacity-50 cursor-not-allowed' : ''
+          }`}
+          disabled={game?.status === 'IN_PROGRESS'}
+        >
+          {game?.status === 'IN_PROGRESS' ? 'Game Already Started' : 'Start Game'}
+        </button>
+        {/* Join Game Button */}
+        <button
+          onClick={handleJoinGame}
+          className={`mt-4 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 ${
+            game?.status === 'PENDING' ? 'opacity-50 cursor-not-allowed' : ''
+          }`}
+          disabled={game?.status === 'PENDING'}
+        >
+          {game?.status === 'PENDING' ? 'Game Not Stated' : 'Join Game'}
+        </button>
+        {/* Reset Game Button */}
+        <button
+  onClick={handleResetGame}
+  className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 mt-4"
+>
+  Reset Game
+</button>
       </div>
 
       {/* Teams Section */}
@@ -200,17 +277,42 @@ export default function GameSetup() {
         </ul>
       </section>
 
-      {/* Rounds Section */}
-      <section className="mt-8">
-        <h2 className="text-2xl font-semibold">Rounds ({rounds.length})</h2>
-        <ul className="space-y-2 mt-4">
-          {rounds.map((round) => (
-            <li key={round.id} className="bg-gray-100 p-2 rounded-lg">
-              <h3 className="text-lg">{round.name}</h3>
-            </li>
-          ))}
-        </ul>
-      </section>
+     {/* Rounds Section */}
+<section className="mt-8">
+  <div className="flex justify-between items-center">
+    <h2 className="text-2xl font-semibold">Rounds ({rounds.length})</h2>
+    {/* Add Round Button */}
+    <button
+      onClick={() => router.push(`/dashboard/host/${gameId}/add-round`)}
+      className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 focus:outline-none"
+    >
+      Add Round
+    </button>
+  </div>
+  <ul className="space-y-2 mt-4">
+    {rounds.length > 0 ? (
+      rounds.map((round) => (
+        <li key={round.id} className="bg-gray-100 p-4 rounded-lg flex justify-between items-center">
+          <div>
+            <h3 className="text-lg font-semibold">{round.name}</h3>
+            <p className="text-sm text-gray-600">Type: {round.roundType}</p>
+            <p className="text-sm text-gray-600">Point Style: {round.pointSystem}</p>
+          </div>
+          <button
+            onClick={() => router.push(`/dashboard/host/${gameId}/edit-round/${round.id}`)}
+            className="bg-yellow-500 text-white px-3 py-1 rounded-lg hover:bg-yellow-600 focus:outline-none"
+          >
+            Edit
+          </button>
+        </li>
+      ))
+    ) : (
+      <p className="text-gray-500 mt-4">No rounds created yet. Click &apos;Add Round&apos; to start.</p>
+    )}
+  </ul>
+</section>
+
+
     </div>
   );
 }

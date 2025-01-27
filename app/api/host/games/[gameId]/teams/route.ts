@@ -29,24 +29,69 @@ export async function GET(req: Request, { params }: { params: Promise<{ gameId: 
 }
 
 // POST: Add a new team to a specific game
-export async function POST(req: Request) {
-  //const { gameId } = await params;
-  const { name } = await req.json();
+export async function POST(
+  req: Request,
+  { params }: { params: Promise<{ gameId: string }> }
+) {
+  const { gameId } = await params;
+  const { teamId } = await req.json();
 
-  if (!name) {
-    return NextResponse.json({ error: 'Team name is required' }, { status: 400 });
+  if (!teamId) {
+    return NextResponse.json({ error: 'Team ID is required' }, { status: 400 });
   }
 
   try {
-    const newTeam = await prisma.team.create({
-      data: {
-        name,
+    // Step 1: Verify the team exists
+    const team = await prisma.team.findUnique({
+      where: { id: teamId },
+    });
+
+    if (!team) {
+      return NextResponse.json({ error: 'Team not found' }, { status: 404 });
+    }
+
+    // Step 2: Check if the TeamGame relationship already exists
+    const existingTeamGame = await prisma.teamGame.findFirst({
+      where: {
+        gameId,
+        teamId,
       },
     });
 
-    return NextResponse.json(newTeam, { status: 201 });
+    if (!existingTeamGame) {
+      // Step 3: Add the team to the game if it doesn't already exist
+      await prisma.teamGame.create({
+        data: {
+          gameId,
+          teamId,
+        },
+      });
+    }
+
+    // Step 4: Update GameState if the game has already started
+    const gameState = await prisma.gameState.findUnique({
+      where: { gameId },
+    });
+
+    if (gameState) {
+      // Update pointsRemaining for the new team
+      const pointsRemaining = gameState.pointsRemaining as Record<string, number[]> || {};
+
+      // Use the current round's point pool if available
+      const currentRound = await prisma.round.findUnique({
+        where: { id: gameState.currentRoundId || undefined },
+      });
+
+      pointsRemaining[teamId] = currentRound?.pointPool || [];
+      await prisma.gameState.update({
+        where: { gameId },
+        data: { pointsRemaining },
+      });
+    }
+
+    return NextResponse.json({ message: 'Team added successfully', team });
   } catch (error) {
-    console.error('Error adding team:', error);
-    return NextResponse.json({ error: 'Failed to add team' }, { status: 500 });
+    console.error('Error adding team to game:', error);
+    return NextResponse.json({ error: 'Failed to add team to game' }, { status: 500 });
   }
 }

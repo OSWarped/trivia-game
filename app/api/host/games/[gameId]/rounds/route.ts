@@ -15,6 +15,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ gameId: 
             id: true,
             text: true,
           },
+          orderBy: {
+            sortOrder: 'asc', // Ensure the next round is the smallest greater sortOrder
+          },
         },
       },
       orderBy: {
@@ -45,7 +48,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ gameId:
         wagerLimit: roundData.wagerLimit || null, // Allow null
         pointPool: roundData.pointPool || [], // Default to an empty array
         pointValue: roundData.pointValue || null, // Allow null
-        sortOrder: roundData.sortOrder,
+        sortOrder: Number(roundData.sortOrder) || 1, // Default to 1 if invalid
       },
     });
 

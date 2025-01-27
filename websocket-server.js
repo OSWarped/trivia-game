@@ -53,6 +53,41 @@ io.on("connection", (socket) => {
     }
   });
 
+  // Listen for the 'team:submitSubAnswers' event
+  socket.on("team:submitSubAnswers", (data) => {
+    console.log("Received team:submitSubAnswers event:", data);
+
+    const { gameId, teamId, subAnswers } = data;
+
+    if (!gameId || !teamId || !Array.isArray(subAnswers)) {
+      console.error("Invalid data received for team:submitSubAnswers");
+      return;
+    }
+
+    // Broadcast or notify host about the submission
+    io.emit("host:subAnswersSubmitted", {
+      gameId,
+      teamId,
+      subAnswers,
+    });
+
+    console.log(`Notified host about subanswers from team ${teamId} for game ${gameId}`);
+  });
+
+
+  // Listen for host:resume signal from the host
+  socket.on("host:resume", (data) => {
+    const { gameId } = data;
+    console.log(`Host resumed the game: ${gameId}`);
+    // Broadcast the game:resume event to all clients
+    io.emit("game:resume", {
+      gameId,
+    });
+    console.log(`Broadcasted game:resume for gameId: ${gameId}`);
+  });
+
+  
+
   // Listen for resetting team submission statuses
   socket.on("host:resetSubmissions", (data) => {
     console.log("Resetting submissions for game:", data.gameId);
@@ -83,7 +118,6 @@ io.on("connection", (socket) => {
   // Listen for host moving to a transition
   socket.on("host:transition", (data) => {
     console.log("Host initiated transition:", data);
-
     // Broadcast the transition details to all clients
     io.emit("game:transition", {
       gameId: data.gameId,
@@ -91,15 +125,16 @@ io.on("connection", (socket) => {
       transitionMedia: data.transitionMedia,
       adEmbedCode: data.adEmbedCode,
     });
-
     console.log("Transition signal sent to clients:", data);
   });
+
 
   //Handle toggling visibility of Team Scores
   socket.on('host:toggleScores', ({ gameId, scoresVisibleToPlayers }) => {
     console.log("Setting Score Visibility for Game " + gameId + " to " + scoresVisibleToPlayers);
     io.emit('game:scoresVisibilityChanged', { gameId, scoresVisibleToPlayers });
   });
+
 
   //Handle End Game
   socket.on('host:gameCompleted', ({gameId}) => {

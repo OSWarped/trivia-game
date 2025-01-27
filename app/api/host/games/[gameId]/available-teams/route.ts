@@ -33,7 +33,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ gameId: 
     });
 
     // Fetch teams already in the game
-    // Fetch teams already in the game
 const teamsInGame = await prisma.team.findMany({
   where: {
     teamGames: {
@@ -46,15 +45,22 @@ const teamsInGame = await prisma.team.findMany({
     id: true,
   },
 });
-
-
-    // Extract team IDs already in the game
-    const teamsInGameIds = teamsInGame.map((team) => team.id);
-
+    
     // Filter out teams already in the game
-    const availableTeams = teamsAtHostingSite.filter(
-      (team) => !teamsInGameIds.includes(team.id)
-    );
+    const availableTeams = await prisma.team.findMany({
+      where: {
+        TeamHostingSite: {
+          some: { hostingSiteId },
+        },
+        teamGames: {
+          none: { gameId },
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+      },
+    });
 
     // Debugging output
     console.log('Hosting Site ID:', hostingSiteId);

@@ -9,11 +9,11 @@ export async function POST(
 ) {
   const { gameId } = await params;
   const body = await req.json();
-  const { teamId, questionId, answer, pointsUsed } = body;
+  const { teamId, questionId, answer, pointsUsed, subAnswers } = body;
 
-  if (!teamId || !questionId || !answer) {
+  if (!teamId || !questionId || (!answer && !subAnswers)) {
     return NextResponse.json(
-      { error: 'Missing required fields: teamId, questionId, or answer' },
+      { error: 'Missing required fields: teamId, questionId, or answer/subAnswers' },
       { status: 400 }
     );
   }
@@ -31,35 +31,40 @@ export async function POST(
       );
     }
 
-    // Fetch the current round and question
-const [currentRound, currentQuestion] = await Promise.all([
-  gameState.currentRoundId
-    ? prisma.round.findUnique({ where: { id: gameState.currentRoundId } })
-    : null,
-  gameState.currentQuestionId
-    ? prisma.question.findUnique({ where: { id: gameState.currentQuestionId } })
-    : null,
-]);
+    // Parse the pointsRemaining from gameState
+    const pointsRemaining = gameState.pointsRemaining as Record<string, number[]>;
 
-if (!currentRound || !currentQuestion) {
-  return NextResponse.json(
-    { error: 'Current round or question not found' },
-    { status: 404 }
-  );
-}
+    if (!pointsRemaining || !pointsRemaining[teamId]) {
+      return NextResponse.json(
+        { error: 'Team points not found in the game state' },
+        { status: 404 }
+      );
+    }
+
+    // Fetch the current round and question
+    const [currentRound, currentQuestion] = await Promise.all([
+      gameState.currentRoundId
+        ? prisma.round.findUnique({ where: { id: gameState.currentRoundId } })
+        : null,
+      gameState.currentQuestionId
+        ? prisma.question.findUnique({
+            where: { id: gameState.currentQuestionId },
+            include: { subquestions: true }, // Include subquestions for validation
+          })
+        : null,
+    ]);
+
+    if (!currentRound || !currentQuestion) {
+      return NextResponse.json(
+        { error: 'Current round or question not found' },
+        { status: 404 }
+      );
+    }
 
     // Handle point validation based on the point system
     if (currentRound.pointSystem === 'POOL') {
-      // Fetch the team and validate the remaining points
-      const team = await prisma.team.findUnique({
-        where: { id: teamId },
-      });
-
-      if (!team) {
-        return NextResponse.json({ error: 'Team not found' }, { status: 404 });
-      }
-
-      if (!team.remainingPoints.includes(pointsUsed)) {
+      // Validate the remaining points for the team
+      if (!pointsRemaining[teamId].includes(pointsUsed)) {
         return NextResponse.json(
           { error: 'Invalid point value selected for this team' },
           { status: 400 }
@@ -67,12 +72,17 @@ if (!currentRound || !currentQuestion) {
       }
 
       // Remove the used point from the team's remainingPoints
-      const updatedPoints = team.remainingPoints.filter((p) => p !== pointsUsed);
+      const updatedPoints = pointsRemaining[teamId].filter((p) => p !== pointsUsed);
 
-      // Update the team's remaining points
-      await prisma.team.update({
-        where: { id: teamId },
-        data: { remainingPoints: updatedPoints },
+      // Update the game's pointsRemaining field
+      await prisma.gameState.update({
+        where: { gameId },
+        data: {
+          pointsRemaining: {
+            ...pointsRemaining,
+            [teamId]: updatedPoints,
+          },
+        },
       });
     } else if (currentRound.pointSystem === 'FLAT') {
       // For FLAT point system, pointsUsed must match the flat point value of the round
@@ -89,30 +99,66 @@ if (!currentRound || !currentQuestion) {
       );
     }
 
-    // Submit the answer
-    const submittedAnswer = await prisma.answer.create({
-      data: {
-        team: { connect: { id: teamId } },
-        question: { connect: { id: questionId } },
-        answer: answer,
-        pointsUsed: pointsUsed,
-        isCorrect: false, // Default value
+    // Handle submission for questions with subquestions
+    if (currentQuestion.subquestions?.length && subAnswers) {
+      const submittedSubAnswers = subAnswers.map((sub: { subquestionId: string; answer: string; }) => ({
+        subquestionId: sub.subquestionId,
+        teamId,
+        answer: sub.answer,
+        isCorrect: null, // Default value
         pointsAwarded: 0, // Default value
-      },
-    });
+      }));
 
-    // Optionally update game state if necessary
-    await prisma.gameState.update({
-      where: { gameId },
-      data: {
-        updatedAt: new Date(), // Update the timestamp for tracking changes
-      },
-    });
+      // Save subanswers to the database
+      const savedSubAnswers = await prisma.subQuestionAnswer.createMany({
+        data: submittedSubAnswers,
+      });
 
-    return NextResponse.json({
-      message: 'Answer submitted successfully',
-      submittedAnswer,
-    });
+      // Update game state timestamp
+      await prisma.gameState.update({
+        where: { gameId },
+        data: {
+          updatedAt: new Date(), // Update the timestamp for tracking changes
+        },
+      });
+
+      return NextResponse.json({
+        message: 'Subanswers submitted successfully',
+        submittedSubAnswers: savedSubAnswers,
+      });
+    }
+
+    // Handle submission for single-answer questions
+    if (answer) {
+      const submittedAnswer = await prisma.answer.create({
+        data: {
+          team: { connect: { id: teamId } },
+          question: { connect: { id: questionId } },
+          answer: answer,
+          pointsUsed: pointsUsed,
+          isCorrect: null, // Default value
+          pointsAwarded: 0, // Default value
+        },
+      });
+
+      // Update game state timestamp
+      await prisma.gameState.update({
+        where: { gameId },
+        data: {
+          updatedAt: new Date(), // Update the timestamp for tracking changes
+        },
+      });
+
+      return NextResponse.json({
+        message: 'Answer submitted successfully',
+        submittedAnswer,
+      });
+    }
+
+    return NextResponse.json(
+      { error: 'Invalid request data' },
+      { status: 400 }
+    );
   } catch (error) {
     console.error('Error submitting answer:', error);
     return NextResponse.json(

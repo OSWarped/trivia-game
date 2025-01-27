@@ -27,7 +27,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ gameId: 
         pointSystem: roundData.pointSystem,
         maxPoints: roundData.maxPoints,
         timeLimit: roundData.timeLimit,
-        wagerLimit: roundData.wagerLimit,        
+        wagerLimit: roundData.wagerLimit,  
+        sortOrder: roundData.sortOrder,      
       },
     });
 

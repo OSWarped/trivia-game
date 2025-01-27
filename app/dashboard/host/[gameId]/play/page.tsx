@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { io } from 'socket.io-client';
+import { CorrectAnswer } from '@prisma/client';
 
 const websocketURL = process.env.NEXT_PUBLIC_WEBSOCKET_URL
 
@@ -57,6 +58,7 @@ interface Question {
   text: string;
   type: 'SINGLE' | 'ORDERED' | 'MULTIPLE_CHOICE' | 'WAGER' | 'IMAGE'; // Add question types
   subquestions?: Subquestion[]; // Optional list of subquestions
+  correctAnswer: CorrectAnswer;
 }
 
 interface GameState {
@@ -124,13 +126,16 @@ export default function HostGameInterface() {
   const [currentRoundIndex, setCurrentRoundIndex] = useState<number | null>(null);
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number | null>(null);
-  const [isLastQuestion, setIsLastQuestion] = useState(false);
+  const [, setIsLastQuestion] = useState(false);
   const [teamStatus, setTeamStatus] = useState<TeamStatus[]>([]);
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [showLastQuestionMessage, setShowLastQuestionMessage] = useState(false);
+  const [isAnswerRevealed, setIsAnswerRevealed] = useState(false);  
+  //const [isLastQuestionOfRound, setIsLastQuestionOfRound] = useState(false);
+
   //const [, setError] = useState<string | null>(null);
   const [, setLoading] = useState(false);
-  //const router = useRouter();
+  const router = useRouter();
   //const isLastRound = currentRound?.id === rounds[rounds.length - 1]?.id;
   
   useEffect(() => {
@@ -219,7 +224,7 @@ export default function HostGameInterface() {
     };
   
     fetchInitialData();
-  }, [gameId, teamStatus]);
+  }, [gameId]);
   
   
   useEffect(() => {
@@ -255,11 +260,11 @@ export default function HostGameInterface() {
         setCurrentQuestion(currentQuestion || null);
   
         const isSubquestion = !!updatedGameState.game.rounds
-  .find((round) => round.id === updatedGameState.currentRoundId)
-  ?.questions.find((question) => question.id === updatedGameState.currentQuestionId)
-  ?.subquestions?.length;
+          .find((round) => round.id === updatedGameState.currentRoundId)
+          ?.questions.find((question) => question.id === updatedGameState.currentQuestionId)
+          ?.subquestions?.length;
 
-console.log("Is Subquestion:", isSubquestion);
+        console.log("Is Subquestion:", isSubquestion);
   
         // Update the team status
         updateTeamStatus(updatedGameState, isSubquestion); 
@@ -353,9 +358,19 @@ console.log("Is Subquestion:", isSubquestion);
   }, [gameId, teamStatus]); 
   
 
+ 
   useEffect(() => {
-    setShowLastQuestionMessage(isLastQuestion);
-  }, [isLastQuestion]);
+    if (
+      currentRoundIndex !== null &&
+      currentQuestionIndex !== null &&
+      currentRoundIndex < rounds.length - 1 && // Not the last round
+      currentQuestionIndex === rounds[currentRoundIndex].questions.length - 1 // Last question in the current round
+    ) {
+      setShowLastQuestionMessage(true);
+    } else {
+      setShowLastQuestionMessage(false);
+    }
+  }, [currentRoundIndex, currentQuestionIndex, rounds]);
 
   
   const handleNextQuestion = async () => {
@@ -403,7 +418,8 @@ console.log("Is Subquestion:", isSubquestion);
       setIsLastQuestion(
         !!updatedRound?.questions &&
         updatedQuestionIndex !== undefined &&
-        updatedQuestionIndex === updatedRound.questions.length - 1
+        updatedQuestionIndex === updatedRound.questions.length - 1 &&
+        updatedRound.id === rounds[rounds.length - 1].id
       );
   
       // Reset the team status to "Pending"
@@ -691,237 +707,266 @@ console.log("Is Subquestion:", isSubquestion);
   
   
 
-  // const handleEndGame = async () => {
-  //   setLoading(true);
-  //   try {
-  //     // Update game status to COMPLETED
-  //     await fetch(`/api/host/games/${gameId}`, {
-  //       method: 'PUT',
-  //       headers: { 'Content-Type': 'application/json' },
-  //       body: JSON.stringify({ status: 'COMPLETED' }),
-  //     });
+  const handleEndGame = async () => {
+    setLoading(true);
+    try {
+      // Update game status to COMPLETED
+      await fetch(`/api/host/games/${gameId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'COMPLETED' }),
+      });
   
-  //     // Notify all clients to return to dashboard
-  //     socket.emit('host:gameCompleted', { gameId });
+      // Notify all clients to return to dashboard
+      socket.emit('host:gameCompleted', { gameId });
   
-  //     // Redirect host to dashboard
-  //     router.push('/dashboard/host');
-  //   } catch (error) {
-  //     console.error('Error completing game:', error);
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // };
+      // Redirect host to dashboard
+      router.push('/dashboard/host');
+    } catch (error) {
+      console.error('Error completing game:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
   
   
   
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">Game Interface</h1>
+    <div className="p-8 max-w-6xl mx-auto space-y-6">
+      {/* Title Section */}
+      <header className="text-center">
+        <h1 className="text-3xl font-bold mb-4">Host Game Interface</h1>
+      </header>
+  
+      {/* Navigation Section */}
+      <section className="bg-gray-100 p-4 rounded-lg shadow-md">
+        <h2 className="text-xl font-semibold mb-4">Navigation</h2>
+        <div className="flex justify-between">
+          {gameState?.isTransitioning ? (
+            <button
+              onClick={handleResumeGame}
+              className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600"
+            >
+              Resume Game
+            </button>
+          ) : (
+            <div className="flex space-x-4">
+              {currentQuestionIndex !== null && currentQuestionIndex > 0 && (
+                <button
+                  onClick={handlePreviousQuestion}
+                  className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600"
+                >
+                  Previous Question
+                </button>
+              )}
+              {currentRoundIndex !== null &&
+              currentQuestionIndex !== null &&
+              currentRoundIndex === rounds.length - 1 &&
+              currentQuestionIndex ===
+                rounds[currentRoundIndex].questions.length - 1 ? (
+                <button
+                  onClick={handleEndGame}
+                  className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600"
+                >
+                  End Game
+                </button>
+              ) : (
+                <button
+                  onClick={handleNextQuestion}
+                  className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600"
+                >
+                  Next Question
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </section>
+  
+      {/* Current Round and Question Section */}
+      <section className="bg-gray-50 p-6 rounded-lg shadow-md">
+  <h2 className="text-xl font-semibold mb-2">Current Round</h2>
+  <p className="text-lg">Round: {currentRound?.name || "No current round"}</p>
+  <p className="text-lg">Question: {currentQuestion?.text || "No current question"}</p>
 
-      <div className="mb-6">
-        <h2 className="text-xl">Current Round: {currentRound?.name || 'No current round'}</h2>
-        <h3 className="text-lg">
-          Current Question: {currentQuestion?.text || 'No current question'}
-        </h3>
+  {/* Correct Answer Section */}
+  <div className="mt-4">
+    {!isAnswerRevealed ? (
+      <button
+        onClick={() => setIsAnswerRevealed(true)}
+        className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600"
+      >
+        Reveal Correct Answer
+      </button>
+    ) : (
+      <div className="bg-yellow-100 p-4 border border-yellow-300 rounded-lg">
+        <p>
+          <strong>Correct Answer:</strong>{" "}
+          {currentQuestion?.correctAnswer?.answer || "No answer available"}
+        </p>
+        <button
+          onClick={() => setIsAnswerRevealed(false)}
+          className="bg-gray-300 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-400 mt-2"
+        >
+          Dismiss
+        </button>
       </div>
+    )}
+  </div>
+</section>
 
-      <div className="mb-6">
-  <h3 className="text-lg font-semibold">Team Status:</h3>
-  <ul>
-    {teamStatus.map((team) => (      
-      <li key={team.id} className="mb-4 p-4 bg-gray-100 rounded-lg">
-        {/* Team Name and Submission Status */}
-        <h4 className="text-lg font-semibold">
-          {team.name}: {team.submitted ? "Submitted" : "Pending"}
-        </h4>
-
-        {/* If the team has submitted answers */}
-       
-        {team.submitted && (
-          <div className="mt-2">
-            {/* Check if there are subquestions */}          
-            {(currentQuestion?.subquestions?.length ?? 0) > 0 ? (
-              // Render Subquestions
-              <div>
-                <h5 className="text-sm font-semibold">Subanswers:</h5>
-                <ul>
-                  {currentQuestion?.subquestions?.map((subquestion) => {
-                    const subAnswer = team.subAnswers?.find(
-                      (sub) => sub.subquestionId === subquestion.id
-                    );
-
-                    return (
-                      <li key={subquestion.id} className="mt-2">
-                        <p className="text-sm">
-                          <strong>{subquestion.text}:</strong>{" "}
-                          {subAnswer?.answer || "No answer submitted"}
-                        </p>
-                        {subAnswer && (
-                          <div className="mt-2">
-                            {subAnswer.isCorrect === null ? (
-                              // Scoring Buttons for Subquestions
-                              <div>
-                                <button
-                                  onClick={() =>
-                                    handleScoreSubAnswer(
-                                      team.id,
-                                      subAnswer.subquestionId,
-                                      true
-                                    )
-                                  }
-                                  className="bg-green-500 text-white px-4 py-1 rounded hover:bg-green-600 mr-2"
-                                >
-                                  Correct
-                                </button>
-                                <button
-                                  onClick={() =>
-                                    handleScoreSubAnswer(
-                                      team.id,
-                                      subAnswer.subquestionId,
-                                      false
-                                    )
-                                  }
-                                  className="bg-red-500 text-white px-4 py-1 rounded hover:bg-red-600"
-                                >
-                                  Incorrect
-                                </button>
-                              </div>
-                            ) : (
-                              <p
-                                className={`mt-2 text-sm font-semibold ${
-                                  subAnswer.isCorrect
-                                    ? "text-green-600"
-                                    : "text-red-600"
-                                }`}
-                              >
-                                Marked as:{" "}
-                                {subAnswer.isCorrect ? "Correct" : "Incorrect"}
-                              </p>
-                            )}
-                          </div>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            ) : (
-              // Render Single Answer
-              <div>
-                <p className="text-sm">
-                  <strong>Answer:</strong> {team.answer || "No answer submitted"}
-                </p>
-                {currentRound?.pointSystem === "POOL" && (
-                  <p className="text-sm">
-                    <strong>Points Used:</strong>{" "}
-                    {team.pointsUsed ?? "No points submitted"}
-                  </p>
-                )}
+  
+      {/* Message Section */}
+      {showLastQuestionMessage && (
+        <section className="bg-yellow-50 p-6 rounded-lg shadow-md">
+          <p className="text-lg font-semibold">
+            You have reached the last question of this round!
+          </p>
+          <p className="mt-2">
+            Once you have scored all teams, you may want to take a break before moving to the next
+            round.
+          </p>
+          <div className="mt-4 flex space-x-4">
+            <button
+              onClick={handleTakeABreak}
+              className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600"
+            >
+              Take a Break
+            </button>
+            <button
+              onClick={() => setShowLastQuestionMessage(false)}
+              className="bg-gray-300 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-400"
+            >
+              Dismiss
+            </button>
+          </div>
+        </section>
+      )}
+  
+      {/* Team Status Section */}
+      <section className="bg-gray-50 p-6 rounded-lg shadow-md">
+        <h2 className="text-xl font-semibold mb-4">Team Status</h2>
+        <ul className="space-y-4">
+          {teamStatus.map((team) => (
+            <li key={team.id} className="p-4 bg-white rounded-lg">
+              <h4 className="text-lg font-semibold">
+                {team.name}: {team.submitted ? "Submitted" : "Pending"}
+              </h4>
+              {team.submitted && (
                 <div className="mt-2">
-                  {team.isCorrect === null ? (
-                    // Scoring Buttons for Single Answer
+                  {currentQuestion?.subquestions?.length ? (
                     <div>
-                      <button
-                        onClick={() => handleScoreAnswer(team.id, true)}
-                        className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 mr-2"
-                      >
-                        Correct
-                      </button>
-                      <button
-                        onClick={() => handleScoreAnswer(team.id, false)}
-                        className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600"
-                      >
-                        Incorrect
-                      </button>
+                      <h5 className="text-sm font-semibold">Subanswers:</h5>
+                      <ul>
+                        {currentQuestion.subquestions.map((subquestion) => {
+                          const subAnswer = team.subAnswers?.find(
+                            (sub) => sub.subquestionId === subquestion.id
+                          );
+                          return (
+                            <li key={subquestion.id} className="mt-2">
+                              <p>
+                                <strong>{subquestion.text}:</strong>{" "}
+                                {subAnswer?.answer || "No answer submitted"}
+                              </p>
+                              {subAnswer && (
+                                <div className="mt-2">
+                                  {subAnswer.isCorrect === null ? (
+                                    <div>
+                                      <button
+                                        onClick={() =>
+                                          handleScoreSubAnswer(
+                                            team.id,
+                                            subAnswer.subquestionId,
+                                            true
+                                          )
+                                        }
+                                        className="bg-green-500 text-white px-4 py-1 rounded hover:bg-green-600 mr-2"
+                                      >
+                                        Correct
+                                      </button>
+                                      <button
+                                        onClick={() =>
+                                          handleScoreSubAnswer(
+                                            team.id,
+                                            subAnswer.subquestionId,
+                                            false
+                                          )
+                                        }
+                                        className="bg-red-500 text-white px-4 py-1 rounded hover:bg-red-600"
+                                      >
+                                        Incorrect
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <p
+                                      className={`mt-2 text-sm font-semibold ${
+                                        subAnswer.isCorrect
+                                          ? "text-green-600"
+                                          : "text-red-600"
+                                      }`}
+                                    >
+                                      Marked as:{" "}
+                                      {subAnswer.isCorrect ? "Correct" : "Incorrect"}
+                                    </p>
+                                  )}
+                                </div>
+                              )}
+                            </li>
+                          );
+                        })}
+                      </ul>
                     </div>
                   ) : (
-                    <p
-                      className={`mt-2 text-lg font-semibold ${
-                        team.isCorrect ? "text-green-600" : "text-red-600"
-                      }`}
-                    >
-                      Marked as: {team.isCorrect ? "Correct" : "Incorrect"}
-                    </p>
+                    <div>
+                      <p>
+                        <strong>Answer:</strong> {team.answer || "No answer submitted"}
+                      </p>
+                      <div className="mt-2">
+                        {team.isCorrect === null ? (
+                          <div>
+                            <button
+                              onClick={() => handleScoreAnswer(team.id, true)}
+                              className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 mr-2"
+                            >
+                              Correct
+                            </button>
+                            <button
+                              onClick={() => handleScoreAnswer(team.id, false)}
+                              className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600"
+                            >
+                              Incorrect
+                            </button>
+                          </div>
+                        ) : (
+                          <p
+                            className={`mt-2 text-lg font-semibold ${
+                              team.isCorrect ? "text-green-600" : "text-red-600"
+                            }`}
+                          >
+                            Marked as: {team.isCorrect ? "Correct" : "Incorrect"}
+                          </p>
+                        )}
+                      </div>
+                    </div>
                   )}
                 </div>
-              </div>
-            )}
-          </div>
-        )}
-      </li>
-    ))}
-  </ul>
-</div>
-
-
-
-
-<div className="navigation-buttons">
-  {gameState?.isTransitioning ? (
-    // Show "Resume Game" button if the game is in transition
-    <button
-      onClick={handleResumeGame}
-      className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600"
-    >
-      Resume Game
-    </button>
-  ) : (
-    <div className="flex space-x-4">
-      {currentQuestionIndex !== null && currentQuestionIndex > 0 && (
-        <button
-          onClick={handlePreviousQuestion}
-          className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600"
-        >
-          Previous Question
-        </button>
-      )}
-      <button
-        onClick={handleNextQuestion}
-        className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600"
-      >
-        Next Question
-      </button>
-    </div>
-  )}
-</div>
-
-{isLastQuestion && showLastQuestionMessage && (
-  <div className="p-4 bg-yellow-100 border border-yellow-300 rounded-lg text-yellow-800 mb-6">
-    <p className="text-lg font-semibold">
-      You have reached the last question of this round!
-    </p>
-    <p>
-      Once you have scored all teams, you may want to take a break before moving to the next round.
-    </p>
-    <div className="mt-4">
-      <button
-        onClick={handleTakeABreak}
-        className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 mr-2"
-      >
-        Take a Break
-      </button>
-      <button
-        onClick={() => setShowLastQuestionMessage(false)}
-        className="bg-gray-300 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-400"
-      >
-        Dismiss
-      </button>
-    </div>
-  </div>
-)}
-
-
-
-      <div>            
+              )}
+            </li>
+          ))}
+        </ul>
+      </section>
+  
+      {/* Toggle Scores Section */}
+      <section className="bg-gray-100 p-4 rounded-lg shadow-md">
+        <h2 className="text-xl font-semibold mb-4">Toggle Scores Visibility</h2>
+        <div className="flex space-x-4">
           <button
             onClick={() => handleToggleScores(true)}
             className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600"
           >
             Show Scores
           </button>
-          
           <button
             onClick={() => handleToggleScores(false)}
             className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600"
@@ -929,6 +974,7 @@ console.log("Is Subquestion:", isSubquestion);
             Hide Scores
           </button>
         </div>
+      </section>
     </div>
   );
-}
+} 

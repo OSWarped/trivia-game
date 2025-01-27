@@ -44,6 +44,9 @@ export async function POST(
     // Step 1: Verify the team exists
     const team = await prisma.team.findUnique({
       where: { id: teamId },
+      include: {
+        memberships: true, // Example: Include memberships if needed
+      },
     });
 
     if (!team) {
@@ -75,7 +78,8 @@ export async function POST(
 
     if (gameState) {
       // Update pointsRemaining for the new team
-      const pointsRemaining = gameState.pointsRemaining as Record<string, number[]> || {};
+      const pointsRemaining =
+        (gameState.pointsRemaining as Record<string, number[]>) || {};
 
       // Use the current round's point pool if available
       const currentRound = await prisma.round.findUnique({
@@ -89,9 +93,78 @@ export async function POST(
       });
     }
 
-    return NextResponse.json({ message: 'Team added successfully', team });
+    // Return a complete team object
+    const completeTeam = await prisma.team.findUnique({
+      where: { id: teamId },
+      include: {
+        memberships: true, // Include any related data your frontend might need
+      },
+    });
+
+    return NextResponse.json({ message: 'Team added successfully', team: completeTeam });
   } catch (error) {
     console.error('Error adding team to game:', error);
-    return NextResponse.json({ error: 'Failed to add team to game' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to add team to game' },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE: Remove a team from a specific game
+export async function DELETE(
+  req: Request,
+  { params }: { params: Promise<{ gameId: string }> }
+) {
+  const { gameId } = await params;
+  const { teamId } = await req.json();
+
+  if (!teamId) {
+    return NextResponse.json({ error: 'Team ID is required' }, { status: 400 });
+  }
+
+  try {
+    // Step 1: Verify the TeamGame relationship exists
+    const existingTeamGame = await prisma.teamGame.findFirst({
+      where: {
+        gameId,
+        teamId,
+      },
+    });
+
+    if (!existingTeamGame) {
+      return NextResponse.json(
+        { error: 'Team is not part of this game' },
+        { status: 404 }
+      );
+    }
+
+    // Step 2: Remove the TeamGame relationship
+    await prisma.teamGame.delete({
+      where: {
+        id: existingTeamGame.id,
+      },
+    });
+
+    // Step 3: Update GameState if the game has started
+    const gameState = await prisma.gameState.findUnique({
+      where: { gameId },
+    });
+
+    if (gameState) {
+      // Remove pointsRemaining entry for this team
+      const pointsRemaining = gameState.pointsRemaining as Record<string, number[]> || {};
+      delete pointsRemaining[teamId];
+
+      await prisma.gameState.update({
+        where: { gameId },
+        data: { pointsRemaining },
+      });
+    }
+
+    return NextResponse.json({ message: 'Team removed successfully' });
+  } catch (error) {
+    console.error('Error removing team from game:', error);
+    return NextResponse.json({ error: 'Failed to remove team from game' }, { status: 500 });
   }
 }

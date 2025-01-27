@@ -1,5 +1,3 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
 const { Server } = require("socket.io");
 
 const PORT = 3009; // Choose a port for your WebSocket server
@@ -143,6 +141,34 @@ io.on("connection", (socket) => {
 
   });
 
+
+  // socket.emit('team:addToGame', {
+  //   teamId,
+  //   teamName: team?.name,
+  //   gameId,
+  //   game: data.game, // Updated game data
+  //   siteId: data.siteId, // Site associated with the game
+  // });
+
+
+
+
+  // Listen for a team being added to a game
+  socket.on("team:addToGame", (data) => {    
+    const { teamId, teamName, gameId } = data;
+    console.log('received a request from team: ' + teamName + ' adding to game: ' + gameId)
+    // Notify all clients in the room about the updated team list
+    io.emit("team:update", { gameId, type: "add", teamName, teamId });
+  });
+
+  // Listen for a team being removed from a game
+  socket.on("team:removeFromGame", (data) => {
+    const { gameId, teamId } = data;
+    console.log(`Team removed from game ${gameId}:`, teamId);
+    // Notify all clients in the room about the updated team list
+    io.emit("team:update", { gameId, type: "remove", teamId });
+  });
+  
   // Handle client disconnection
   socket.on("disconnect", () => {
     console.log("A client disconnected:", socket.id);

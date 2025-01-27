@@ -23,14 +23,11 @@ export default function LoginPage() {
       const result = await response.json();
 
       if (response.ok) {
-        // Store token in cookie (HttpOnly flag should be set by backend)
         const { token, roles } = result;
 
         if (token) {
-          // Store token in cookie using document.cookie
-          document.cookie = `token=${token}; path=/; secure; HttpOnly`; // Secure and HttpOnly flags for better security
+          document.cookie = `token=${token}; path=/; secure; HttpOnly`;
 
-          // Perform redirect based on user roles
           if (roles.includes('ADMIN')) {
             router.push('/admin/dashboard');
           } else if (roles.includes('HOST')) {
@@ -49,28 +46,41 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="form-container">
-      <h1 className="form-heading">Login</h1>
-      <form className="form" onSubmit={handleLogin}>
-        <input
-          className="input-field"
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-        <input
-          className="input-field"
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-        <button className="submit-button" type="submit">Login</button>
-      </form>
-      {error && <p className="error-message">{error}</p>}
+    <div className="h-screen flex items-start justify-center bg-gray-100">
+      <div className="bg-white shadow-lg rounded-lg p-8 w-full max-w-md mt-20">
+        <h1 className="text-2xl font-bold mb-6 text-center text-gray-800">Login</h1>
+        <form onSubmit={handleLogin}>
+          <div className="mb-4">
+            <input
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </div>
+          <div className="mb-4">
+            <input
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </div>
+          <button
+            type="submit"
+            className="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 transition"
+          >
+            Login
+          </button>
+        </form>
+        {error && (
+          <p className="text-red-500 text-sm mt-4 text-center">{error}</p>
+        )}
+      </div>
     </div>
   );
 }

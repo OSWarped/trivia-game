@@ -325,27 +325,34 @@ export async function PUT(
 
     // Detect Round Change
     const isRoundChanged = gameState.currentRoundId !== nextRound.id;
-
+if(isRoundChanged){
+  console.log("Changing to a new round\nThe new round uses a pointsytems of: " + nextRound.pointSystem);
+}
     let updatedPointsRemaining = gameState.pointsRemaining;
 
     if (isRoundChanged && nextRound.pointSystem === "POOL") {
+      // Fetch all team IDs associated with the game
+      const teamGames = await prisma.teamGame.findMany({
+        where: { gameId },
+        select: { teamId: true },
+      });
+    
+      const teamIds = teamGames.map((tg) => tg.teamId);
+    
       // Replenish the pointsRemaining for all teams
       const pointPool = nextRound.pointPool || [];
-      const teamIds = Object.keys(gameState.pointsRemaining || {});
-
       updatedPointsRemaining = teamIds.reduce((acc, teamId) => {
-        acc[teamId] = [...pointPool]; // Ensure pointPool is copied
+        acc[teamId] = [...pointPool]; // Ensure pointPool is copied for each team
         return acc;
       }, {} as Record<string, number[]>);
-      
-      
-
+    
       console.log(
         `Replenished points for POOL round: ${JSON.stringify(updatedPointsRemaining)}`
       );
     }
-// Validate updatedPointsRemaining
-const validatedPointsRemaining = JSON.parse(JSON.stringify(updatedPointsRemaining));
+
+    // Validate updatedPointsRemaining
+    const validatedPointsRemaining = JSON.parse(JSON.stringify(updatedPointsRemaining));
 
     // Update Game State
     const updatedGameState = await prisma.gameState.update({

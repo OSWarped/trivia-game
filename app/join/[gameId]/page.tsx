@@ -233,6 +233,7 @@ export default function JoinGamePage() {
         questionId: gameState.game.currentQuestion?.id,
         pointsUsed,
         answer,
+        pointSystem: gameState.game.currentRound?.pointSystem,
       };
   
       try {
@@ -271,8 +272,9 @@ export default function JoinGamePage() {
         teamId: gameState.team.id,
         subAnswers: Object.entries(subAnswers).map(([subquestionId, answer]) => ({
           subquestionId,
-          answer,
+          answer,        
         })),
+        pointSystem: gameState.game.currentRound?.pointSystem,
       };
   
       try {

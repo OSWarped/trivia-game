@@ -292,41 +292,34 @@ export default function PlayerDashboard() {
 
       {/* Pending Requests Section */}
       <section className="pending-requests mb-8">
-        <h2 className="text-xl font-semibold text-gray-700 mb-2">Pending Requests</h2>
-        {pendingRequests.length > 0 ? (
-          <ul className="space-y-4">
-            {pendingRequests.map((request) => (
-              <li
-                key={request.id}
-                className="p-4 bg-white rounded-lg shadow flex justify-between items-center"
-              >
-                <div>
-                  <h3 className="text-lg font-medium text-gray-800">
-                    {request.team.name}
-                  </h3>
-                  <p className="text-sm text-gray-600">
-                    Game: {request.team.game.name}
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    Captain: {request.team.captainName}
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    Status: {request.status}
-                  </p>
-                </div>
-                <button
-                  className="px-4 py-2 bg-red-500 text-white rounded-lg shadow hover:bg-red-600"
-                  onClick={() => cancelJoinRequest(request.id)}
-                >
-                  Cancel
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-gray-600">No pending requests at the moment.</p>
-        )}
-      </section>
+  <h2 className="text-xl font-semibold text-gray-700 mb-2">Pending Requests</h2>
+  {pendingRequests.length > 0 ? (
+    <ul className="space-y-4">
+      {pendingRequests.map((request) => (
+        <li
+          key={request.id}
+          className="p-4 bg-white rounded-lg shadow flex justify-between items-center"
+        >
+          <div>
+            <h3 className="text-lg font-medium text-gray-800">{request.team.name}</h3>
+            <p className="text-sm text-gray-600">Captain: {request.team.captainName}</p>
+            
+            <p className="text-sm text-gray-500">Status: {request.status}</p>
+          </div>
+          <button
+            className="px-4 py-2 bg-red-500 text-white rounded-lg shadow hover:bg-red-600"
+            onClick={() => cancelJoinRequest(request.id)}
+          >
+            Cancel
+          </button>
+        </li>
+      ))}
+    </ul>
+  ) : (
+    <p className="text-gray-600">No pending requests at the moment.</p>
+  )}
+</section>
+
 
 
       {/* Games Section */}

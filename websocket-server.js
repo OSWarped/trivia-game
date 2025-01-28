@@ -40,6 +40,36 @@ io.on("connection", (socket) => {
     io.emit("state:updated", data); // Notify clients about state change
     console.log("Broadcasted updated question and state:", data);
   });
+
+
+
+
+  //Listen for host starting a game  
+  socket.on("host:gameStarted", async (payload) => {
+    
+    const { gameId, gameName, date, hostSiteId, hostSiteName, hostingSiteLocation, joined, teams } = payload;
+
+    console.log('Received Signal that host started Game: ' + JSON.stringify(payload));
+
+    try {
+      io.emit("team:gameStarted", {
+        gameId,
+        gameName,
+        date,
+        hostSiteId,
+        hostSiteName,
+        hostingSiteLocation,
+        joined,
+        teams,
+      });
+    }
+    catch(error) {
+      console.error("Error processing start game signal:", error);
+    }
+  });
+
+
+
   
   // Listen for teams submitting answers
   socket.on("team:submitAnswer", async (payload) => {

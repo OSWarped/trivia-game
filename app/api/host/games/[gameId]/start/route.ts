@@ -86,12 +86,39 @@ const game = await prisma.game.findUnique({
     });
 
     // Update game status to STARTED
-    await prisma.game.update({
+    const updatedGame = await prisma.game.update({
       where: { id: gameId },
       data: { status: 'IN_PROGRESS', startedAt: new Date() },
+      include: {
+        hostingSite: true, // Include hosting site details
+        teamGames: {
+          include: {
+            team: true, // Include teams associated with the game
+          },
+        },
+      },
     });
 
-    return NextResponse.json({ message: 'Game started successfully!' });
+    // Build the response payload
+    const responsePayload = {
+      id: updatedGame.id,
+      name: updatedGame.name,
+      status: updatedGame.status,
+      date: updatedGame.date,
+      hostingSite: {
+        id: updatedGame.hostingSite.id,
+        name: updatedGame.hostingSite.name,
+        location: updatedGame.hostingSite.location,
+      },
+      teams: updatedGame.teamGames.map((teamGame) => ({
+        id: teamGame.team.id,
+        name: teamGame.team.name,
+      })),
+      message: 'Game started successfully!',
+    };
+
+    return NextResponse.json(responsePayload);
+
   } catch (error) {
     console.error('Error starting game:', error);
     return NextResponse.json({ error: 'Failed to start game' }, { status: 500 });

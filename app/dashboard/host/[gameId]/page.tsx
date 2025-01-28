@@ -226,10 +226,25 @@ export default function GameSetup() {
   
       const data = await response.json();
       alert(data.message || "Game started successfully!");
-  
+
+       // Emit the gameStarted event to all connected clients
+      console.log('Sending Signal: host:gameStarted: ' + JSON.stringify(data));
+
+      socket.emit("host:gameStarted", {
+        gameId: data.id,
+        gameName: data.name,
+        date: data.date,
+        hostingSiteId: data.hostingSite.id,
+        hostingSiteName: data.hostingSite.name,
+        hostingSiteLocation: data.hostingSite.location,        
+        teams: data.teams,
+        joined: false,
+      });
+      console.log('Signal Sent: host:gameStarted');
       // Refresh game data to reflect the new status
       setGame((prev) => prev && { ...prev, status: 'IN_PROGRESS' });
     } catch (error) {
+      console.log('Error with Sending Signal: host:gameStarted');
       console.error('Error starting game:', error);
       alert('Failed to start the game.');
     }

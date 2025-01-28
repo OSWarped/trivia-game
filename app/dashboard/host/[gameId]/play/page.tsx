@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { io } from 'socket.io-client';
-import { CorrectAnswer } from '@prisma/client';
+import { CorrectAnswer, CorrectSubquestion } from '@prisma/client';
 
 const websocketURL = process.env.NEXT_PUBLIC_WEBSOCKET_URL
 
@@ -51,6 +51,7 @@ interface Subquestion {
   id: string;
   text: string;
   subAnswers: SubAnswer[]; // List of subanswers submitted by teams
+  correctAnswer: CorrectSubquestion;
 }
 
 interface Question {
@@ -820,27 +821,45 @@ const evaluateIsLastQuestion = (updatedRound: Round | null, updatedQuestionIndex
 
         {/* Correct Answer Section */}
         <div className="mt-4">
-          {!isAnswerRevealed ? (
-            <button
-              onClick={() => setIsAnswerRevealed(true)}
-              className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600"
-            >
-              Reveal Correct Answer
-            </button>
-          ) : (
-            <div className="bg-yellow-100 p-4 border border-yellow-300 rounded-lg">
-              <p>
-                <strong>Correct Answer:</strong>{" "}
-                {currentQuestion?.correctAnswer?.answer || "No answer available"}
-              </p>
-              <button
-                onClick={() => setIsAnswerRevealed(false)}
-                className="bg-gray-300 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-400 mt-2"
-              >
-                Dismiss
-              </button>
-            </div>
-          )}
+        {!isAnswerRevealed ? (
+    <button
+      onClick={() => setIsAnswerRevealed(true)}
+      className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600"
+    >
+      Reveal Correct Answer
+    </button>
+  ) : (
+    <div className="bg-yellow-100 p-4 border border-yellow-300 rounded-lg">
+      {currentQuestion?.subquestions?.length ? (
+        <>
+          <h3 className="text-lg font-semibold mb-2">Correct Answers:</h3>
+          <ul className="space-y-2">
+            {currentQuestion.subquestions.map((subquestion) => (
+              <li key={subquestion.id} className="p-2 bg-white rounded-lg shadow-sm">
+                <p>
+                  <strong>{subquestion.text}:</strong>{" "}
+                  {subquestion.correctAnswer?.answer || "No answer available"}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : (
+        <>
+          <p>
+            <strong>Correct Answer:</strong>{" "}
+            {currentQuestion?.correctAnswer?.answer || "No answer available"}
+          </p>
+        </>
+      )}
+      <button
+        onClick={() => setIsAnswerRevealed(false)}
+        className="bg-gray-300 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-400 mt-2"
+      >
+        Dismiss
+      </button>
+    </div>
+  )}
         </div>
       </section>
   

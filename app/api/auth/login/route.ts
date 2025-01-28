@@ -26,6 +26,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
     }
 
+    // Clear any existing cookie
+    const clearCookie = `token=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0`;
+    const clearRes = NextResponse.json({ success: true });
+
+    // Set the clear cookie header
+    clearRes.headers.set('Set-Cookie', clearCookie);
+
     // Roles are now stored directly in the User model
     const roles = user.roles || [];
 

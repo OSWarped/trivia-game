@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { io } from "socket.io-client";
+import { SubQuestionAnswer } from "@prisma/client";
 
 const websocketURL = process.env.NEXT_PUBLIC_WEBSOCKET_URL;
 const socket = io(websocketURL);
@@ -28,6 +29,7 @@ interface GameState {
       subquestions?: {
         id: string;
         text: string; // Subquestion text
+        subAnswers: SubQuestionAnswer[];
       }[]; // Array of subquestions for multi-part questions
     } | null;
   };
@@ -69,22 +71,33 @@ export default function JoinGamePage() {
         const data: GameState = await response.json();
         setGameState(data);
   
-        // If subquestions exist, initialize subAnswers state with empty values
-        if (data.game.currentQuestion?.subquestions) {
-          const initialSubAnswers = data.game.currentQuestion.subquestions.reduce(
-            (acc, sub) => ({ ...acc, [sub.id]: "" }),
-            {}
-          );
-          setSubAnswers(initialSubAnswers);
-        }
+        // Check if subquestions exist and initialize subAnswers state
+      if (data.game.currentQuestion?.subquestions) {
+        const initialSubAnswers = data.game.currentQuestion.subquestions.reduce(
+          (acc, sub) => ({ ...acc, [sub.id]: "" }),
+          {}
+        );
+        setSubAnswers(initialSubAnswers);
+      }
   
-        // If a submitted answer exists for the current question, update UI state
-        if (data.team?.submittedAnswer) {
-          setSubmissionStatus("Answer already submitted!");
-          setAnswer(data.team.submittedAnswer.answer);
-          setSelectedPoints(data.team.submittedAnswer.pointsUsed);
-          setHasSubmitted(true); // Mark as submitted
+        // Determine if answers or subanswers have been submitted
+      if (data.game.currentQuestion?.subquestions?.length) {
+        // For subquestions, check if subanswers exist
+        const hasSubAnswers = data.game.currentQuestion.subquestions.every(
+          (sub) => sub.subAnswers.some((sa) => sa.answer) // Check if any answer exists
+        );
+
+        if (hasSubAnswers) {
+          setSubmissionStatus("Subanswers already submitted!");
+          setHasSubmitted(true);
         }
+      } else if (data.team?.submittedAnswer) {
+        // For single-answer questions
+        setSubmissionStatus("Answer already submitted!");
+        setAnswer(data.team.submittedAnswer.answer);
+        setSelectedPoints(data.team.submittedAnswer.pointsUsed);
+        setHasSubmitted(true);
+      }
       } catch (err) {
         console.error("Error fetching game state:", err);
       }
@@ -114,20 +127,33 @@ export default function JoinGamePage() {
             setHasSubmitted(false);
   
             // If subquestions exist, initialize subAnswers state with empty values
-            if (updatedGameState.game.currentQuestion?.subquestions) {
-              const initialSubAnswers = updatedGameState.game.currentQuestion.subquestions.reduce(
+          if (updatedGameState.game.currentQuestion?.subquestions) {
+            const initialSubAnswers =
+              updatedGameState.game.currentQuestion.subquestions.reduce(
                 (acc, sub) => ({ ...acc, [sub.id]: "" }),
                 {}
               );
-              setSubAnswers(initialSubAnswers);
-            }
-          } else if (updatedGameState.team?.submittedAnswer) {
-            // Update the submitted answer status if the team has already submitted an answer
-            setSubmissionStatus("");
-            setAnswer(updatedGameState.team.submittedAnswer.answer);
-            setSelectedPoints(updatedGameState.team.submittedAnswer.pointsUsed);
-            setHasSubmitted(true); // Mark as submitted
+            setSubAnswers(initialSubAnswers);
           }
+        } else if (
+          updatedGameState.game.currentQuestion?.subquestions?.length
+        ) {
+          // For subquestions, check if subanswers exist
+          const hasSubAnswers = updatedGameState.game.currentQuestion.subquestions.every(
+            (sub) => sub.subAnswers.some((sa) => sa.answer) // Check if any answer exists
+          );
+
+          if (hasSubAnswers) {
+            setSubmissionStatus("Subanswers already submitted!");
+            setHasSubmitted(true);
+          }
+        } else if (updatedGameState.team?.submittedAnswer) {
+          // Update the submitted answer status for single-answer questions
+          setSubmissionStatus("Answer already submitted!");
+          setAnswer(updatedGameState.team.submittedAnswer.answer);
+          setSelectedPoints(updatedGameState.team.submittedAnswer.pointsUsed);
+          setHasSubmitted(true);
+        }
         } catch (err) {
           console.error("Error fetching updated game state:", err);
         }

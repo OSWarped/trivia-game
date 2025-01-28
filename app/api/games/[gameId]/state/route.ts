@@ -1,9 +1,11 @@
-import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+
+// GET: Fetch the current state of the game
+import { NextResponse } from "next/server";
+import { PrismaClient } from "@prisma/client";
+import { getUserFromToken } from "@/utils/auth"; // Import your utility function
 
 const prisma = new PrismaClient();
 
-// GET: Fetch the current state of the game
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ gameId: string }> }
@@ -11,6 +13,14 @@ export async function GET(
   const { gameId } = await params;
 
   try {
+    // Get the authenticated user from the token
+    const user = await getUserFromToken();
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Fetch the game state
     const gameState = await prisma.gameState.findUnique({
       where: { gameId },
       include: {
@@ -24,6 +34,27 @@ export async function GET(
 
     if (!gameState) {
       return NextResponse.json({ error: "Game state not found" }, { status: 404 });
+    }
+
+    // Find the user's team for this game
+    const userTeam = await prisma.teamGame.findFirst({
+      where: {
+        gameId,
+        team: {
+          memberships: {
+            some: {
+              userId: user.userId, // Ensure the user is a member of the team
+            },
+          },
+        },
+      },
+      include: {
+        team: true,
+      },
+    });
+
+    if (!userTeam) {
+      return NextResponse.json({ error: "Team not found for user" }, { status: 404 });
     }
 
     const currentRound = await prisma.round.findUnique({
@@ -40,19 +71,6 @@ export async function GET(
         },
       },
     });
-
-    const userTeam = await prisma.teamGame.findFirst({
-      where: {
-        gameId,
-      },
-      include: {
-        team: true,
-      },
-    });
-
-    if (!userTeam) {
-      return NextResponse.json({ error: "Team not found" }, { status: 404 });
-    }
 
     const remainingPoints = gameState.pointsRemaining
       ? (gameState.pointsRemaining as Record<string, number[]>)[userTeam.team.id] || []

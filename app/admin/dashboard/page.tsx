@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-console.log(process.env)
+
 export default function AdminDashboard() {
   return (
     <div className="min-h-screen p-4">

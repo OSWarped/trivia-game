@@ -117,20 +117,19 @@ interface GameState {
   >;
 }
 
-
-
 export default function HostGameInterface() {
   const { gameId } = useParams();
   const [rounds, setRounds] = useState<Round[]>([]);
   const [currentRound, setCurrentRound] = useState<Round | null>(null);
   const [currentRoundIndex, setCurrentRoundIndex] = useState<number | null>(null);
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number | null>(null);
-  const [, setIsLastQuestion] = useState(false);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number | null>(null);  
   const [teamStatus, setTeamStatus] = useState<TeamStatus[]>([]);
   const [gameState, setGameState] = useState<GameState | null>(null);
-  const [showLastQuestionMessage, setShowLastQuestionMessage] = useState(false);
-  const [isAnswerRevealed, setIsAnswerRevealed] = useState(false);  
+  //const [, setShowLastQuestionMessage] = useState(false);
+  const [isAnswerRevealed, setIsAnswerRevealed] = useState(false); 
+  const [isLastQuestion, setIsLastQuestion] = useState(false);
+ 
   //const [isLastQuestionOfRound, setIsLastQuestionOfRound] = useState(false);
 
   //const [, setError] = useState<string | null>(null);
@@ -160,8 +159,6 @@ export default function HostGameInterface() {
         // Use gameStateData.game.rounds to populate rounds
         const roundsData = gameStateData.game.rounds;
         setRounds(roundsData);
-
-       console.log("Fetchted Game State:" + JSON.stringify(gameStateData));
 
         // Determine current round and question
         const currentRoundIdx: number = roundsData.findIndex(
@@ -355,22 +352,51 @@ export default function HostGameInterface() {
       socket.off('host:answerSubmission', handleAnswerSubmission);
       socket.off("host:subAnswersSubmitted", handleSubAnswersSubmitted);
     };
-  }, [gameId, teamStatus]); 
-  
+  }, [gameId, teamStatus]);  
 
- 
-  useEffect(() => {
-    if (
-      currentRoundIndex !== null &&
-      currentQuestionIndex !== null &&
-      currentRoundIndex < rounds.length - 1 && // Not the last round
-      currentQuestionIndex === rounds[currentRoundIndex].questions.length - 1 // Last question in the current round
-    ) {
-      setShowLastQuestionMessage(true);
-    } else {
-      setShowLastQuestionMessage(false);
+
+// Recalculate `isLastQuestion` when indices or rounds change
+useEffect(() => {
+  const currentRoundId = gameState?.currentRoundId;
+
+  if (currentRoundId) {
+    const roundIndex = rounds.findIndex((round) => round.id === currentRoundId);
+    setCurrentRoundIndex(roundIndex);
+    setCurrentRound(roundIndex !== -1 ? rounds[roundIndex] : null);
+
+    if (currentRoundIndex !== null && currentQuestionIndex !== null) {
+      const updatedRound = rounds[currentRoundIndex];
+      const isLast =
+        !!updatedRound &&
+        currentQuestionIndex === updatedRound.questions.length - 1 &&
+        currentRoundIndex === rounds.length - 1;
+
+      console.log(
+        "Recalculating isLastQuestion:",
+        { updatedRound, currentQuestionIndex, rounds, isLast }
+      );
+
+      setIsLastQuestion(isLast);
     }
-  }, [currentRoundIndex, currentQuestionIndex, rounds]);
+  } else {
+    setCurrentRound(null);
+    setCurrentRoundIndex(null);
+    setIsLastQuestion(false); // Reset if no valid current round
+  }
+}, [gameState?.currentRoundId, rounds, currentQuestionIndex, currentRoundIndex]);
+
+
+
+
+
+const evaluateIsLastQuestion = (updatedRound: Round | null, updatedQuestionIndex: number | null): boolean => {
+  if (!updatedRound || updatedQuestionIndex === null) return false;
+
+  return (
+    updatedQuestionIndex === updatedRound.questions.length - 1 &&
+    updatedRound.id === rounds[rounds.length - 1].id
+  );
+};
 
   
   const handleNextQuestion = async () => {
@@ -392,8 +418,7 @@ export default function HostGameInterface() {
         throw new Error("Failed to update game state for the next question.");
       }
   
-      const { gameState } = await response.json();
-  
+      const { gameState } = await response.json();  
       setGameState(gameState);
   
       const updatedRound = rounds.find((round) => round.id === gameState.currentRoundId) || null;
@@ -405,8 +430,7 @@ export default function HostGameInterface() {
         if (updatedQuestion) {
           // Attach subquestions to the current question
           updatedQuestion.subquestions = updatedQuestion.subquestions || [];
-        }
-      
+        }      
       setCurrentQuestion(updatedQuestion);
   
       const updatedQuestionIndex = updatedRound?.questions.findIndex(
@@ -415,12 +439,18 @@ export default function HostGameInterface() {
       setCurrentQuestionIndex(updatedQuestionIndex ?? null);
       console.log("handleNextQuestion: just set the current question index " + updatedQuestionIndex);
   
-      setIsLastQuestion(
-        !!updatedRound?.questions &&
-        updatedQuestionIndex !== undefined &&
-        updatedQuestionIndex === updatedRound.questions.length - 1 &&
-        updatedRound.id === rounds[rounds.length - 1].id
-      );
+      // Evaluate whether this is the last question
+      if (updatedRound && updatedQuestionIndex !== null && updatedQuestionIndex !== undefined) {
+        // Evaluate whether this is the last question
+        const isLast = evaluateIsLastQuestion(updatedRound, updatedQuestionIndex);
+        console.log("Is Last Question:", isLast);
+        setIsLastQuestion(isLast);
+      } else {
+        console.warn("Could not evaluate if this is the last question: missing round or question index.");
+        setIsLastQuestion(false); // Default to false if we can't evaluate
+      }
+    //console.log("Is Last Question:", isLast);
+    //setIsLastQuestion(isLast);
   
       // Reset the team status to "Pending"
       setTeamStatus((prevStatus) =>
@@ -739,110 +769,118 @@ export default function HostGameInterface() {
         <h1 className="text-3xl font-bold mb-4">Host Game Interface</h1>
       </header>
   
-      {/* Navigation Section */}
-      <section className="bg-gray-100 p-4 rounded-lg shadow-md">
-        <h2 className="text-xl font-semibold mb-4">Navigation</h2>
-        <div className="flex justify-between">
-          {gameState?.isTransitioning ? (
-            <button
-              onClick={handleResumeGame}
-              className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600"
-            >
-              Resume Game
-            </button>
-          ) : (
-            <div className="flex space-x-4">
-              {currentQuestionIndex !== null && currentQuestionIndex > 0 && (
-                <button
-                  onClick={handlePreviousQuestion}
-                  className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600"
-                >
-                  Previous Question
-                </button>
-              )}
-              {currentRoundIndex !== null &&
-              currentQuestionIndex !== null &&
-              currentRoundIndex === rounds.length - 1 &&
-              currentQuestionIndex ===
-                rounds[currentRoundIndex].questions.length - 1 ? (
-                <button
-                  onClick={handleEndGame}
-                  className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600"
-                >
-                  End Game
-                </button>
-              ) : (
-                <button
-                  onClick={handleNextQuestion}
-                  className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600"
-                >
-                  Next Question
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-      </section>
-  
-      {/* Current Round and Question Section */}
-      <section className="bg-gray-50 p-6 rounded-lg shadow-md">
-  <h2 className="text-xl font-semibold mb-2">Current Round</h2>
-  <p className="text-lg">Round: {currentRound?.name || "No current round"}</p>
-  <p className="text-lg">Question: {currentQuestion?.text || "No current question"}</p>
-
-  {/* Correct Answer Section */}
-  <div className="mt-4">
-    {!isAnswerRevealed ? (
+     {/* Navigation Section */}
+<section className="bg-gray-100 p-4 rounded-lg shadow-md">
+  <h2 className="text-xl font-semibold mb-4">Navigation</h2>
+  <div className="flex justify-between">
+    {gameState?.isTransitioning ? (
       <button
-        onClick={() => setIsAnswerRevealed(true)}
-        className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600"
+        onClick={handleResumeGame}
+        className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600"
       >
-        Reveal Correct Answer
+        Resume Game
       </button>
     ) : (
-      <div className="bg-yellow-100 p-4 border border-yellow-300 rounded-lg">
-        <p>
-          <strong>Correct Answer:</strong>{" "}
-          {currentQuestion?.correctAnswer?.answer || "No answer available"}
-        </p>
-        <button
-          onClick={() => setIsAnswerRevealed(false)}
-          className="bg-gray-300 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-400 mt-2"
-        >
-          Dismiss
-        </button>
+      <div className="flex space-x-4">
+        {currentQuestionIndex !== null && currentQuestionIndex > 0 && (
+          <button
+            onClick={handlePreviousQuestion}
+            className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600"
+          >
+            Previous Question
+          </button>
+        )}
+        {isLastQuestion ? (
+          <button
+            onClick={handleEndGame}
+            className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600"
+          >
+            End Game
+          </button>
+        ) : (
+          <button
+            onClick={handleNextQuestion}
+            className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600"
+          >
+            Next Question
+          </button>
+        )}
       </div>
     )}
   </div>
 </section>
 
+
   
-      {/* Message Section */}
-      {showLastQuestionMessage && (
-        <section className="bg-yellow-50 p-6 rounded-lg shadow-md">
-          <p className="text-lg font-semibold">
-            You have reached the last question of this round!
-          </p>
-          <p className="mt-2">
-            Once you have scored all teams, you may want to take a break before moving to the next
-            round.
-          </p>
-          <div className="mt-4 flex space-x-4">
+      {/* Current Round and Question Section */}
+      <section className="bg-gray-50 p-6 rounded-lg shadow-md">
+        <h2 className="text-xl font-semibold mb-2">Current Round</h2>
+        <p className="text-lg">Round: {currentRound?.name || "No current round"}</p>
+        <p className="text-lg">Question: {currentQuestion?.text || "No current question"}</p>
+
+        {/* Correct Answer Section */}
+        <div className="mt-4">
+          {!isAnswerRevealed ? (
             <button
-              onClick={handleTakeABreak}
-              className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600"
+              onClick={() => setIsAnswerRevealed(true)}
+              className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600"
             >
-              Take a Break
+              Reveal Correct Answer
             </button>
-            <button
-              onClick={() => setShowLastQuestionMessage(false)}
-              className="bg-gray-300 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-400"
-            >
-              Dismiss
-            </button>
-          </div>
-        </section>
-      )}
+          ) : (
+            <div className="bg-yellow-100 p-4 border border-yellow-300 rounded-lg">
+              <p>
+                <strong>Correct Answer:</strong>{" "}
+                {currentQuestion?.correctAnswer?.answer || "No answer available"}
+              </p>
+              <button
+                onClick={() => setIsAnswerRevealed(false)}
+                className="bg-gray-300 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-400 mt-2"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+        </div>
+      </section>
+  
+     {/* Game Status Section */}
+     {(isLastQuestion || 
+  (currentQuestionIndex !== null && 
+  currentRoundIndex !== null && 
+  currentQuestionIndex === rounds[currentRoundIndex].questions.length - 1)) && (
+  <section className="bg-yellow-100 p-4 rounded-lg shadow-md mt-4">
+    <h2 className="text-xl font-semibold mb-4">Game Status</h2>
+    {isLastQuestion ? (
+      <>
+        {/* Last Question of the Game */}
+        <p className="mb-4">
+          <strong>This is the last question of the game!</strong>
+        </p>
+        <p className="mb-4">
+          Score all answers and display the final results. Then you can end the game.
+        </p>
+      </>
+    ) : (
+      <>
+        {/* Last Question of the Round */}
+        <p className="mb-4">
+          You have reached the last question of this round!
+        </p>
+        <p className="mb-4">
+          Once you have scored all teams, you may want to take a break before moving to the next round.
+        </p>
+        <button
+          onClick={handleTakeABreak}
+          className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600"
+        >
+          Take a Break
+        </button>
+      </>
+    )}
+  </section>
+)}
+
   
       {/* Team Status Section */}
       <section className="bg-gray-50 p-6 rounded-lg shadow-md">

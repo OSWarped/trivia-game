@@ -5,7 +5,9 @@ import { useParams } from 'next/navigation';
 import { Team } from '@prisma/client';
 import { io } from "socket.io-client";
 
-const socket = io('http://localhost:3009'); // Adjust WebSocket server URL
+const websocketURL = process.env.NEXT_PUBLIC_WEBSOCKET_URL;
+const socket = io(websocketURL);
+
 
 
 interface HostingSite {

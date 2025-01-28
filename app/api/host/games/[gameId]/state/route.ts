@@ -140,7 +140,7 @@ export async function GET(
       answersByTeam: answersByTeam || {}, // Include team-specific single answers
     };
 
-    console.log('Enhanced GameState:', JSON.stringify(enhancedGameState, null, 2));
+    //console.log('Enhanced GameState:', JSON.stringify(enhancedGameState, null, 2));
 
     // Return the enhanced game state
     return NextResponse.json(enhancedGameState);

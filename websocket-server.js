@@ -1,12 +1,26 @@
-const { Server } = require("socket.io");
-
 const PORT = 3009; // Choose a port for your WebSocket server
 
+const https = require("https");
+const fs = require("fs");
+const { Server } = require("socket.io");
+
+const options = {
+  key: fs.readFileSync("./blakdusttriviahost_com/blakdusttriviahost_com.key"), // Path to your SSL key
+  cert: fs.readFileSync("./blakdusttriviahost_com/blakdusttriviahost_com.crt"), // Path to your SSL certificate
+};
+
+const httpsServer = https.createServer(options);
 // Create a new WebSocket server
-const io = new Server(PORT, {
+const io = new Server(httpsServer, {
   cors: {
-    origin: "*", // Adjust for your deployment
+    origin: "*",
+    methods: ["GET", "POST"],
+    credentials: true,
   },
+});
+
+httpsServer.listen(3009, () => {
+  console.log("WebSocket server running on HTTPS port 3009");
 });
 
 console.log(`WebSocket server running on port ${PORT}`);

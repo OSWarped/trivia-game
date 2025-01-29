@@ -58,6 +58,7 @@ export default function JoinGamePage() {
   const [selectedPoints, setSelectedPoints] = useState<number | "">("");
   const [submissionStatus, setSubmissionStatus] = useState<string | null>(null);
   const [hasSubmitted, setHasSubmitted] = useState(false); // New state to track submission
+  const [teamScore, setTeamScore] = useState<number | null>(null); // NEW: Track team score
   const router = useRouter();
 
   useEffect(() => {
@@ -102,8 +103,21 @@ export default function JoinGamePage() {
         console.error("Error fetching game state:", err);
       }
     };
+
+    const fetchTeamScore = async () => {
+      try {
+        const response = await fetch(`/api/games/${gameId}/team-score`);
+        if (!response.ok) throw new Error("Failed to fetch team score");
+
+        const data = await response.json();
+        setTeamScore(data.teamScore);
+      } catch (err) {
+        console.error("Error fetching team score:", err);
+      }
+    };
   
     fetchGameState();
+    fetchTeamScore();
   
     // WebSocket events for state updates
     socket.on("state:updated", async (data) => {
@@ -118,6 +132,7 @@ export default function JoinGamePage() {
             updatedGameState.game.currentQuestion?.id !== gameState?.game.currentQuestion?.id;
   
           setGameState(updatedGameState);
+          await fetchTeamScore(); // Refresh team score when game state updates
   
           if (questionChanged) {
             // Reset the answer, subAnswers, and submission status if the question has changed
@@ -334,6 +349,16 @@ export default function JoinGamePage() {
   return (
     <div className="max-w-4xl mx-auto p-6 bg-white shadow-md rounded-lg">
       <h1 className="text-3xl font-semibold text-center mb-8">{gameState.game.name}</h1>
+
+       {/* 🔹 NEW: Team Info Section 🔹 */}
+       <div className="mb-6 p-4 bg-gray-100 rounded-lg shadow">
+        <p className="text-gray-700 text-md">
+          <strong>Team Name:</strong> {gameState.team.name}
+        </p>
+        <p className="text-gray-700 text-md">
+          <strong>Current Score:</strong> {teamScore !== null ? teamScore : "Loading..."}
+        </p>
+      </div>
   
       {gameState.game.currentRound && (
         <p className="text-lg mb-4">

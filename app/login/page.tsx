@@ -2,9 +2,11 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { useAuth } from '@/context/AuthContext';
 
 export default function LoginPage() {
   const router = useRouter();
+  const { refreshUser } = useAuth(); // Get refreshUser function from context
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -23,18 +25,16 @@ export default function LoginPage() {
       const result = await response.json();
 
       if (response.ok) {
-        const { token, roles } = result;
+        // ✅ Immediately refresh user state
+        await refreshUser();
 
-        if (token) {
-          document.cookie = `token=${token}; path=/; secure; HttpOnly`;
-
-          if (roles.includes('ADMIN')) {
-            router.push('/admin/dashboard');
-          } else if (roles.includes('HOST')) {
-            router.push('/dashboard/host');
-          } else {
-            router.push('/dashboard');
-          }
+        // ✅ Redirect based on roles
+        if (result.roles.includes('ADMIN')) {
+          router.push('/admin/dashboard');
+        } else if (result.roles.includes('HOST')) {
+          router.push('/dashboard/host');
+        } else {
+          router.push('/dashboard');
         }
       } else {
         setError(result.error || 'Login failed.');

@@ -205,6 +205,10 @@ io.on("connection", (socket) => {
     io.emit("team:update", { gameId, type: "add", teamName, teamId });
   });
 
+
+
+
+
   // Listen for a team being removed from a game
   socket.on("team:removeFromGame", (data) => {
     const { gameId, teamId } = data;
@@ -212,6 +216,31 @@ io.on("connection", (socket) => {
     // Notify all clients in the room about the updated team list
     io.emit("team:update", { gameId, type: "remove", teamId });
   });
+
+
+  // 🔹 Handle Join Request Sent
+  socket.on('player:joinRequestSent', ({ toUserId, teamId, requestId, message }) => {
+    console.log(`Join request for team ${teamId} sent to captain ${toUserId}`);
+
+    // Emit the notification directly to the captain
+    io.emit(`notification:${toUserId}`, {
+      type: 'JOIN_REQUEST',
+      teamId,
+      requestId,
+      message,
+    });
+  });
+
+
+  // Store notifications (Optional)
+  socket.on("notification:new", ({ toUserId, type, message }) => {
+    console.log(`New notification for ${toUserId}: ${message}`);
+    io.emit(`notification:${toUserId}`, { type, message });
+  });
+
+
+
+
   
   // Handle client disconnection
   socket.on("disconnect", () => {

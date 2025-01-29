@@ -37,6 +37,8 @@ export default function PlayerDashboard() {
   const [hostingSites, setHostingSites] = useState<HostingSite[]>([]);
   const [availableTeams, setAvailableTeams] = useState<{ id: string; name: string; captainName: string; games: { id: string; name: string; hostingSite: { name: string; location: string } }[] }[]>([]);
  // const [submittedRequests, setSubmittedRequests] = useState<string[]>([]);
+ const [selectedTeam, setSelectedTeam] = useState<null | { id: string; name: string }>(null);
+
   const [loading, setLoading] = useState(true);
   //const [modalOpen, setModalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -132,40 +134,161 @@ export default function PlayerDashboard() {
   //     setError('Failed to fetch available teams.');
   //   }
   // };
+  // Handler for the "Join" button
+  // const handleJoinClick = (team: { id: string; name: string; games: Game[] }) => {
+  //   // Check if the user is already on a team in the same game
+  //   const teamInSameGame = teams.find((currentTeam) =>
+  //     currentTeam.games.some((game) => team.games.some((g) => g.id === game.id))
+  //   );
+
+  //   if (teamInSameGame) {
+  //     // Show confirmation modal if user already has a team in the game
+  //     setSelectedTeam({ id: team.id, name: team.name });
+  //   } else {
+  //     // Send join request directly if there's no conflict
+  //     sendJoinRequest(team.id);
+  //   }
+  // };
+  const handleJoinClick = (team: { id: string; name: string; games: { id: string }[] }) => {
+    // Check if the user is already on a team in the same game
+    const teamInSameGame = teams.find((currentTeam) =>
+      currentTeam.games.some((game) => team.games.some((g) => g.id === game.id))
+    );
+  
+    if (teamInSameGame) {
+      setSelectedTeam({ id: team.id, name: team.name });
+    } else {
+      sendJoinRequest(team.id);
+    }
+  };
+
+  // Confirm join request after the user accepts the modal
+  const confirmJoinRequest = () => {
+    if (selectedTeam) {
+      sendJoinRequest(selectedTeam.id);
+      setSelectedTeam(null); // Close modal
+    }
+  };
+  
 
   const sendJoinRequest = async (teamId: string) => {
     try {
-      const res = await fetch(`/api/teams/${teamId}/join-requests`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
+      // Fetch join request and team details concurrently
+      const [joinRequestRes, teamRes] = await Promise.all([
+        fetch(`/api/teams/${teamId}/join-requests`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        }),
+        fetch(`/api/teams/${teamId}`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      ]);
   
-      if (!res.ok) throw new Error();
+      if (!joinRequestRes.ok) throw new Error('Failed to create join request');
+      if (!teamRes.ok) throw new Error('Failed to fetch team details');
   
-      const updatedTeams = availableTeams.filter((team) => team.id !== teamId);
-      setAvailableTeams(updatedTeams);
+      const requestData = await joinRequestRes.json(); // Join request details
+      const searchedTeam = await teamRes.json(); // Team details
   
-      // Optionally notify the user
-      alert('Join request sent successfully!');
-    } catch {
+      console.log('Join request created:', requestData);
+      console.log('Fetched team details:', searchedTeam);
+  
+      const team = availableTeams.find((t) => t.id === teamId);
+  
+      if (team) {
+        setPendingRequests((prev) => [
+          ...prev,
+          {
+            id: requestData.joinRequest.id,
+            team: {
+              id: team.id,
+              name: team.name,
+              captainName: team.captainName,
+              game: { id: '', name: '' },
+            },
+            status: 'PENDING',
+          },
+        ]);
+  
+        setAvailableTeams((prev) => prev.filter((t) => t.id !== teamId));
+  
+        // Emit a socket event to notify the captain
+        if (searchedTeam?.captain?.id) {
+          const notificationMessage = `A new join request for ${team.name}`;
+          socket.emit('player:joinRequestSent', {
+            toUserId: searchedTeam.captain.id,
+            teamId,
+            requestId: requestData.joinRequest.id,
+            message: notificationMessage,
+          });
+  
+          // Save notification to the database
+          await fetch('/api/notifications', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: searchedTeam.captain.id,
+              message: notificationMessage,
+              link: `/team/${team.id}/manage`, // Example link
+            }),
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error sending join request:', error);
       setError('Failed to send join request.');
     }
   };
-
-  const cancelJoinRequest = async (requestId: string) => {
-    try {
-      const res = await fetch(`/api/player/pending-requests/${requestId}`, {
-        method: 'DELETE',
-      });
-      if (!res.ok) throw new Error('Failed to cancel request.');
   
-      // Remove the canceled request from the UI
+  
+  
+  
+
+  // const cancelJoinRequest = async (requestId: string) => {
+  //   try {
+  //     const res = await fetch(`/api/player/pending-requests/${requestId}`, {
+  //       method: 'DELETE',
+  //     });
+  //     if (!res.ok) throw new Error('Failed to cancel request.');
+  
+  //     // Remove the canceled request from the UI
+  //     setPendingRequests((prev) => prev.filter((req) => req.id !== requestId));
+  //   } catch (error) {
+  //     console.error('Error canceling join request:', error);
+  //     setError('Failed to cancel request.');
+  //   }
+  // };
+   // Cancel join request modal
+   const cancelJoinRequest = () => {
+    setSelectedTeam(null); // Close modal
+  };
+
+  const deleteJoinRequest = async (requestId: string) => {
+    try {
+      const res = await fetch('/api/player/pending-requests', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: requestId }), // Send requestId in the payload
+      });
+  
+      if (!res.ok) throw new Error('Failed to delete request.');
+  
+      // Remove the canceled request from pendingRequests
       setPendingRequests((prev) => prev.filter((req) => req.id !== requestId));
+  
+      // Re-fetch the available teams to ensure consistency
+      const updatedAvailableTeams = await fetch('/api/player/available-teams').then((res) => res.json());
+      setAvailableTeams(updatedAvailableTeams);
+  
+      //alert('Join request deleted successfully!');
     } catch (error) {
-      console.error('Error canceling join request:', error);
-      setError('Failed to cancel request.');
+      console.error('Error deleting join request:', error);
+      setError('Failed to delete join request.');
     }
   };
+  
+
 
   const formatDateUTC = (dateString: string): string => {
     const date = new Date(dateString);
@@ -260,25 +383,23 @@ export default function PlayerDashboard() {
       </section>
 
 
-      {/* Available Teams Section */}
+      {/* Available Teams Section */}      
       <section className="available-teams mb-8">
         <h2 className="text-xl font-semibold text-gray-700 mb-2">Available Teams</h2>
         {availableTeams.length > 0 ? (
           <ul className="space-y-4">
             {availableTeams.map((team) => (
-              <li key={team.id} className="p-4 bg-white rounded-lg shadow flex justify-between items-center">
+              <li
+                key={team.id}
+                className="p-4 bg-white rounded-lg shadow flex justify-between items-center"
+              >
                 <div>
                   <h3 className="text-lg font-medium text-gray-800">{team.name}</h3>
                   <p className="text-sm text-gray-600">Captain: {team.captainName}</p>
-                  {/*team.games.map((game) => (
-                    <p key={game.id} className="text-sm text-gray-500">
-                      Game: {game.name} ({game.hostingSite.name}, {game.hostingSite.location})
-                    </p>
-                  ))*/}
                 </div>
                 <button
                   className="px-4 py-2 bg-blue-500 text-white rounded-lg shadow hover:bg-blue-600"
-                  onClick={() => sendJoinRequest(team.id)}
+                  onClick={() => handleJoinClick(team)}
                 >
                   Join
                 </button>
@@ -290,35 +411,63 @@ export default function PlayerDashboard() {
         )}
       </section>
 
+       {/* Confirmation Modal */}
+       {selectedTeam && (
+        <div className="fixed inset-0 bg-gray-800 bg-opacity-50 flex justify-center items-center z-50">
+          <div className="bg-white rounded-lg p-6 w-1/3">
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">Confirm Join Request</h2>
+            <p className="text-gray-700 mb-4">
+              If you are approved to join <span className="font-bold">{selectedTeam.name}</span>,
+              you will be removed from your current team in the same game. Are you sure you want to
+              send this request?
+            </p>
+            <div className="flex justify-end space-x-4">
+              <button
+                className="px-4 py-2 bg-red-500 text-white rounded-lg shadow hover:bg-red-600"
+                onClick={cancelJoinRequest}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 bg-green-500 text-white rounded-lg shadow hover:bg-green-600"
+                onClick={confirmJoinRequest}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}  
+
       {/* Pending Requests Section */}
       <section className="pending-requests mb-8">
-  <h2 className="text-xl font-semibold text-gray-700 mb-2">Pending Requests</h2>
-  {pendingRequests.length > 0 ? (
-    <ul className="space-y-4">
-      {pendingRequests.map((request) => (
-        <li
-          key={request.id}
-          className="p-4 bg-white rounded-lg shadow flex justify-between items-center"
-        >
-          <div>
-            <h3 className="text-lg font-medium text-gray-800">{request.team.name}</h3>
-            <p className="text-sm text-gray-600">Captain: {request.team.captainName}</p>
-            
-            <p className="text-sm text-gray-500">Status: {request.status}</p>
-          </div>
-          <button
-            className="px-4 py-2 bg-red-500 text-white rounded-lg shadow hover:bg-red-600"
-            onClick={() => cancelJoinRequest(request.id)}
-          >
-            Cancel
-          </button>
-        </li>
-      ))}
-    </ul>
-  ) : (
-    <p className="text-gray-600">No pending requests at the moment.</p>
-  )}
-</section>
+        <h2 className="text-xl font-semibold text-gray-700 mb-2">Pending Requests</h2>
+        {pendingRequests.length > 0 ? (
+          <ul className="space-y-4">
+            {pendingRequests.map((request) => (
+              <li
+                key={request.id}
+                className="p-4 bg-white rounded-lg shadow flex justify-between items-center"
+              >
+                <div>
+                  <h3 className="text-lg font-medium text-gray-800">{request.team.name}</h3>
+                  <p className="text-sm text-gray-600">Captain: {request.team.captainName}</p>
+                  
+                  <p className="text-sm text-gray-500">Status: {request.status}</p>
+                </div>
+                <button
+                  className="px-4 py-2 bg-red-500 text-white rounded-lg shadow hover:bg-red-600"
+                  onClick={() => deleteJoinRequest(request.id)}
+                >
+                  Cancel
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-gray-600">No pending requests at the moment.</p>
+        )}
+      </section>
 
 
 

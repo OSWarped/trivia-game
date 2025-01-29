@@ -1,12 +1,29 @@
-import Header from './Header';
-import Footer from './Footer';
+//import "./globals.css";
+import { AuthProvider } from "../context/AuthContext"; // Relative path
+import Header from "@/components/Header";
 
-export default function Layout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  
+ 
+
+  try {
+    
+  } catch (error) {
+    console.error("Failed to get user info:", error);
+  }
+
   return (
-    <div className="min-h-screen flex flex-col">
-      <Header />
-      <main className="flex-grow p-4">{children}</main>
-      <Footer />
-    </div>
+    <AuthProvider>
+      <html lang="en">
+        <body>
+          <Header />
+          <main>{children}</main>
+        </body>
+      </html>
+    </AuthProvider>
   );
 }

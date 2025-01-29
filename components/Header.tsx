@@ -9,6 +9,12 @@ export default function Header() {
   const router = useRouter();
   const pathname = usePathname();
 
+  console.log("Header file says user is: " + JSON.stringify(user));
+  if(user){
+    console.log("Header file says user is Admin: " + JSON.stringify(user?.user.roles));
+  }
+  
+
   // Logout handler
   async function handleLogout() {
     try {
@@ -57,7 +63,7 @@ export default function Header() {
             </li>
 
             {/* Admin Navigation - Only show if user exists and has roles */}
-            {user?.roles?.includes('ADMIN') && (
+            {user?.user.roles?.includes('ADMIN') && (
               <li>
                 <Link
                   href="/admin/dashboard"
@@ -71,7 +77,7 @@ export default function Header() {
             )}
 
             {/* Host Navigation */}
-            {user?.roles?.includes('HOST') && (
+            {user?.user.roles?.includes('HOST') && (
               <li>
                 <Link
                   href="/dashboard/host"

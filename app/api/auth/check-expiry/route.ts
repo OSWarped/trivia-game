@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
 
       return NextResponse.json({ valid: true, userId: decoded.userId, roles: decoded.roles });
     } catch (error) {
+      console.error("Caught error: " + error);
       return NextResponse.json({ valid: false, message: 'Invalid token' }, { status: 401 });
     }
   } catch (error) {

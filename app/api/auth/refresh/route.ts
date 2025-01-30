@@ -43,6 +43,7 @@ export async function GET(req: NextRequest) {
       res.headers.set('Set-Cookie', cookie);
       return res;
     } catch (error) {
+      console.error("Caught error: " + error);
       return NextResponse.json({ success: false, message: 'Invalid token' }, { status: 401 });
     }
   } catch (error) {

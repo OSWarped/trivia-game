@@ -11,7 +11,7 @@ export async function GET() {
     }
 
     const user = await getUserFromProvidedToken(token); // ✅ Pass the token
-    return NextResponse.json({ user });
+    return NextResponse.json(user); // ✅ Send the user object directly
   } catch (error) {
     console.error('Error in /api/auth/me:', error);
     return NextResponse.json({ error: 'Failed to authenticate' }, { status: 500 });

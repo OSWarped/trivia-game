@@ -1,15 +1,19 @@
 import { NextResponse } from 'next/server';
-import { getUserFromToken } from '@/utils/auth'; // Import the new utility function
+import { getUserFromProvidedToken } from '@/utils/auth';
+import { cookies } from 'next/headers';
 
+export async function GET() {
+  try {
+    const token = (await cookies()).get('token')?.value; // ✅ Retrieve token correctly
 
-
-
-export async function GET() {  
-  const user = await getUserFromToken();
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const user = await getUserFromProvidedToken(token); // ✅ Pass the token
     return NextResponse.json({ user });
-  } 
-
+  } catch (error) {
+    console.error('Error in /api/auth/me:', error);
+    return NextResponse.json({ error: 'Failed to authenticate' }, { status: 500 });
+  }
+}

@@ -1,6 +1,7 @@
-'use client';
+"use client";
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from "react";
+import { usePathname } from "next/navigation"; // Helps detect current route
 
 interface User {
   id: string;
@@ -11,34 +12,40 @@ interface User {
 interface AuthContextType {
   user: User | null;
   setUser: (user: User | null) => void;
-  refreshUser: () => Promise<void>; // New function to manually refresh user state
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const pathname = usePathname(); // Get current route
 
   // Function to fetch user data from /api/auth/me
   const refreshUser = async () => {
     try {
-      const res = await fetch('/api/auth/me');
+      const res = await fetch("/api/auth/me");
+
       if (res.ok) {
-        const userData = await res.json();
-        setUser(userData);
+        const { user } = await res.json();
+        setUser(user);
       } else {
         setUser(null);
       }
     } catch (error) {
-      console.error('Error fetching user:', error);
+      console.error("Error fetching user:", error);
       setUser(null);
     }
   };
 
-  // Automatically fetch user data on component mount
+  // ✅ Only fetch user data if not on public pages
   useEffect(() => {
-    refreshUser();
-  }, []);
+    const publicRoutes = ["/", "/login", "/register"];
+
+    if (!publicRoutes.includes(pathname)) {
+      refreshUser();
+    }
+  }, [pathname]); // Runs when the route changes
 
   return (
     <AuthContext.Provider value={{ user, setUser, refreshUser }}>
@@ -50,7 +57,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 }

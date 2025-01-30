@@ -48,3 +48,45 @@ export async function getUserFromToken() {
     throw new Error(errorMessage);
   }
 }
+
+
+// ✅ New function that accepts a provided token
+export async function getUserFromProvidedToken(token: string | null) {
+  try {
+    if (!token) {
+      return null; // ❌ Don't throw an error, just return null
+    }
+
+    // Decode the token
+    const decoded = jwt.verify(token, JWT_SECRET) as DecodedToken;
+
+    // Fetch the user from the database
+    const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
+
+    if (!user) {
+      return null; // ❌ Don't throw an error, just return null
+    }
+
+    return {
+      userId: user.id,
+      email: user.email,
+      roles: user.roles,
+    };
+  } catch (error) {
+    console.error('Error in getUserFromProvidedToken:', error);
+    return null; // ❌ Return null instead of throwing an error
+  }
+}
+
+
+export function generateToken(payload: object) {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: "30m" }); // 30-minute expiry
+}
+
+export function verifyToken(token: string) {
+  try {
+    return jwt.verify(token, JWT_SECRET);
+  } catch (error) {
+    return null; // Return null if verification fails
+  }
+}

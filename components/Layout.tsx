@@ -1,29 +1,21 @@
-//import "./globals.css";
-import { AuthProvider } from "../context/AuthContext"; // Relative path
+"use client";
+
+import { AuthProvider } from "@/context/AuthContext"; 
 import Header from "@/components/Header";
+import useAuthRefresh from "@/context/useAuthRefresh"; 
 
-export default async function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  
- 
-
-  try {
-    
-  } catch (error) {
-    console.error("Failed to get user info:", error);
-  }
-
+export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <AuthProvider>
-      <html lang="en">
-        <body>
-          <Header />
-          <main>{children}</main>
-        </body>
-      </html>
+      <AuthHandler /> {/* Ensures token refresh runs in the background */}
+      <Header />
+      <main>{children}</main>
     </AuthProvider>
   );
+}
+
+// Component to trigger authentication refresh
+function AuthHandler() {
+  useAuthRefresh(); // Automatically refreshes the token if needed
+  return null; // Doesn't render anything
 }

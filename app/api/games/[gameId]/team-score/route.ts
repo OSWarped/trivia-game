@@ -6,7 +6,7 @@ const prisma = new PrismaClient();
 
 export async function GET(
   req: Request,
-  { params }: { params: { gameId: string } }
+  { params }: { params: Promise<{ gameId: string }> }
 ) {
   try {
     const user = await getUserFromToken();
@@ -14,7 +14,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { gameId } = params;
+    const { gameId } = await params;
 
     // Find the team the user is on for this game
     const userTeam = await prisma.teamGame.findFirst({

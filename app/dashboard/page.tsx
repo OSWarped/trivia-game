@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { io } from 'socket.io-client';
-import Link from 'next/link';
 import { User } from '@prisma/client';
 
 const socket = io(process.env.NEXT_PUBLIC_WEBSOCKET_URL); // Your Socket.IO server URL
@@ -206,12 +205,12 @@ const [teamToJoin, setTeamToJoin] = useState<null | {
   
 
   // Confirm join request after the user accepts the modal
-  const confirmJoinRequest = () => {
-    if (selectedTeam) {
-      sendJoinRequest(selectedTeam.id);
-      setSelectedTeam(null); // Close modal
-    }
-  };
+  // const confirmJoinRequest = () => {
+  //   if (selectedTeam) {
+  //     sendJoinRequest(selectedTeam.id);
+  //     setSelectedTeam(null); // Close modal
+  //   }
+  // };
   
 
   const sendJoinRequest = async (teamId: string) => {
@@ -286,9 +285,9 @@ const [teamToJoin, setTeamToJoin] = useState<null | {
   
 
    // Cancel join request modal
-   const cancelJoinRequest = () => {
-    setSelectedTeam(null); // Close modal
-  };
+  //  const cancelJoinRequest = () => {
+  //   setSelectedTeam(null); // Close modal
+  // };
 
 
 

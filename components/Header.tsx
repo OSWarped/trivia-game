@@ -12,6 +12,12 @@ export default function Header() {
   const pathname = usePathname();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
+  console.log("Header file says user is: " + JSON.stringify(user));
+  if(user){
+    console.log("Header file says user is Admin: " + JSON.stringify(user?.user.roles));
+  }
+  
+
   // Logout handler
   async function handleLogout() {
     try {

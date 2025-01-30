@@ -13,14 +13,13 @@ export async function GET(
   const { gameId } = await params;
 
   try {
-    // Get the authenticated user from the token
+    // ✅ Step 1: Check user authentication
     const user = await getUserFromToken();
-
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Fetch the game state
+    // ✅ Step 2: Fetch game state
     const gameState = await prisma.gameState.findUnique({
       where: { gameId },
       include: {
@@ -32,11 +31,13 @@ export async function GET(
       },
     });
 
+    console.log("Fetched gameState:", gameState);
+
     if (!gameState) {
       return NextResponse.json({ error: "Game state not found" }, { status: 404 });
     }
 
-    // Find the user's team for this game
+    // ✅ Step 3: Find the user's team
     const userTeam = await prisma.teamGame.findFirst({
       where: {
         gameId,
@@ -53,96 +54,122 @@ export async function GET(
       },
     });
 
+    console.log("Fetched userTeam:", userTeam);
+
     if (!userTeam) {
       return NextResponse.json({ error: "Team not found for user" }, { status: 404 });
     }
 
-    const currentRound = await prisma.round.findUnique({
-      where: { id: gameState.currentRoundId ?? undefined }, // Convert null to undefined
-    });
+    // ✅ Step 4: Fetch current round
+    const currentRound = gameState.currentRoundId
+      ? await prisma.round.findUnique({
+          where: { id: gameState.currentRoundId },
+        })
+      : null;
 
-    const currentQuestion = await prisma.question.findUnique({
-      where: { id: gameState.currentQuestionId ?? undefined },
-      include: {
-        subquestions: {
+    console.log("Fetched currentRound:", currentRound);
+
+    // ✅ Step 5: Fetch current question
+    const currentQuestion = gameState.currentQuestionId
+      ? await prisma.question.findUnique({
+          where: { id: gameState.currentQuestionId },
           include: {
-            subAnswers: true, // Include subAnswers for each subquestion
+            subquestions: {
+              include: {
+                subAnswers: true, // Include subAnswers for each subquestion
+              },
+            },
           },
-        },
-      },
-    });
+        })
+      : null;
 
+    console.log("Fetched currentQuestion:", currentQuestion);
+
+    // ✅ Step 6: Fetch remaining points
     const remainingPoints = gameState.pointsRemaining
       ? (gameState.pointsRemaining as Record<string, number[]>)[userTeam.team.id] || []
       : [];
 
-    const submittedAnswer = await prisma.answer.findFirst({
-      where: {
-        teamId: userTeam.team.id,
-        questionId: currentQuestion?.id,
-      },
-    });
+    // ✅ Step 7: Fetch submitted answer
+    const submittedAnswer = currentQuestion
+      ? await prisma.answer.findFirst({
+          where: {
+            teamId: userTeam.team.id,
+            questionId: currentQuestion.id,
+          },
+        })
+      : null;
 
+    console.log("Fetched submittedAnswer:", submittedAnswer);
+
+    // ✅ Step 8: Return game state
     return NextResponse.json({
-      game: {
-        id: gameState.game.id,
-        name: gameState.game.name,
-        status: gameState.game.status,
-        currentRound: currentRound
-          ? {
-              id: currentRound.id,
-              name: currentRound.name,
-              pointSystem: currentRound.pointSystem,
-              roundType: currentRound.roundType,
-              pointPool: currentRound.pointPool,
-              pointValue: currentRound.pointValue,
-            }
-          : null,
-        currentQuestion: currentQuestion
-          ? {
-              id: currentQuestion.id,
-              text: currentQuestion.text,
-              type: currentQuestion.type as
-                | "SINGLE"
-                | "ORDERED"
-                | "MULTIPLE_CHOICE"
-                | "WAGER"
-                | "IMAGE", // Define the valid types
-              subquestions: currentQuestion.subquestions.map((sub) => ({
-                id: sub.id,
-                text: sub.text,
-                subAnswers: sub.subAnswers
-                  .filter((sa) => sa.teamId === userTeam.team.id)
-                  .map((sa) => ({
-                    id: sa.id,
-                    answer: sa.answer,
-                    isCorrect: sa.isCorrect,
-                    pointsAwarded: sa.pointsAwarded,
-                  })),
-              })),
-            }
-          : null,
-      },
-      team: {
-        id: userTeam.team.id,
-        name: userTeam.team.name,
-        remainingPoints,
-        submittedAnswer: submittedAnswer
-          ? {
-              answer: submittedAnswer.answer,
-              pointsUsed: submittedAnswer.pointsUsed,
-            }
-          : null,
-      },
+      game: gameState.game
+        ? {
+            id: gameState.game.id,
+            name: gameState.game.name,
+            status: gameState.game.status,
+            currentRound: currentRound
+              ? {
+                  id: currentRound.id,
+                  name: currentRound.name,
+                  pointSystem: currentRound.pointSystem,
+                  roundType: currentRound.roundType,
+                  pointPool: currentRound.pointPool,
+                  pointValue: currentRound.pointValue,
+                }
+              : null,
+            currentQuestion: currentQuestion
+              ? {
+                  id: currentQuestion.id,
+                  text: currentQuestion.text || "No Question Available",
+                  type: (currentQuestion.type ?? "SINGLE") as
+                    | "SINGLE"
+                    | "ORDERED"
+                    | "MULTIPLE_CHOICE"
+                    | "WAGER"
+                    | "IMAGE",
+                  subquestions: Array.isArray(currentQuestion.subquestions)
+                    ? currentQuestion.subquestions.map((sub) => ({
+                        id: sub.id,
+                        text: sub.text || "No Subquestion Available",
+                        subAnswers: Array.isArray(sub.subAnswers)
+                          ? sub.subAnswers
+                              .filter((sa) => sa.teamId === userTeam?.team?.id)
+                              .map((sa) => ({
+                                id: sa.id,
+                                answer: sa.answer || "No Answer",
+                                isCorrect: sa.isCorrect ?? false,
+                                pointsAwarded: sa.pointsAwarded ?? 0,
+                              }))
+                          : [],
+                      }))
+                    : [],
+                }
+              : null,
+          }
+        : null,
+
+      team: userTeam?.team
+        ? {
+            id: userTeam.team.id,
+            name: userTeam.team.name,
+            remainingPoints: remainingPoints ?? [],
+            submittedAnswer: submittedAnswer
+              ? {
+                  answer: submittedAnswer.answer || "No Answer Submitted",
+                  pointsUsed: submittedAnswer.pointsUsed ?? [],
+                }
+              : null,
+          }
+        : null,
     });
   } catch (error) {
-    console.error("Error fetching game state:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch game state" },
-      { status: 500 }
-    );
+    console.error("❌ Error fetching game state:", error);
+    return NextResponse.json({ error: "Failed to fetch game state" }, { status: 500 });
   }
 }
+
 
 
 // POST: Submit an answer for the team

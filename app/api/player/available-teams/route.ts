@@ -11,13 +11,31 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Fetch teams the user can join
+    // Fetch the sites the user is associated with
+    const userSites = await prisma.siteMembership.findMany({
+      where: { userId: user.userId },
+      select: { hostingSiteId: true },
+    });
+
+    const userSiteIds = userSites.map((site) => site.hostingSiteId);
+
+    // Fetch teams the user can join, but only for teams playing at sites they are associated with
     const availableTeams = await prisma.team.findMany({
       where: {
         // Exclude teams where the user is already a member
         memberships: { none: { userId: user.userId } },
+
         // Exclude teams where the user has a pending join request
         TeamJoinRequest: { none: { userId: user.userId, status: 'PENDING' } },
+
+        // Only include teams that are associated with games hosted at sites the user is part of
+        teamGames: {
+          some: {
+            game: {
+              hostingSiteId: { in: userSiteIds },
+            },
+          },
+        },
       },
       include: {
         teamGames: {

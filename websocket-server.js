@@ -19,11 +19,22 @@ const io = new Server(httpsServer, {
   },
 });
 
-httpsServer.listen(3009, () => {
+httpsServer.listen(PORT, () => {
   console.log("WebSocket server running on HTTPS port 3009");
 });
 
-console.log(`WebSocket server running on port ${PORT}`);
+// const { Server } = require("socket.io");
+
+// const PORT = 3009; // Choose a port for your WebSocket server
+
+// // Create a new WebSocket server
+// const io = new Server(PORT, {
+//   cors: {
+//     origin: "*", // Adjust for your deployment
+//   },
+// });
+
+// console.log(`WebSocket server running on port ${PORT}`);
 
 io.on("connection", (socket) => {
   console.log("A client connected:", socket.id);

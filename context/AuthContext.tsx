@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { usePathname } from "next/navigation"; // Helps detect current route
 
 interface User {
+  user: User;
   id: string;
   email: string;
   roles: string[];

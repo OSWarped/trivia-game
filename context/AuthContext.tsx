@@ -25,29 +25,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Function to fetch user data from /api/auth/me
   const refreshUser = async () => {
     try {
-      const res = await fetch("/api/auth/me");
-
+      console.log("🔄 Fetching user from /api/auth/me...");
+      const res = await fetch("/api/auth/me", { credentials: "include" });
+  
       if (res.ok) {
-        const { user } = await res.json();
-        setUser(user);
+        const userData = await res.json();
+        console.log("🟢 Successfully fetched user:", userData);
+  
+        setUser(userData);  // ✅ Store user correctly
       } else {
+        console.error("❌ Failed to fetch user. Response:", await res.json());
         setUser(null);
       }
     } catch (error) {
-      console.error("Error fetching user:", error);
+      console.error("❌ Error fetching user:", error);
       setUser(null);
     }
   };
+  
 
   // ✅ Only fetch user data if not on public pages
   useEffect(() => {
     const publicRoutes = ["/", "/login", "/register"];
-
-    if (!publicRoutes.includes(pathname)) {
+    console.log("🛠️ AuthContext: Running effect. Current route:", pathname);
+  
+    if (!publicRoutes.includes(pathname) && !user) {
+      console.log("🔄 Calling refreshUser()...");
       refreshUser();
     }
-  }, [pathname]); // Runs when the route changes
-
+  }, [pathname]); // ✅ Prevents infinite loops
+  
+  
+  useEffect(() => {
+    console.log("🟢 AuthContext user updated:", user);
+  }, [user]);
+  
   return (
     <AuthContext.Provider value={{ user, setUser, refreshUser }}>
       {children}

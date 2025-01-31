@@ -1,40 +1,52 @@
-const PORT = 3009; // Choose a port for your WebSocket server
 
-const https = require("https");
-const fs = require("fs");
-const { Server } = require("socket.io");
+const { addCaptainToLobby, removeCaptainFromLobby, getCaptainsInLobby } = require("./utils/lobbyState");
+// Explicitly track captains in the lobby using a Set
+const captainsInLobby = new Set(); // ✅ Works in JavaScript
 
-const options = {
-  key: fs.readFileSync("./blakdusttriviahost_com/blakdusttriviahost_com.key"), // Path to your SSL key
-  cert: fs.readFileSync("./blakdusttriviahost_com/blakdusttriviahost_com.crt"), // Path to your SSL certificate
-};
-
-const httpsServer = https.createServer(options);
-// Create a new WebSocket server
-const io = new Server(httpsServer, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"],
-    credentials: true,
-  },
-});
-
-httpsServer.listen(PORT, () => {
-  console.log("WebSocket server running on HTTPS port 3009");
-});
-
-// const { Server } = require("socket.io");
+const { PrismaClient } = require("@prisma/client");
+const prisma = new PrismaClient();
 
 // const PORT = 3009; // Choose a port for your WebSocket server
 
+// const https = require("https");
+// const fs = require("fs");
+// const { Server } = require("socket.io");
+
+// const options = {
+//   key: fs.readFileSync("./blakdusttriviahost_com/blakdusttriviahost_com.key"), // Path to your SSL key
+//   cert: fs.readFileSync("./blakdusttriviahost_com/blakdusttriviahost_com.crt"), // Path to your SSL certificate
+// };
+
+// const httpsServer = https.createServer(options);
 // // Create a new WebSocket server
-// const io = new Server(PORT, {
+// const io = new Server(httpsServer, {
 //   cors: {
-//     origin: "*", // Adjust for your deployment
+//     origin: "*",
+//     methods: ["GET", "POST"],
+//     credentials: true,
 //   },
 // });
 
-// console.log(`WebSocket server running on port ${PORT}`);
+// httpsServer.listen(PORT, () => {
+//   console.log("WebSocket server running on HTTPS port 3009");
+// });
+
+const { Server } = require("socket.io");
+
+const PORT = 3009; // Choose a port for your WebSocket server
+
+// Create a new WebSocket server
+const io = new Server(PORT, {
+  cors: {
+    origin: "*", // Adjust for your deployment
+  },
+});
+
+console.log(`WebSocket server running on port ${PORT}`);
+
+
+
+
 
 io.on("connection", (socket) => {
   console.log("A client connected:", socket.id);
@@ -251,15 +263,69 @@ io.on("connection", (socket) => {
 
 
 
+  //Lobby signals
+  //Team captain enters the lobby
+  // Captain joins the lobby
+  socket.on("team:join_lobby", async ({ gameId, captainId }) => {
+    console.log(`WebSocket: team:join_lobby received for gameId: ${gameId}, captainId: ${captainId}`);
+
+    if (!gameId || !captainId) {
+        console.log("❌ Missing gameId or captainId, ignoring...");
+        return;
+    }
+
+    // Emit the team update immediately so the frontend updates instantly
+    io.emit("team:update", { type: "add", gameId, captainId });
+
+    // Perform database operation in the background (doesn't block WebSocket)
+    prisma.lobbySession.upsert({
+        where: { captainId },
+        update: {},
+        create: { gameId, captainId },
+    })
+    .then(() => {
+        console.log(`🚀 Captain ${captainId} added to the lobby in DB`);
+    })
+    .catch(error => {
+        console.error("❌ Error adding captain to lobby:", error);
+    });
+});
+
+
+  // Captain leaves the lobby manually
+  socket.on("team:leave_lobby", async ({ captainId }) => {
+    if (!captainId) return;
+
+    try {
+      await prisma.lobbySession.delete({ where: { captainId } });
+      console.log(`🚪 Captain ${captainId} left the lobby`);
+      io.emit("team:update", { type: "remove", captainId });
+    } catch (error) {
+      console.error("❌ Error removing captain from lobby:", error);
+    }
+  });
+
 
   
   // Handle client disconnection
-  socket.on("disconnect", () => {
+  socket.on("disconnect", async () => {
     console.log("A client disconnected:", socket.id);
+
+    const socketId = socket.id;
+
+    try {
+      const captainSession = await prisma.lobbySession.findFirst({
+        where: { captainId: socketId },
+      });
+
+      if (captainSession) {
+        await prisma.lobbySession.delete({ where: { captainId: socketId } });
+        console.log(`❌ Captain ${socketId} disconnected (removed from lobby)`);
+        io.emit("team:update", { type: "remove", captainId: socketId });
+      }
+    } catch (error) {
+      console.error("❌ Error handling disconnect:", error);
+    }
   });
 
-  // Handle client disconnection
-  socket.on("disconnect", () => {
-    console.log("A client disconnected:", socket.id);
-  });
 });

@@ -1,21 +1,33 @@
 import { NextResponse } from 'next/server';
-import QRCode from 'qrcode';
+import { PrismaClient } from '@prisma/client';
 
-export async function GET(
-  req: Request,
-  { params }: { params: Promise<{ gameId: string }> }
-) {
-  const { gameId } = await params;
+const prisma = new PrismaClient();
 
-  // Replace with actual logic to fetch siteId based on the game
-  const siteId = 'exampleSiteId'; 
-  const url = `https://trivia-game.com/join?siteId=${siteId}&gameId=${gameId}`;
-
+export async function GET(req: Request, { params }: { params: Promise<{ gameId: string }> }) {
   try {
-    const qrCode = await QRCode.toDataURL(url);
-    return NextResponse.json({ qrCode });
+    const { gameId } = await params;
+
+    // Fetch the game details
+    const game = await prisma.game.findUnique({
+      where: { id: gameId },
+      include: {
+        hostingSite: true, // Get hosting site details
+        gameState: true,   // Get current game state (if exists)
+        rounds: {
+          include: {
+            questions: true, // Include questions within rounds
+          },
+        },
+      },
+    });
+
+    if (!game) {
+      return NextResponse.json({ error: 'Game not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ game });
   } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: 'Failed to generate QR code' }, { status: 500 });
+    console.error('Error fetching game data:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

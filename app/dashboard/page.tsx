@@ -607,33 +607,39 @@ const [teamToJoin, setTeamToJoin] = useState<null | {
 
 
       {/* Games Section */}
-      <section className="games">
-        <h2 className="text-xl font-semibold text-gray-700 mb-2">Upcoming Games</h2>
-        {games.length > 0 ? (
-          <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {games.map((game) => (
-              <li key={game.id} className="p-4 bg-white rounded-lg shadow">
-                <h3 className="text-lg font-medium text-gray-800">{game.name}</h3>
-                <p className="text-gray-600 text-sm">
-                  Location: {game.hostingSite.name} ({game.hostingSite.location})
-                </p>
-                <p className="text-gray-600 text-sm">Date: {formatDateUTC(game.date)}</p>
-                {/* Display Join Game button only for IN_PROGRESS games */}
-                {game.status === "IN_PROGRESS" && (
-                  <button
-                    className="mt-2 px-4 py-2 bg-green-500 text-white rounded-lg shadow hover:bg-green-600"
-                    onClick={() => router.push(`/join/${game.id}`)} // Navigate to the join page
-                  >
-                    Join Game
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-gray-600">No upcoming games found.</p>
-        )}
-      </section>
+    <section className="games">
+      <h2 className="text-xl font-semibold text-gray-700 mb-2">Upcoming Games</h2>
+      {games.length > 0 ? (
+        <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {games.map((game) => (
+            <li key={game.id} className="p-4 bg-white rounded-lg shadow">
+              <h3 className="text-lg font-medium text-gray-800">{game.name}</h3>
+              <p className="text-gray-600 text-sm">
+                Location: {game.hostingSite.name} ({game.hostingSite.location})
+              </p>
+              <p className="text-gray-600 text-sm">Date: {formatDateUTC(game.date)}</p>
+              
+              {/* Always show the Join Game button */}
+              <button
+                className="mt-2 px-4 py-2 bg-green-500 text-white rounded-lg shadow hover:bg-green-600"
+                onClick={() => {
+                  if (game.status === "PENDING") {
+                    router.push(`/games/${game.id}/lobby`);
+                  } else if (game.status === "IN_PROGRESS") {
+                    router.push(`/games/${game.id}/play`);
+                  }
+                }}
+              >
+                Join Game
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-gray-600">No upcoming games found.</p>
+      )}
+    </section>
+
 
     </div>
   );

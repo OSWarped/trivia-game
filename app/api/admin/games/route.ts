@@ -13,7 +13,7 @@ export async function GET(req: Request) {
             team: true, // Include details of the associated teams
           },
         },
-        hostingSite: true, // Include hosting site details
+        Site: true, // Include hosting site details
       },
     });
 
@@ -26,40 +26,60 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  console.log(req);
-  const { name, date, hostingSiteId, hostId } = await req.json();
+  const { siteId, seasonId, title } = await req.json();
 
-  // Validation
-  if (!name || typeof name !== 'string') {
-    return NextResponse.json({ error: 'Invalid name' }, { status: 400 });
+  /* ─── basic validation ─── */
+  if (!title || typeof title !== 'string') {
+    return NextResponse.json({ error: 'Invalid title' }, { status: 400 });
   }
-  if (!date || isNaN(Date.parse(date))) {
-    return NextResponse.json({ error: 'Invalid date' }, { status: 400 });
+  if (!siteId || typeof siteId !== 'string') {
+    return NextResponse.json({ error: 'Invalid siteId' }, { status: 400 });
   }
-  if (!hostingSiteId || typeof hostingSiteId !== 'string') {
-    return NextResponse.json({ error: 'Invalid hostingSiteId' }, { status: 400 });
-  }
-  if (!hostId || typeof hostId !== 'string') {
-    return NextResponse.json({ error: 'Invalid hostId' }, { status: 400 });
+  
+
+  /* ─── get or create active season for the site ─── */
+  let seasonIdToUse = seasonId;
+
+  if (!seasonIdToUse) {
+    const activeSeason = await prisma.season.findFirst({
+      where: { siteId, isActive: true },
+    });
+
+    if (activeSeason) {
+      seasonIdToUse = activeSeason.id;
+    } else {
+      // auto‑create an open‑ended recurring season
+      const newSeason = await prisma.season.create({
+        data: {
+          siteId,
+          name: 'Ongoing Trivia',
+          recurring: true,
+        },
+      });
+      seasonIdToUse = newSeason.id;
+    }
   }
 
   try {
-    // Create a new game with the given data
     const newGame = await prisma.game.create({
       data: {
-        name,
-        date: new Date(date), // Ensure the date is properly formatted
-        hostingSiteId,
-        hostId, // Directly assign the hostId to the game
+        siteId,
+        seasonId: seasonIdToUse,
+        title,
+        // status defaults to DRAFT; startedAt/endedAt null
+      },
+      include: {
+        site:   true,
+        season: true,
       },
     });
 
-    return NextResponse.json(newGame);
-  } catch (error) {
-    console.log("FOUND ERROR");
-    if (error instanceof Error) {
-      console.log("Error: ", error.stack);
-    }
-    return NextResponse.json({ error: 'Failed to create game' }, { status: 500 });
+    return NextResponse.json(newGame, { status: 201 });
+  } catch (err) {
+    console.error('Failed to create game:', err);
+    return NextResponse.json(
+      { error: 'Failed to create game' },
+      { status: 500 }
+    );
   }
 }

@@ -5,7 +5,7 @@ const prisma = new PrismaClient();
 
 export async function GET() {
   try {
-    const sites = await prisma.hostingSite.findMany();
+    const sites = await prisma.site.findMany();
     return NextResponse.json(sites);
   } catch (error) {
     console.error(error);
@@ -14,11 +14,11 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const { name, location } = await req.json();
+  const { name, address } = await req.json();
 
   try {
-    const newSite = await prisma.hostingSite.create({
-      data: { name, location },
+    const newSite = await prisma.site.create({
+      data: { name, address },
     });
     return NextResponse.json(newSite);
   } catch (error) {

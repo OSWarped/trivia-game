@@ -1,54 +1,63 @@
 // app/api/host/games/[gameId]/route.ts
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import { cookies }       from 'next/headers';
+import { getUserFromProvidedToken } from '@/utils/auth';
 
 const prisma = new PrismaClient();
 
-export async function GET(req: Request, { params }: { params: Promise<{ gameId: string }> }) {
-  // Await the params promise
+export async function GET(
+  req: Request,
+  { params }: { params: Promise<{ gameId: string }> }
+) {
+  // 1. Authenticate via token cookie
+  const cookieStore = await cookies();
+  const token = cookieStore.get('token')?.value;
+  if (!token) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  const user = await getUserFromProvidedToken(token);
+  if (!user || (user.role !== 'HOST' && user.role !== 'ADMIN')) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   const { gameId } = await params;
 
   try {
+    // 2. Fetch game details
     const game = await prisma.game.findUnique({
       where: { id: gameId },
-      include: {
-        hostingSite: true, // Include hosting site details
-      },
+      select: {
+        id: true,
+        title: true,
+        scheduledFor: true,
+        status: true,
+        joinCode: true,
+        event: {
+          select: { id: true, name: true }
+        },
+        season: {
+          select: { id: true, name: true }
+        }
+      }
     });
 
     if (!game) {
       return NextResponse.json({ error: 'Game not found' }, { status: 404 });
     }
 
-    return NextResponse.json(game);
-  } catch (error) {
-    console.error('Error fetching game:', error);
-    return NextResponse.json({ error: 'Failed to fetch game' }, { status: 500 });
-  }
-}
-
-export async function PUT(
-  req: Request,
-  { params }: { params: Promise<{ gameId: string }> }
-) {
-  const { gameId } = await params;
-
-  try {
-    // Update the game's status to COMPLETED
-    const updatedGame = await prisma.game.update({
-      where: { id: gameId },
-      data: { status: "COMPLETED" },
-    });
-
+    // 3. Return sanitized game object
     return NextResponse.json({
-      message: "Game status updated to COMPLETED",
-      game: updatedGame,
+      id:           game.id,
+      title:        game.title,
+      scheduledFor: game.scheduledFor,
+      status:       game.status,
+      joinCode:     game.joinCode,
+      event:        game.event,
+      season:       game.season
     });
-  } catch (error) {
-    console.error("Error updating game status:", error);
-    return NextResponse.json(
-      { error: "Failed to update game status" },
-      { status: 500 }
-    );
+  } catch (err) {
+    console.error('GET /api/host/games/[gameId] error:', err);
+    return NextResponse.json({ error: 'Failed to load game' }, { status: 500 });
   }
 }

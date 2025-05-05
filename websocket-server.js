@@ -1,331 +1,149 @@
-
 const { addCaptainToLobby, removeCaptainFromLobby, getCaptainsInLobby } = require("./utils/lobbyState");
-// Explicitly track captains in the lobby using a Set
-const captainsInLobby = new Set(); // ✅ Works in JavaScript
-
 const { PrismaClient } = require("@prisma/client");
-const prisma = new PrismaClient();
+const { Server } = require("socket.io");
 
-// const PORT = 3009; // Choose a port for your WebSocket server
+const prisma = new PrismaClient();
+const PORT = 3009;
 
 // const https = require("https");
 // const fs = require("fs");
-// const { Server } = require("socket.io");
-
 // const options = {
-//   key: fs.readFileSync("./blakdusttriviahost_com/blakdusttriviahost_com.key"), // Path to your SSL key
-//   cert: fs.readFileSync("./blakdusttriviahost_com/blakdusttriviahost_com.crt"), // Path to your SSL certificate
+//   key: fs.readFileSync("./blakdusttriviahost_com/blakdusttriviahost_com.key"),
+//   cert: fs.readFileSync("./blakdusttriviahost_com/blakdusttriviahost_com.crt"),
 // };
-
 // const httpsServer = https.createServer(options);
-// // Create a new WebSocket server
 // const io = new Server(httpsServer, {
-//   cors: {
-//     origin: "*",
-//     methods: ["GET", "POST"],
-//     credentials: true,
-//   },
+//   cors: { origin: "*", methods: ["GET", "POST"], credentials: true },
 // });
-
 // httpsServer.listen(PORT, () => {
 //   console.log("WebSocket server running on HTTPS port 3009");
 // });
 
-const { Server } = require("socket.io");
-
-const PORT = 3009; // Choose a port for your WebSocket server
-
-// Create a new WebSocket server
 const io = new Server(PORT, {
   cors: {
     origin: "*", // Adjust for your deployment
   },
 });
 
+// In-memory tracking of team sessions
+const teamSessions = new Map(); // socket.id => { gameId, teamId }
+global.activeTeamsByGame = new Map(); // 🔥 NEW: Track live teams by gameId
+
 console.log(`WebSocket server running on port ${PORT}`);
 
+io.on('connection', (socket) => {
+  console.log('🟢 Connected:', socket.id);
 
+  // Team joins lobby
+  socket.on("team:join_lobby", ({ gameId, teamId }) => {
+    if (!gameId || !teamId) return;
 
+    console.log(`📥 Team ${teamId} joined lobby for game ${gameId}`);
+    socket.join(gameId);
+    teamSessions.set(socket.id, { gameId, teamId });
 
+    // 🔥 Add to global live team tracker
+    if (!global.activeTeamsByGame.has(gameId)) {
+      global.activeTeamsByGame.set(gameId, new Set());
+    }
+    global.activeTeamsByGame.get(gameId).add(teamId);
 
-io.on("connection", (socket) => {
-  console.log("A client connected:", socket.id);
-
-  // Listen for the host updating the current question
-  socket.on("host:updateQuestion", (data) => {
-    console.log("Host updated question:", data);
-  
-    // Broadcast the new question to all connected clients
-    console.log("Host emitted a game:currentQuestion signal: " + data);
-    io.emit("game:currentQuestion", data); // Notify all clients
-
-    console.log("Host emitted a state:updated signal: " + data);
-    io.emit("state:updated", data); // Notify clients about state change
-    console.log("Broadcasted updated question and state:", data);
+    // 🔄 Broadcast updated team list
+    io.to(gameId).emit("team:liveTeams", {
+      gameId,
+      teams: Array.from(global.activeTeamsByGame.get(gameId))
+    });
   });
 
+  // Team manually leaves lobby
+  socket.on('team:join_lobby', ({ gameId, teamId }) => {
+    if (!gameId || !teamId) return;
+    console.log(`📥 Team ${teamId} joined lobby for game ${gameId}`);
+    socket.join(gameId);
+  
+    // Track team in Map
+    global.activeTeamsByGame = global.activeTeamsByGame || new Map();
+    if (!global.activeTeamsByGame.has(gameId)) {
+      global.activeTeamsByGame.set(gameId, new Set());
+    }
+    global.activeTeamsByGame.get(gameId).add(teamId);
+  
+    // 🔁 Notify all other clients
+    io.to(gameId).emit('team:update');
+  
+    // ✅ Send the updated team list ONLY to the joining client
+    const teams = Array.from(global.activeTeamsByGame.get(gameId));
+    socket.emit('team:liveTeams', { gameId, teams });
+  });
+  
 
 
+  // ✅ New: Respond to client requesting team list
+  socket.on("team:getLiveTeams", ({ gameId }) => {
+    const teams = Array.from(global.activeTeamsByGame.get(gameId) || []);
+    socket.emit("team:liveTeams", { gameId, teams });
+  });
 
-  //Listen for host starting a game  
-  socket.on("host:gameStarted", async (payload) => {
-    
-    const { gameId, gameName, date, hostSiteId, hostSiteName, hostingSiteLocation, joined, teams } = payload;
+  // Handle disconnects
+  socket.on("disconnect", () => {
+    const session = teamSessions.get(socket.id);
+    if (session) {
+      const { gameId, teamId } = session;
+      console.log(`❌ Disconnected: Team ${teamId} from game ${gameId}`);
+      teamSessions.delete(socket.id);
 
-    console.log('Received Signal that host started Game: ' + JSON.stringify(payload));
+      if (global.activeTeamsByGame.has(gameId)) {
+        global.activeTeamsByGame.get(gameId).delete(teamId);
+      }
 
-    try {
-      io.emit("team:gameStarted", {
+      io.to(gameId).emit("team:liveTeams", {
         gameId,
-        gameName,
-        date,
-        hostSiteId,
-        hostSiteName,
-        hostingSiteLocation,
-        joined,
-        teams,
+        teams: Array.from(global.activeTeamsByGame.get(gameId) || [])
       });
     }
-    catch(error) {
-      console.error("Error processing start game signal:", error);
-    }
   });
 
-
-
-  
-  // Listen for teams submitting answers
-  socket.on("team:submitAnswer", async (payload) => {
-    const { teamId, questionId, answer, pointsUsed } = payload;
-
-    try { 
-      // Emit the submission to the host
-      io.emit("host:answerSubmission", {
-        teamId,
-        questionId,
-        answer,
-        pointsUsed,
-      });
-
-      console.log("Answer submission sent to host:", {
-        teamId,
-        questionId,
-        answer,
-        pointsUsed,
-      });
-    } catch (error) {
-      console.error("Error processing team:submitAnswer:", error);
-    }
+  socket.on('host:gameStarted', ({ gameId }) => {
+    console.log(`🚀 Host started game ${gameId}`);
+    io.to(gameId).emit('game_started');
   });
 
-  // Listen for the 'team:submitSubAnswers' event
-  socket.on("team:submitSubAnswers", (data) => {
-    console.log("Received team:submitSubAnswers event:", data);
-
-    const { gameId, teamId, subAnswers } = data;
-
-    if (!gameId || !teamId || !Array.isArray(subAnswers)) {
-      console.error("Invalid data received for team:submitSubAnswers");
-      return;
-    }
-
-    // Broadcast or notify host about the submission
-    io.emit("host:subAnswersSubmitted", {
-      gameId,
-      teamId,
-      subAnswers,
-    });
-
-    console.log(`Notified host about subanswers from team ${teamId} for game ${gameId}`);
-  });
-
-
-  // Listen for host:resume signal from the host
-  socket.on("host:resume", (data) => {
-    const { gameId } = data;
-    console.log(`Host resumed the game: ${gameId}`);
-    // Broadcast the game:resume event to all clients
-    io.emit("game:resume", {
-      gameId,
-    });
-    console.log(`Broadcasted game:resume for gameId: ${gameId}`);
-  });
-
-  
-
-  // Listen for resetting team submission statuses
-  socket.on("host:resetSubmissions", (data) => {
-    console.log("Resetting submissions for game:", data.gameId);
-
-    // Notify all clients to reset submission statuses
-    io.emit("game:resetSubmissions", { gameId: data.gameId });
-  });
-
-  // Listen for the host updating the current round
-  // socket.on("host:updateRound", async ({ gameId, roundId }) => {
-  //   try {
-  //     const round = await prisma.round.findUnique({
-  //       where: { id: roundId },
-  //     });
-
-  //     if (!round) {
-  //       console.error("Round not found");
-  //       return;
-  //     }
-
-  //     console.log(`Round ${round.name} started with updated points pool.`);
-  //     io.emit("game:roundUpdated", { round }); // Notify clients
-  //   } catch (error) {
-  //     console.error("Error updating round:", error);
-  //   }
-  // });
-
-  // Listen for host moving to a transition
-  socket.on("host:transition", (data) => {
-    console.log("Host initiated transition:", data);
-    // Broadcast the transition details to all clients
-    io.emit("game:transition", {
-      gameId: data.gameId,
-      transitionMessage: data.transitionMessage,
-      transitionMedia: data.transitionMedia,
-      adEmbedCode: data.adEmbedCode,
-    });
-    console.log("Transition signal sent to clients:", data);
-  });
-
-
-  //Handle toggling visibility of Team Scores
-  socket.on('host:toggleScores', ({ gameId, scoresVisibleToPlayers }) => {
-    console.log("Setting Score Visibility for Game " + gameId + " to " + scoresVisibleToPlayers);
-    io.emit('game:scoresVisibilityChanged', { gameId, scoresVisibleToPlayers });
-  });
-
-
-  //Handle End Game
-  socket.on('host:gameCompleted', ({gameId}) => {
-    console.log('Host has ended game: '+ gameId);
-    io.emit('game:gameCompleted', {gameId});
-
-  });
-
-
-  // socket.emit('team:addToGame', {
-  //   teamId,
-  //   teamName: team?.name,
-  //   gameId,
-  //   game: data.game, // Updated game data
-  //   siteId: data.siteId, // Site associated with the game
-  // });
-
-
-
-
-  // Listen for a team being added to a game
-  socket.on("team:addToGame", (data) => {    
-    const { teamId, teamName, gameId } = data;
-    console.log('received a request from team: ' + teamName + ' adding to game: ' + gameId)
-    // Notify all clients in the room about the updated team list
-    io.emit("team:update", { gameId, type: "add", teamName, teamId });
-  });
-
-
-
-
-
-  // Listen for a team being removed from a game
-  socket.on("team:removeFromGame", (data) => {
-    const { gameId, teamId } = data;
-    console.log(`Team removed from game ${gameId}:`, teamId);
-    // Notify all clients in the room about the updated team list
-    io.emit("team:update", { gameId, type: "remove", teamId });
-  });
-
-
-  // 🔹 Handle Join Request Sent
-  socket.on('player:joinRequestSent', ({ toUserId, teamId, requestId, message }) => {
-    console.log(`Join request for team ${teamId} sent to captain ${toUserId}`);
-
-    // Emit the notification directly to the captain
-    io.emit(`notification:${toUserId}`, {
-      type: 'JOIN_REQUEST',
-      teamId,
-      requestId,
-      message,
-    });
-  });
-
-
-  // Store notifications (Optional)
-  socket.on("notification:new", ({ toUserId, type, message }) => {
-    console.log(`New notification for ${toUserId}: ${message}`);
-    io.emit(`notification:${toUserId}`, { type, message });
-  });
-
-
-
-  //Lobby signals
-  //Team captain enters the lobby
-  // Captain joins the lobby
-  socket.on("team:join_lobby", async ({ gameId, captainId }) => {
-    console.log(`WebSocket: team:join_lobby received for gameId: ${gameId}, captainId: ${captainId}`);
-
-    if (!gameId || !captainId) {
-        console.log("❌ Missing gameId or captainId, ignoring...");
-        return;
-    }
-
-    // Emit the team update immediately so the frontend updates instantly
-    io.emit("team:update", { type: "add", gameId, captainId });
-
-    // Perform database operation in the background (doesn't block WebSocket)
-    prisma.lobbySession.upsert({
-        where: { captainId },
-        update: {},
-        create: { gameId, captainId },
-    })
-    .then(() => {
-        console.log(`🚀 Captain ${captainId} added to the lobby in DB`);
-    })
-    .catch(error => {
-        console.error("❌ Error adding captain to lobby:", error);
-    });
+  // ✅ Respond to host requesting the list of live teams
+socket.on("host:requestLiveTeams", ({ gameId }) => {
+  console.log('HOST has asked for LIVE teams');
+  const teams = Array.from(global.activeTeamsByGame.get(gameId) || []);
+  console.log('TEAMS: ' + JSON.stringify(teams));
+  socket.emit("host:liveTeams", { gameId, teams });
 });
 
 
-  // Captain leaves the lobby manually
-  socket.on("team:leave_lobby", async ({ captainId }) => {
-    if (!captainId) return;
-
-    try {
-      await prisma.lobbySession.delete({ where: { captainId } });
-      console.log(`🚪 Captain ${captainId} left the lobby`);
-      io.emit("team:update", { type: "remove", captainId });
-    } catch (error) {
-      console.error("❌ Error removing captain from lobby:", error);
-    }
+  socket.on('team:submitAnswer', ({ teamId, questionId, answer, pointsUsed }) => {
+    console.log(`✅ Answer from team ${teamId}`);
+    io.emit('host:answerSubmission', { teamId, questionId, answer, pointsUsed });
   });
 
-
-  
-  // Handle client disconnection
-  socket.on("disconnect", async () => {
-    console.log("A client disconnected:", socket.id);
-
-    const socketId = socket.id;
-
-    try {
-      const captainSession = await prisma.lobbySession.findFirst({
-        where: { captainId: socketId },
-      });
-
-      if (captainSession) {
-        await prisma.lobbySession.delete({ where: { captainId: socketId } });
-        console.log(`❌ Captain ${socketId} disconnected (removed from lobby)`);
-        io.emit("team:update", { type: "remove", captainId: socketId });
-      }
-    } catch (error) {
-      console.error("❌ Error handling disconnect:", error);
-    }
+  socket.on('team:submitSubAnswers', ({ gameId, teamId, subAnswers }) => {
+    console.log(`📚 Sub-answers from team ${teamId} for game ${gameId}`);
+    io.emit('host:subAnswersSubmitted', { gameId, teamId, subAnswers });
   });
 
+  socket.on('host:resetSubmissions', ({ gameId }) => {
+    console.log(`🔁 Resetting submissions for game ${gameId}`);
+    io.to(gameId).emit('game:resetSubmissions', { gameId });
+  });
+
+  socket.on('host:transition', ({ gameId, transitionMessage, transitionMedia, adEmbedCode }) => {
+    console.log(`🎬 Transition for game ${gameId}`);
+    io.to(gameId).emit('game:transition', { gameId, transitionMessage, transitionMedia, adEmbedCode });
+  });
+
+  socket.on('host:toggleScores', ({ gameId, scoresVisibleToPlayers }) => {
+    console.log(`🔒 Toggling scores for game ${gameId}`);
+    io.to(gameId).emit('game:scoresVisibilityChanged', { gameId, scoresVisibleToPlayers });
+  });
+
+  socket.on('host:gameCompleted', ({ gameId }) => {
+    console.log(`🏁 Game ${gameId} completed`);
+    io.to(gameId).emit('game:gameCompleted', { gameId });
+  });
 });

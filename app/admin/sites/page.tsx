@@ -1,130 +1,138 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link                    from 'next/link';
+import { useRouter }           from 'next/navigation';
+import { useAuth }             from '@/context/AuthContext';
+import { ChevronLeft }         from 'lucide-react';
 
+/* ───────────────────────────── Types ──────────────────────────── */
 interface Site {
-  id: string;
-  name: string;
-  location: string;
+  id:      string;
+  name:    string;
+  address: string | null;
 }
 
+/* ─────────────────────────── Component ────────────────────────── */
 export default function ManageSites() {
-  const [sites, setSites] = useState<Site[]>([]);
-  const [editSite, setEditSite] = useState<Site | null>(null); // For editing a site
-  const [editName, setEditName] = useState('');
-  const [editLocation, setEditLocation] = useState('');
+  const router              = useRouter();
+  const { isAdmin }         = useAuth();
+  const [sites, setSites]   = useState<Site[]>([]);
+  const [editSite, setEdit] = useState<Site | null>(null);
 
-  // Fetch the sites from the API
+  const [nameInput,    setName]    = useState('');
+  const [addressInput, setAddress] = useState('');
+  const [loading,      setLoad]    = useState(false);
+
+  /* --- auth gate --- */
+  if (!isAdmin) {
+    router.push('/login');
+    return null;
+  }
+
+  /* --- fetch sites on mount --- */
   useEffect(() => {
-    async function fetchSites() {
-      try {
-        const res = await fetch('/api/admin/sites');
-        const data = await res.json();
-        setSites(data);
-      } catch (err) {
-        console.error('Error fetching sites:', err);
-      }
-    }
-
-    fetchSites();
+    (async () => {
+      const res  = await fetch('/api/admin/sites');
+      const data = await res.json();
+      setSites(data as Site[]);
+    })();
   }, []);
 
-  // Start editing a site
-  function startEditSite(site: Site) {
-    setEditSite(site);
-    setEditName(site.name);
-    setEditLocation(site.location);
-  }
+  /* --- helpers --- */
+  const startEdit = (s: Site) => {
+    setEdit(s);
+    setName(s.name);
+    setAddress(s.address ?? '');
+  };
 
-  // Save the edited site
-  async function saveEditSite() {
+  const saveEdit = async () => {
     if (!editSite) return;
+    setLoad(true);
+    const res = await fetch(`/api/admin/sites/${editSite.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: nameInput, address: addressInput }),
+    });
+    if (res.ok) {
+      const updated: Site = await res.json();
+      setSites(arr => arr.map(s => (s.id === updated.id ? updated : s)));
+      cancelEdit();
+    } else alert('Failed to update site');
+    setLoad(false);
+  };
 
-    try {
-      const res = await fetch(`/api/admin/sites/${editSite.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: editName, location: editLocation }),
-      });
+  const cancelEdit = () => {
+    setEdit(null);
+    setName('');
+    setAddress('');
+  };
 
-      if (res.ok) {
-        const updatedSite = await res.json();
-        setSites((prevSites) =>
-          prevSites.map((site) => (site.id === updatedSite.id ? updatedSite : site))
-        );
-        setEditSite(null); // Clear edit mode
-        setEditName('');
-        setEditLocation('');
-      } else {
-        alert('Failed to update site');
-      }
-    } catch (err) {
-      console.error('Error updating site:', err);
-    }
-  }
+  const deleteSite = async (id: string) => {
+    if (!confirm('Delete this site?')) return;
+    const res = await fetch(`/api/admin/sites/${id}`, { method: 'DELETE' });
+    if (res.ok) setSites(arr => arr.filter(s => s.id !== id));
+  };
 
-  // Delete a site
-  async function deleteSite(siteId: string) {
-    if (!confirm('Are you sure you want to delete this site?')) return;
+  const addSite = async () => {
+    setLoad(true);
+    const res = await fetch('/api/admin/sites', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: nameInput, address: addressInput }),
+    });
+    if (res.ok) {
+      const created: Site = await res.json();
+      setSites(arr => [...arr, created]);
+      setName('');
+      setAddress('');
+    } else alert('Failed to create site');
+    setLoad(false);
+  };
 
-    try {
-      const res = await fetch(`/api/admin/sites/${siteId}`, {
-        method: 'DELETE',
-      });
-
-      if (res.ok) {
-        setSites((prevSites) => prevSites.filter((site) => site.id !== siteId));
-      } else {
-        alert('Failed to delete site');
-      }
-    } catch (err) {
-      console.error('Error deleting site:', err);
-    }
-  }
-
-  // Create a new site
-  async function addNewSite() {
-    const newSite = { name: editName, location: editLocation };
-
-    try {
-      const res = await fetch('/api/admin/sites', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newSite),
-      });
-
-      if (res.ok) {
-        const createdSite = await res.json();
-        setSites((prevSites) => [...prevSites, createdSite]);
-        setEditName('');
-        setEditLocation('');
-      } else {
-        alert('Failed to create site');
-      }
-    } catch (err) {
-      console.error('Error adding site:', err);
-    }
-  }
-
+  /* ───────────────────────────── UI ──────────────────────────── */
   return (
     <div className="p-6 bg-gray-100 min-h-screen">
+      {/* back */}
+      <Link
+        href="/admin/dashboard"
+        className="mb-4 flex items-center text-blue-600 hover:underline"
+      >
+        <ChevronLeft className="mr-1" size={18} />
+        Back to Admin Panel
+      </Link>
+
       <h1 className="text-2xl font-bold mb-6">Manage Sites</h1>
 
-      <div className="mb-6">
+      {/* list */}
+      <section className="mb-6">
         <h2 className="text-xl font-semibold mb-4">Sites</h2>
         <ul className="space-y-2">
-          {sites.map((site) => (
-            <li key={site.id} className="flex justify-between items-center">
-              <span className="text-gray-700">{site.name} - {site.location}</span>
-              <div className="flex space-x-4">
+          {sites.map(site => (
+            <li
+              key={site.id}
+              className="flex justify-between items-center bg-white p-3 rounded shadow"
+            >
+              <span className="text-gray-700">
+                {site.name} — {site.address ?? 'N/A'}
+              </span>
+
+              <div className="flex space-x-3">
+                <Link
+                  href={`/admin/sites/${site.id}/events`}
+                  className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
+                >
+                  Manage&nbsp;Events
+                </Link>
+
                 <button
-                  className="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600"
-                  onClick={() => startEditSite(site)}
+                  className="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600"
+                  onClick={() => startEdit(site)}
                 >
                   Edit
                 </button>
                 <button
-                  className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+                  className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
                   onClick={() => deleteSite(site.id)}
                 >
                   Delete
@@ -133,79 +141,103 @@ export default function ManageSites() {
             </li>
           ))}
         </ul>
-      </div>
+      </section>
 
-      {/* Editing a site */}
+      {/* edit form */}
       {editSite && (
-        <div className="bg-white p-6 rounded shadow-md mb-6">
-          <h2 className="text-xl font-semibold mb-4">Edit Site</h2>
-          <div className="space-y-4">
-            <div>
-              <label className="block font-medium mb-1">Name</label>
-              <input
-                className="border border-gray-300 p-2 rounded w-full"
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="block font-medium mb-1">Location</label>
-              <input
-                className="border border-gray-300 p-2 rounded w-full"
-                value={editLocation}
-                onChange={(e) => setEditLocation(e.target.value)}
-              />
-            </div>
-          </div>
-          <div className="flex space-x-4 mt-4">
-            <button
-              className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
-              onClick={saveEditSite}
-            >
-              Save
-            </button>
-            <button
-              className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
-              onClick={() => setEditSite(null)}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
+        <EditOrAddForm
+          title="Edit Site"
+          name={nameInput}
+          address={addressInput}
+          setName={setName}
+          setAddress={setAddress}
+          primaryLabel="Save"
+          onPrimary={saveEdit}
+          onCancel={cancelEdit}
+          loading={loading}
+        />
       )}
 
-      {/* Adding a new site */}
+      {/* add form */}
       {!editSite && (
-        <div className="bg-white p-6 rounded shadow-md mb-6">
-          <h2 className="text-xl font-semibold mb-4">Add New Site</h2>
-          <div className="space-y-4">
-            <div>
-              <label className="block font-medium mb-1">Name</label>
-              <input
-                className="border border-gray-300 p-2 rounded w-full"
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="block font-medium mb-1">Location</label>
-              <input
-                className="border border-gray-300 p-2 rounded w-full"
-                value={editLocation}
-                onChange={(e) => setEditLocation(e.target.value)}
-              />
-            </div>
-          </div>
-          <div className="flex space-x-4 mt-4">
-            <button
-              className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-              onClick={addNewSite}
-            >
-              Add Site
-            </button>
-          </div>
-        </div>
+        <EditOrAddForm
+          title="Add New Site"
+          name={nameInput}
+          address={addressInput}
+          setName={setName}
+          setAddress={setAddress}
+          primaryLabel="Add Site"
+          onPrimary={addSite}
+          onCancel={() => {
+            setName('');
+            setAddress('');
+          }}
+          loading={loading}
+        />
       )}
     </div>
+  );
+}
+
+/* ───────────── Re‑usable Form component ───────────── */
+function EditOrAddForm({
+  title,
+  name,
+  address,
+  setName,
+  setAddress,
+  primaryLabel,
+  onPrimary,
+  onCancel,
+  loading,
+}: {
+  title: string;
+  name: string;
+  address: string;
+  setName: (v: string) => void;
+  setAddress: (v: string) => void;
+  primaryLabel: string;
+  onPrimary: () => void;
+  onCancel: () => void;
+  loading: boolean;
+}) {
+  return (
+    <section className="bg-white p-6 rounded shadow mb-6">
+      <h2 className="text-xl font-semibold mb-4">{title}</h2>
+      <div className="space-y-4">
+        <div>
+          <label className="block font-medium mb-1">Name</label>
+          <input
+            className="border border-gray-300 p-2 rounded w-full"
+            value={name}
+            onChange={e => setName(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="block font-medium mb-1">Address</label>
+          <input
+            className="border border-gray-300 p-2 rounded w-full"
+            value={address}
+            onChange={e => setAddress(e.target.value)}
+          />
+        </div>
+      </div>
+      <div className="flex space-x-4 mt-4">
+        <button
+          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:opacity-50"
+          onClick={onPrimary}
+          disabled={loading}
+        >
+          {primaryLabel}
+        </button>
+        <button
+          className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+          onClick={onCancel}
+          disabled={loading}
+        >
+          Cancel
+        </button>
+      </div>
+    </section>
   );
 }

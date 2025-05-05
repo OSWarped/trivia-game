@@ -3,122 +3,113 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-export async function POST(
-  req: Request,
+export async function PATCH(
+  _req: Request,
   { params }: { params: Promise<{ gameId: string }> }
 ) {
   const { gameId } = await params;
 
   try {
-    // Fetch the game along with rounds, questions, subquestions, and teams
-const game = await prisma.game.findUnique({
-  where: { id: gameId },
-  include: {
-    rounds: {
-      orderBy: {
-        sortOrder: 'asc', // Ensure rounds are ordered by sortOrder in ascending order
-      },
+    // Fetch game and related data
+    const game = await prisma.game.findUnique({
+      where: { id: gameId },
       include: {
-        questions: {
+        rounds: {
+          orderBy: { sortOrder: 'asc' },
           include: {
-            subquestions: {
+            questions: {
               include: {
-                correctAnswer: true, // Include the correct answer for each subquestion
+                options: true,
               },
             },
           },
-        }, // Include the questions for each round
+        },
+        teamGames: {
+          include: { team: true },
+        },
       },
-    },
-    teamGames: {
-      include: {
-        team: true, // Include teams associated with the game
-      },
-    },
-  },
-});
-
+    });
 
     if (!game) {
       return NextResponse.json({ error: 'Game not found' }, { status: 404 });
     }
 
-    if (game.status !== 'PENDING') {
+    if (game.status !== 'DRAFT') {
       return NextResponse.json({ error: 'Game has already started or completed' }, { status: 400 });
     }
 
-    // Fetch the first round and its first question
     const firstRound = game.rounds[0];
     const firstQuestion = firstRound?.questions[0] || null;
 
-    // Initialize pointsRemaining for POOL type rounds
     let pointsRemaining: Record<string, number[]> = {};
+
     if (firstRound && firstRound.pointSystem === 'POOL') {
-      const pointPool = firstRound.pointPool || [];
+      const pointPool = Array.isArray(firstRound.pointPool) ? firstRound.pointPool : [];
+
       if (pointPool.length === 0) {
         return NextResponse.json(
-          { error: 'First round is POOL type but has no point pool defined.' },
+          { error: 'First round is POOL type but has no valid point pool defined.' },
           { status: 400 }
         );
       }
 
-      // Set the same pointPool for all teams in the game
       pointsRemaining = game.teamGames.reduce((acc, teamGame) => {
-        acc[teamGame.team.id] = [...pointPool]; // Clone the pointPool for each team
+        acc[teamGame.team.id] = [...pointPool];
         return acc;
       }, {} as Record<string, number[]>);
     }
 
-    // Create or update GameState
+    // 🔄 Use upsert to create or update the game state safely
     await prisma.gameState.upsert({
       where: { gameId },
       update: {
         currentRoundId: firstRound?.id || null,
         currentQuestionId: firstQuestion?.id || null,
-        pointsRemaining, // Update pointsRemaining
+        pointsRemaining: pointsRemaining ?? {},
+        isAcceptingAnswers: false,
+        questionStartedAt: null,
       },
       create: {
         gameId,
         currentRoundId: firstRound?.id || null,
         currentQuestionId: firstQuestion?.id || null,
-        pointsRemaining, // Initialize pointsRemaining
+        pointsRemaining: pointsRemaining ?? {},
+        isAcceptingAnswers: false,
+        questionStartedAt: null,
       },
     });
 
-    // Update game status to STARTED
+    // Update the game's status to LIVE
     const updatedGame = await prisma.game.update({
       where: { id: gameId },
-      data: { status: 'IN_PROGRESS', startedAt: new Date() },
+      data: {
+        status: 'LIVE',
+        startedAt: new Date(),
+      },
       include: {
-        hostingSite: true, // Include hosting site details
+        Site: true,
         teamGames: {
-          include: {
-            team: true, // Include teams associated with the game
-          },
+          include: { team: true },
         },
       },
     });
 
-    // Build the response payload
-    const responsePayload = {
+    return NextResponse.json({
       id: updatedGame.id,
-      name: updatedGame.name,
+      title: updatedGame.title,
       status: updatedGame.status,
-      date: updatedGame.date,
+      scheduledFor: updatedGame.scheduledFor,
       hostingSite: {
-        id: updatedGame.hostingSite.id,
-        name: updatedGame.hostingSite.name,
-        location: updatedGame.hostingSite.location,
+        id: updatedGame.Site?.id,
+        name: updatedGame.Site?.name,
+        location: updatedGame.Site?.address,
       },
       teams: updatedGame.teamGames.map((teamGame) => ({
         id: teamGame.team.id,
         name: teamGame.team.name,
       })),
       message: 'Game started successfully!',
-    };
-
-    return NextResponse.json(responsePayload);
-
+    });
   } catch (error) {
     console.error('Error starting game:', error);
     return NextResponse.json({ error: 'Failed to start game' }, { status: 500 });

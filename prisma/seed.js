@@ -23,49 +23,45 @@ async function main() {
     update: {},
     create: {
       email: 'blakemilam@gmail.com',
-      password: hashedPassword,
+      hashedPw: hashedPassword,
       name: 'Blake Milam',
-      roles: ['ADMIN', 'HOST'], // Assign both 'ADMIN' and 'HOST' roles to the user
+      role: 'HOST', // Assign both 'ADMIN' and 'HOST' roles to the user
     },
   });
 
-  // const hostingSite = await prisma.hostingSite.create({
-  //   data: {
-  //     name: "Buffalo Wild Wings - D'Iberville",
-  //     location: "D'Iberville, MS",
-  //   },
-  // });
+  // 2) create the venue
+const site = await prisma.site.create({
+  data: {
+    name:    'Murky Waters',
+    address: '123 Government St',
+  },
+});
 
-  // // Create sample games and associate them with the hosting site
-  // const game1 = await prisma.game.create({
-  //   data: {
-  //     date: new Date("2025-01-01T10:00:00.000Z"),
-  //     hostingSiteId: hostingSite.id,  // Connect the game to the hosting site
-  //   },
-  // });
+// 3) create a recurring event (Thursday 7 PM)
+const event = await prisma.event.create({
+  data: {
+    name:   'Murky Waters Thursday Trivia',
+    siteId: site.id,
+    schedules: {
+      create: {
+        freq:   'WEEKLY',
+        dow:    4,           // 0=Sun … 4=Thu
+        timeUTC:'19:00',
+      },
+    },
+  },
+});
 
-  // const game2 = await prisma.game.create({
-  //   data: {
-  //     date: new Date("2025-02-01T14:00:00.000Z"),
-  //     hostingSiteId: hostingSite.id,  // Connect the game to the hosting site
-  //   },
-  // });
+// 4) create an open‑ended season tied to that event
+await prisma.season.create({
+  data: {
+    eventId:  event.id,
+    name:     'Ongoing Trivia',
+    recurring:true,
+  },
+});
 
-  // // Create teams for each game
-  // await prisma.team.create({
-  //   data: {
-  //     name: "Team A",
-  //     gameId: game1.id, // Associating with game1
-  //   },
-  // });
-
-  // await prisma.team.create({
-  //   data: {
-  //     name: "Team B",
-  //     gameId: game2.id, // Associating with game2
-  //   },
-  // });
-
+  
   console.log('Seeding complete');
 
 }

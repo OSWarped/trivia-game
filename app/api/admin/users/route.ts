@@ -6,14 +6,14 @@ const prisma = new PrismaClient();
 export async function GET() {
   try {
     // Explicitly type the users array
-    const users: Array<{ id: string; email: string; name: string; roles: string[] }> = await prisma.user.findMany();
+    const users: Array<{ id: string; email: string; name: string; role: string }> = await prisma.user.findMany();
 
     // Format the response to include roles directly from the 'roles' field
     const formattedUsers = users.map((user) => ({
       id: user.id,
       email: user.email,
       name: user.name,
-      roles: user.roles || [], // Fetch roles directly from the 'roles' array
+      role: user.role || '', // Fetch roles directly from the 'roles' array
     }));
 
     return NextResponse.json(formattedUsers);

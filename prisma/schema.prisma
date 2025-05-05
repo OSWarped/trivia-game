@@ -1,3 +1,4 @@
+// ----------  Generators / datasource ----------
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,262 +8,201 @@ datasource db {
   url      = env("POSTGRES_URL")
 }
 
+// ----------  Auth / staff ----------
 model User {
-  id              String            @id @default(uuid())
-  email           String            @unique @db.Citext
-  password        String
-  name            String
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  roles           String[]
-  Notification    Notification[]
-  SiteMembership  SiteMembership[]
-  captainedTeams  Team[]            @relation("Captain")
-  TeamJoinRequest TeamJoinRequest[]
-  memberships     TeamMembership[]
-  LobbySession    LobbySession?
+  id        String   @id @default(uuid())
+  email     String   @unique @db.Citext
+  name      String
+  hashedPw  String
+  role      UserRole
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  hostedGames Game[] @relation("HostGames")
+}
+
+enum UserRole {
+  ADMIN
+  HOST
+}
+
+// ----------  Venue hierarchy ----------
+model Site {
+  id        String   @id @default(uuid())
+  name      String
+  address   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  games    Game[] // convenience if you ever need site‑wide history
+  TeamGame TeamGame[]
+  Event    Event[]
+}
+
+model Event {
+  id        String   @id @default(uuid())
+  siteId    String
+  name      String // “Thursday Trivia” or “Murky Waters Trivia”
+  createdAt DateTime @default(now())
+
+  /**
+   * relations
+   */
+  site       Site            @relation(fields: [siteId], references: [id])
+  schedules  EventSchedule[] // one or more rows (see below)
+  seasons    Season[]
+  games      Game[]
+  teamEvents TeamEvent[]
+}
+
+model EventSchedule {
+  id         String       @id @default(uuid())
+  eventId    String
+  freq       ScheduleFreq // WEEKLY | BIWEEKLY | MONTHLY
+  /**
+   * WEEKLY / BIWEEKLY
+   */
+  dow        Int? // 0‑6 (Sun=0)
+  /**
+   * MONTHLY options — use one of the two:
+   */
+  nthDow     Int? // 1‑5  (e.g., 1st Fri)
+  dayOfMonth Int? // 1‑31 (e.g., 15th)
+  timeUTC    String // "19:00"
+
+  event Event @relation(fields: [eventId], references: [id])
+
+  @@unique([eventId, freq, dow, nthDow, dayOfMonth, timeUTC])
+}
+
+enum ScheduleFreq {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+}
+
+model Season {
+  id             String    @id @default(uuid())
+  eventId        String // ← NEW
+  name           String
+  startsAt       DateTime  @default(now())
+  endsAt         DateTime?
+  recurring      Boolean   @default(false)
+  active         Boolean   @default(true)
+  championGameId String?
+
+  event Event  @relation(fields: [eventId], references: [id]) // ← NEW
+  games Game[]
+}
+
+model Game {
+  id        String     @id @default(uuid())
+  eventId   String
+  seasonId  String?
+  hostId    String?
+  title     String
+  joinCode  String     @unique
+  special   Boolean    @default(false) // <- NEW
+  tag       String? // <- optional label (“Championship”)
+  status    GameStatus @default(DRAFT)
+  startedAt DateTime?
+  endedAt   DateTime?
+  createdAt DateTime   @default(now())
+
+  event  Event   @relation(fields: [eventId], references: [id])
+  season Season? @relation(fields: [seasonId], references: [id])
+  host   User?   @relation("HostGames", fields: [hostId], references: [id])
+
+  gameState GameState?
+
+  scheduledFor DateTime? // ← when this session is scheduled
+
+  rounds    Round[] // <- NEW back‑relation
+  teamGames TeamGame[]
+  Site      Site?      @relation(fields: [siteId], references: [id])
+  siteId    String?
+}
+
+enum GameStatus {
+  DRAFT // host building questions / waiting room
+  LIVE // accepting answers
+  CLOSED // finished, scores frozen
+}
+
+model GameState {
+  gameId             String    @id
+  game               Game      @relation(fields: [gameId], references: [id])
+  currentRoundId     String?
+  currentQuestionId  String?
+  pointsRemaining    Json // { teamId1: [10, 5], teamId2: [10, 5] }
+  questionStartedAt  DateTime?
+  isAcceptingAnswers Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+}
+
+model Question {
+  id        String       @id @default(uuid())
+  roundId   String
+  text      String
+  type      QuestionType @default(SINGLE)
+  sortOrder Int
+
+  round   Round    @relation(fields: [roundId], references: [id])
+  options Option[]
+  answers Answer[]
+}
+
+enum QuestionType {
+  SINGLE
+  MULTIPLE_CHOICE
+  ORDERED
+  WAGER
 }
 
 model Team {
-  id                 String              @id @default(uuid())
-  name               String
-  captainId          String?
-  score              Int                 @default(0)
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
-  remainingPoints    Int[]
-  answers            Answer[]
-  subQuestionAnswers SubQuestionAnswer[]
-  captain            User?               @relation("Captain", fields: [captainId], references: [id])
-  teamGames          TeamGame[]
-  TeamHostingSite    TeamHostingSite[]
-  TeamJoinRequest    TeamJoinRequest[]
-  memberships        TeamMembership[]
-  hostingSites       HostingSite[]       @relation("TeamHostingSites")
-}
-
-model TeamMembership {
   id        String   @id @default(uuid())
-  userId    String
-  teamId    String
+  name      String
+  pin       String // 4–6 digit user-entered or generated PIN
   createdAt DateTime @default(now())
-  status    String   @default("ACTIVE")
-  team      Team     @relation(fields: [teamId], references: [id])
-  user      User     @relation(fields: [userId], references: [id])
 
-  @@unique([userId, teamId])
+  teamEvents TeamEvent[]
+  teamGames  TeamGame[]
+
+  @@unique([name, pin]) // this pair defines a reusable identity
 }
 
-model HostingSite {
-  id              String            @id @default(uuid())
-  name            String            @unique
-  location        String
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  games           Game[]
-  SiteMembership  SiteMembership[]
-  TeamHostingSite TeamHostingSite[]
-  teams           Team[]            @relation("TeamHostingSites")
-}
+model TeamEvent {
+  id       String @id @default(uuid())
+  teamId   String
+  eventId  String
+  teamName String // redundant, but needed for uniqueness
 
-model TeamHostingSite {
-  id            String      @id @default(uuid())
-  teamId        String
-  hostingSiteId String
-  hostingSite   HostingSite @relation(fields: [hostingSiteId], references: [id])
-  team          Team        @relation(fields: [teamId], references: [id])
+  team  Team  @relation(fields: [teamId], references: [id])
+  event Event @relation(fields: [eventId], references: [id])
 
-  @@unique([teamId, hostingSiteId])
+  @@unique([eventId, teamId])
+  @@unique([eventId, teamName])
 }
 
 model TeamGame {
-  id        String   @id @default(uuid())
-  teamId    String
-  gameId    String
-  createdAt DateTime @default(now())
-  game      Game     @relation(fields: [gameId], references: [id])
-  team      Team     @relation(fields: [teamId], references: [id])
+  id       String @id @default(uuid())
+  teamId   String
+  siteId   String // denormalised for quick look‑ups
+  gameId   String
+  totalPts Int    @default(0)
+  rank     Int?
+
+  team Team @relation(fields: [teamId], references: [id]) // now has opposite
+  game Game @relation(fields: [gameId], references: [id])
+  site Site @relation(fields: [siteId], references: [id])
+
+  answers Answer[]
 
   @@unique([teamId, gameId])
 }
 
-model Game {
-  id            String         @id @default(uuid())
-  hostingSiteId String
-  date          DateTime
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  hostId        String
-  name          String
-  startedAt     DateTime?
-  status        String         @default("PENDING")
-  hostingSite   HostingSite    @relation(fields: [hostingSiteId], references: [id])
-  gameState     GameState?
-  rounds        Round[]
-  teamGames     TeamGame[]
-  LobbySession  LobbySession[]
-}
-
-model GameState {
-  id                     String   @id @default(uuid())
-  gameId                 String   @unique
-  currentRoundId         String?
-  currentQuestionId      String?
-  updatedAt              DateTime @updatedAt
-  createdAt              DateTime @default(now())
-  adEmbedCode            String?
-  isTransitioning        Boolean  @default(false)
-  transitionMedia        String?
-  transitionMessage      String?
-  scoresVisibleToPlayers Boolean  @default(false)
-  pointPool              Int[]
-  pointsRemaining        Json?
-  game                   Game     @relation(fields: [gameId], references: [id])
-}
-
-model Round {
-  id          String      @id @default(uuid())
-  gameId      String
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  maxPoints   Int?
-  roundType   RoundType
-  timeLimit   Int?
-  wagerLimit  Int?
-  name        String
-  pointSystem PointSystem
-  pointPool   Int[]
-  pointValue  Int?
-  sortOrder   Int
-  questions   Question[]
-  game        Game        @relation(fields: [gameId], references: [id])
-}
-
-model Question {
-  id            String         @id @default(uuid())
-  text          String
-  type          QuestionType
-  pointValue    Int?
-  roundId       String
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  answers       Answer[]
-  correctAnswer CorrectAnswer?
-  round         Round          @relation(fields: [roundId], references: [id])
-  sortOrder     Int            @default(0) // Field for defining the question's order
-  subquestions  Subquestion[]
-}
-
-model Answer {
-  id            String   @id @default(uuid())
-  questionId    String
-  teamId        String
-  answer        String
-  isCorrect     Boolean? // Nullable to indicate it hasn't been marked yet
-  pointsAwarded Int
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  pointsUsed    Int
-  question      Question @relation(fields: [questionId], references: [id])
-  team          Team     @relation(fields: [teamId], references: [id])
-}
-
-model Subquestion {
-  id            String              @id @default(uuid())
-  questionId    String
-  text          String
-  createdAt     DateTime            @default(now())
-  updatedAt     DateTime            @updatedAt
-  correctAnswer CorrectSubquestion?
-  question      Question            @relation(fields: [questionId], references: [id])
-  subAnswers    SubQuestionAnswer[] // One-to-many relation with SubQuestionAnswer
-}
-
-model SubQuestionAnswer {
-  id            String      @id @default(uuid())
-  subquestionId String
-  teamId        String
-  answer        String
-  isCorrect     Boolean? // Nullable to indicate it hasn't been marked yet
-  pointsAwarded Int
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-  subquestion   Subquestion @relation(fields: [subquestionId], references: [id])
-  team          Team        @relation(fields: [teamId], references: [id])
-}
-
-model CorrectAnswer {
-  id         String   @id @default(uuid())
-  answer     String
-  questionId String   @unique
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  question   Question @relation(fields: [questionId], references: [id])
-}
-
-model CorrectSubquestion {
-  id            String      @id @default(uuid())
-  answer        String
-  subquestionId String      @unique
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-  subquestion   Subquestion @relation(fields: [subquestionId], references: [id])
-}
-
-model SiteMembership {
-  id            String      @id @default(uuid())
-  userId        String
-  hostingSiteId String
-  createdAt     DateTime    @default(now())
-  hostingSite   HostingSite @relation(fields: [hostingSiteId], references: [id])
-  user          User        @relation(fields: [userId], references: [id])
-
-  @@unique([userId, hostingSiteId])
-}
-
-model TeamJoinRequest {
-  id          String    @id @default(uuid())
-  userId      String
-  teamId      String
-  status      String    @default("PENDING")
-  requestedAt DateTime  @default(now())
-  approvedBy  String?
-  approvedAt  DateTime?
-  team        Team      @relation(fields: [teamId], references: [id])
-  user        User      @relation(fields: [userId], references: [id])
-
-  @@unique([userId, teamId])
-}
-
-model Notification {
-  id        String   @id @default(uuid())
-  userId    String
-  message   String
-  link      String?
-  isRead    Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  user      User     @relation(fields: [userId], references: [id])
-}
-
-model LobbySession {
-  id        String   @id @default(uuid())
-  gameId    String
-  captainId String   @unique
-  createdAt DateTime @default(now())
-
-  game    Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
-  captain User @relation(fields: [captainId], references: [id], onDelete: Cascade)
-
-  @@unique([gameId, captainId]) // Ensure each captain can only join once per game
-}
-
-enum GameMode {
-  TIME_BASED
-  POINT_ASSIGNMENT
-  COMBO
-}
-
+/// ----------  ENUMS (reuse the ones you still need) ----------
 enum RoundType {
   POINT_BASED
   TIME_BASED
@@ -272,14 +212,57 @@ enum RoundType {
 }
 
 enum PointSystem {
-  POOL
-  FLAT
+  POOL // teams draw from a pool of points
+  FLAT // each correct answer worth `pointValue`
 }
 
-enum QuestionType {
-  SINGLE
-  MULTIPLE_CHOICE
-  ORDERED
-  WAGER
-  IMAGE
+/// ----------  NEW Round model ----------
+model Round {
+  id        String   @id @default(uuid())
+  gameId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /**
+   * ─── round config ───
+   */
+  name        String
+  roundType   RoundType
+  pointSystem PointSystem
+  maxPoints   Int? // used with POOL systems
+  pointValue  Int? // used with FLAT systems
+  pointPool   Int[] // optional per‑question point buckets
+  timeLimit   Int? // seconds; TIME_BASED
+  wagerLimit  Int? // WAGER rounds
+  sortOrder   Int
+
+  /**
+   * ─── relations ───
+   */
+  game      Game       @relation(fields: [gameId], references: [id])
+  questions Question[]
+}
+
+model Answer {
+  id            String   @id @default(uuid())
+  teamGameId    String
+  questionId    String
+  given         String
+  isCorrect     Boolean? // null until host scores
+  awardedPoints Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  teamGame TeamGame @relation(fields: [teamGameId], references: [id])
+  question Question @relation(fields: [questionId], references: [id])
+}
+
+model Option {
+  id         String  @id @default(uuid())
+  questionId String
+  text       String
+  isCorrect  Boolean
+  sortOrder  Int?
+
+  //Relation back to Question
+  question Question @relation(fields: [questionId], references: [id])
 }

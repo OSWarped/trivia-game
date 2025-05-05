@@ -1,6 +1,8 @@
 'use client';
 
 import { Round } from '@prisma/client';
+import { ChevronLeft } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 
 interface HostingSite {
@@ -19,7 +21,7 @@ interface Team {
 
 interface Game {
   id: string;
-  name: string;
+  title: string;
   date: string;
   hostingSiteId: string;
   hostingSite: HostingSite | null;
@@ -31,15 +33,16 @@ interface Game {
 interface User {
   id: string;
   name: string;
-  roles: string[];
+  role: string;
 }
 
 export default function ManageGames() {
+  const router = useRouter();
   const [games, setGames] = useState<Game[]>([]);
   const [hostingSites, setHostingSites] = useState<HostingSite[]>([]);
   const [hosts, setHosts] = useState<User[]>([]);
   const [editGame, setEditGame] = useState<Game | null>(null);
-  const [newGame, setNewGame] = useState({ name: '', date: '', hostingSiteId: '', hostId: '' });
+  const [newGame, setNewGame] = useState({ title: '', date: '', hostingSiteId: '', hostId: '' });
   const [showModal, setShowModal] = useState(false);
 
   const [loading, setLoading] = useState<boolean>(true);
@@ -75,7 +78,7 @@ export default function ManageGames() {
       try {
         const res = await fetch('/api/admin/users');
         const data = await res.json();
-        const hosts = data.filter((user: User) => user.roles.includes('HOST'));
+        const hosts = data.filter((user: User) => (user.role =='HOST' || user.role == 'ADMIN'));
         setHosts(hosts);
       } catch (err) {
         console.error('Error fetching hosts:', err);
@@ -110,7 +113,7 @@ export default function ManageGames() {
           prevGames.map((game) => (game.id === updatedGame.id ? updatedGame : game))
         );
         setEditGame(null);
-        setNewGame({ name: '', date: '', hostingSiteId: '', hostId: '' });
+        setNewGame({ title: '', date: '', hostingSiteId: '', hostId: '' });
         setShowModal(false);
         fetchGames(); // Re-fetch the games list after saving
       } else {
@@ -140,7 +143,7 @@ export default function ManageGames() {
   const handleEditGame = (game: Game) => {
     setEditGame(game);
     setNewGame({
-      name: game.name,
+      title: game.title,
       date: game.date,
       hostingSiteId: game.hostingSiteId,
       hostId: game.hostId, // Directly use hostId
@@ -158,13 +161,20 @@ export default function ManageGames() {
 
   return (
     <div className="p-6 bg-gray-100 min-h-screen">
+    <button
+        onClick={() => router.push('/admin/dashboard')}
+        className="mb-4 flex items-center text-blue-600 hover:underline"
+      >
+        <ChevronLeft className="mr-1" size={18} />
+        Back to Admin Panel
+      </button>
       <h1 className="text-2xl font-bold mb-6">Manage Games</h1>
       <button
         className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 mb-4"
         onClick={() => {
           setShowModal(true);
           setEditGame(null);
-          setNewGame({ name: '', date: '', hostingSiteId: '', hostId: '' });
+          setNewGame({ title: '', date: '', hostingSiteId: '', hostId: '' });
         }}
       >
         Add New Game
@@ -175,7 +185,7 @@ export default function ManageGames() {
     return (
       <li key={game.id} className="flex justify-between items-center bg-white p-4 rounded shadow-md">
         <div>
-          <h2 className="text-lg font-semibold">{game.name}</h2>
+          <h2 className="text-lg font-semibold">{game.title}</h2>
           <p className="text-sm text-gray-600">
             Date: {new Date(game.date).toLocaleDateString('en-US')}
           </p>
@@ -216,11 +226,11 @@ export default function ManageGames() {
                 <label className="block font-medium mb-1">Name</label>
                 <input
                   className="border border-gray-300 p-2 rounded w-full"
-                  value={editGame ? editGame.name : newGame.name}
+                  value={editGame ? editGame.title : newGame.title}
                   onChange={(e) =>
                     editGame
-                      ? setEditGame({ ...editGame, name: e.target.value })
-                      : setNewGame({ ...newGame, name: e.target.value })
+                      ? setEditGame({ ...editGame, title: e.target.value })
+                      : setNewGame({ ...newGame, title: e.target.value })
                   }
                 />
               </div>

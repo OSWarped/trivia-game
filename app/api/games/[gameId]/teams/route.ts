@@ -1,29 +1,35 @@
-import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-export async function GET(req: NextRequest, { params }: { params: Promise<{ gameId: string }> }) {
+export async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ gameId: string }> }
+) {
+  const { gameId } = await params;
+
   try {
-    const { gameId } = await params;
-
-    // Fetch all captains currently in the lobby
-    const captainsInLobby = await prisma.lobbySession.findMany({
+    const teamGames = await prisma.teamGame.findMany({
       where: { gameId },
-      select: { captainId: true },
+      include: {
+        team: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
     });
 
-    const captainIds = captainsInLobby.map((session) => session.captainId);
+    const teams = teamGames.map(tg => ({
+      id: tg.team.id,
+      name: tg.team.name,
+    }));
 
-    // Fetch all teams where the captain is in the lobby
-    const teamsInLobby = await prisma.team.findMany({
-      where: { captainId: { in: captainIds } },
-      include: { captain: true },
-    });
-
-    return NextResponse.json({ teams: teamsInLobby });
-  } catch (error) {
-    console.error("Error fetching teams in lobby:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return NextResponse.json({ teams });
+  } catch (err) {
+    console.error('Error fetching teams for game:', err);
+    return NextResponse.json({ error: 'Failed to fetch teams' }, { status: 500 });
   }
 }

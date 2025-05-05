@@ -13,7 +13,7 @@ export async function GET(req: Request) {
             team: true, // Include details of the associated teams
           },
         },
-        hostingSite: true, // Include hosting site details
+        Site: true, // Include hosting site details
       },
     });
 
@@ -47,7 +47,7 @@ export async function POST(req: Request) {
     // Create a new game with the given data
     const newGame = await prisma.game.create({
       data: {
-        name,
+        title,
         date: new Date(date), // Ensure the date is properly formatted
         hostingSiteId,
         hostId, // Directly assign the hostId to the game

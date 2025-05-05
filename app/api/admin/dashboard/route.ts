@@ -5,7 +5,7 @@ const prisma = new PrismaClient();
 
 export async function GET() {
   try {
-    const sites = await prisma.hostingSite.findMany();
+    const sites = await prisma.site.findMany();
     const users = await prisma.user.findMany();
 
     return NextResponse.json({ sites, users });

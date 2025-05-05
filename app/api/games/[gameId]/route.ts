@@ -11,14 +11,17 @@ export async function GET(req: Request, { params }: { params: Promise<{ gameId: 
     const game = await prisma.game.findUnique({
       where: { id: gameId },
       include: {
-        hostingSite: true, // Get hosting site details
-        gameState: true,   // Get current game state (if exists)
         rounds: {
           include: {
-            questions: true, // Include questions within rounds
-          },
+            questions: true
+          }
         },
-      },
+        event: {
+          include: {
+            site: true, // 🔥 Include the related Site through the Event
+          }
+        }
+      }
     });
 
     if (!game) {

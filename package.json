@@ -11,8 +11,11 @@
     "migrate-prod": "npx prisma migrate deploy"
   },
   "dependencies": {
+    "@headlessui/react": "^2.2.2",
+    "@hello-pangea/dnd": "^18.0.1",
     "@prisma/client": "^6.1.0",
     "bcrypt": "^5.1.1",
+    "date-fns": "^4.1.0",
     "jose": "^5.9.6",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.474.0",
@@ -24,6 +27,7 @@
     "qrcode.react": "^4.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-qr-code": "^2.0.15",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1"
   },

@@ -15,7 +15,7 @@ export async function GET() {
         // Fetch user's profile info including their name
         const userDetails = await prisma.user.findUnique({
             where: { id: user.userId },
-            select: { id: true, email: true, roles: true, name: true},
+            select: { id: true, email: true, role: true, name: true},
         });
 
         if (!userDetails) {
@@ -26,7 +26,7 @@ export async function GET() {
             user: {
                 userId: userDetails.id,
                 email: userDetails.email,
-                roles: userDetails.roles,
+                role: userDetails.role,
                 name: userDetails.name,
             },
         });

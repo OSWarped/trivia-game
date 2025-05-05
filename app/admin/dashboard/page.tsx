@@ -19,14 +19,9 @@ export default function AdminDashboard() {
             <p className="mt-2 text-white">Edit roles and assign users to sites.</p>
           </div>
         </Link>
-        <Link href="/admin/teams">
-          <div className="p-6 bg-yellow-500 text-white rounded-lg shadow cursor-pointer hover:bg-yellow-600">
-            <h2 className="text-xl font-bold">Manage Teams</h2>
-            <p className="mt-2 text-white">Assign players and manage team details.</p>
-          </div>
-        </Link>
+        
         <Link href="/admin/games">
-          <div className="p-6 bg-red-500 text-white rounded-lg shadow cursor-pointer hover:bg-red-600">
+          <div className="p-6 bg-yellow-500 text-white rounded-lg shadow cursor-pointer hover:bg-yellow-600">
             <h2 className="text-xl font-bold">Manage Games</h2>
             <p className="mt-2 text-white">View and edit game settings.</p>
           </div>

@@ -35,7 +35,7 @@ export async function getUserFromToken() {
     return {
       userId: user.id,
       email: user.email,
-      roles: user.roles,
+      role: user.role,
     };
   } catch (error) {
     // Type-safe error handling
@@ -70,7 +70,7 @@ export async function getUserFromProvidedToken(token: string | null) {
     return {
       userId: user.id,
       email: user.email,
-      roles: user.roles,
+      role: user.role,
     };
   } catch (error) {
     console.error('Error in getUserFromProvidedToken:', error);

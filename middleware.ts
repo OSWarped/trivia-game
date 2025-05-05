@@ -1,65 +1,88 @@
+// middleware.ts
 import { NextResponse } from 'next/server';
-import { jwtVerify } from 'jose';
+import type { NextRequest } from 'next/server';
+import { jwtVerify, JWTPayload } from 'jose';
 
-interface DecodedToken {
-  userId: string; // Use userId from the token payload
-  email: string;
-  roles: string[];
+interface DecodedToken extends JWTPayload {
+  userId: string;
+  email:  string;
+  role:   string;          // "ADMIN" | "HOST"
 }
 
-export async function middleware(req: Request) {
-  const { pathname } = new URL(req.url);
-  //console.log("Middleware attempting to get token from cookies");
+/* ─────────────────────────────────────────────────────────── */
 
-  // Extract token from cookies (HttpOnly cookies)
-  const token = req.headers.get('cookie')?.split('; ').find((cookie) => cookie.startsWith('token='))?.split('=')[1];
+function isDecodedToken(p: JWTPayload): p is DecodedToken {
+  return (
+    typeof p.userId === 'string' &&
+    typeof p.email  === 'string' &&
+    typeof p.role   === 'string'
+  );
+}
 
+async function verifyToken(token: string): Promise<DecodedToken | null> {
+  try {
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
+    const { payload } = await jwtVerify(token, secret);
+
+    if (isDecodedToken(payload)) return payload;
+    console.warn('JWT payload shape not as expected:', payload);
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────── */
+
+export async function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+  const token = req.cookies.get('token')?.value;
+
+  console.log('[MW] path:', req.nextUrl.pathname);
+
+  // If no token → redirect (pages) or 401 (APIs)
   if (!token) {
-    console.error('No token found in cookies');
     if (pathname.startsWith('/api')) {
-      return NextResponse.json({ error: 'Unauthorized access' }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     return NextResponse.redirect(new URL('/login', req.url));
   }
 
-  try {
-    // Verify JWT
-    const { payload } = await jwtVerify(
-      token,
-      new TextEncoder().encode(process.env.JWT_SECRET)
-    ) as { payload: DecodedToken };
-
-    //console.log('JWT payload:', payload); // Log the payload to ensure roles are present
-
-    // Allow admin to access admin routes
-    if (pathname.startsWith('/api/admin') && (!payload.roles || !payload.roles.includes('ADMIN'))) {
-      console.error('Unauthorized access to admin route');
-      return NextResponse.json({ error: 'Unauthorized access' }, { status: 403 });
-    }
-
-    // Allow hosts to access host routes
-    if (pathname.startsWith('/api/host') && (!payload.roles || !payload.roles.includes('HOST'))) {
-      console.error('Unauthorized access to host route');
-      return NextResponse.json({ error: 'Unauthorized access' }, { status: 403 });
-    }
-
-    // Redirect non-admins from admin dashboard
-    if (pathname.startsWith('/admin') && (!payload.roles || !payload.roles.includes('ADMIN'))) {
-      console.error('Unauthorized access to admin dashboard');
-      return NextResponse.redirect(new URL('/login', req.url));
-    }
-
-  } catch (error) {
-    console.error('JWT verification failed:', error);
+  const decoded = await verifyToken(token);
+  if (!decoded) {
     if (pathname.startsWith('/api')) {
-      return NextResponse.json({ error: 'Unauthorized access' }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     return NextResponse.redirect(new URL('/login', req.url));
+  }
+
+  /* ─────  Role gates  ───── */
+
+  // Admin‑only APIs & pages
+  if (pathname.startsWith('/api/admin') || pathname.startsWith('/admin')) {
+    if (decoded.role !== 'ADMIN') {
+      return pathname.startsWith('/api')
+        ? NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        : NextResponse.redirect(new URL('/login', req.url));
+    }
+  }
+
+  // Host‑only APIs
+  if (pathname.startsWith('/api/host')) {
+    if (decoded.role !== 'HOST' && decoded.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
   }
 
   return NextResponse.next();
 }
 
+/* ─────────────────────────────────────────────────────────── */
+
 export const config = {
-  matcher: ['/api/admin/:path*', '/admin/:path*', '/api/host/:path*'],
+  matcher: [
+    '/api/admin/:path*',
+    '/admin/:path*',
+    '/api/host/:path*',
+  ],
 };

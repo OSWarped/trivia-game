@@ -20,7 +20,7 @@ export async function POST(req: Request) {
     }
 
     // Compare the provided password with the stored hash
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+    const isPasswordValid = await bcrypt.compare(password, user.hashedPw);
 
     if (!isPasswordValid) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
@@ -34,16 +34,30 @@ export async function POST(req: Request) {
     clearRes.headers.set('Set-Cookie', clearCookie);
 
     // Roles are now stored directly in the User model
-    const roles = user.roles || [];
+    const role = user.role || '';
 
     // Sign the JWT with the user roles and userId
-    const token = jwt.sign({ userId: user.id, roles }, JWT_SECRET, {
-      expiresIn: '4h',
-    });
+    const token = jwt.sign(
+      { userId: user.id, email: user.email, role },   // ← include email
+      JWT_SECRET,
+      { expiresIn: '4h' }
+    );
 
     // Set the cookie in the response
-    const cookie = `token=${token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=3600`;
-    const res = NextResponse.json({ token, roles }); // Return the token and roles in JSON response
+    const dev = process.env.NODE_ENV !== 'production';
+    //const cookie = `token=${token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=3600`;
+    const cookie = [
+      `token=${token}`,
+      'HttpOnly',
+      'SameSite=Strict',
+      'Path=/',
+      `Max-Age=${60 * 60 * 4}`,            // 4 h
+      !dev && 'Secure',                    // send Secure only in prod
+    ]
+      .filter(Boolean)
+      .join('; ');
+    
+    const res = NextResponse.json({ token, role }); // Return the token and roles in JSON response
 
     // Set the cookie header
     res.headers.set('Set-Cookie', cookie);

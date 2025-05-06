@@ -39,6 +39,31 @@ export default function HostDashboard() {
       }
     })();
   }, []);
+  const handleResetGame = async (gameId: string) => {
+    const confirmed = confirm("Are you sure you want to reset this game?");
+    if (!confirmed) return;
+  
+    try {
+      const res = await fetch('/api/host/debug/reset-game', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gameId }),
+      });
+  
+      const result = await res.json();
+      if (res.ok) {
+        alert("Game reset successfully.");
+        // Optionally refresh the page or refetch game list
+      } else {
+        alert(result.error || "Failed to reset game.");
+      }
+    } catch (err) {
+      console.error("Reset error:", err);
+      alert("An error occurred while resetting the game.");
+    }
+  };
+  
+
 
   if (loading) {
     return <div className="p-6">Loading games...</div>;
@@ -71,6 +96,13 @@ export default function HostDashboard() {
                   <div className="text-sm text-gray-600">{formatDate(g.scheduledFor)}</div>
                 </div>
                 <div className="flex space-x-2">
+                  {/* Reset Game Button */}
+                  <button
+                    onClick={() => handleResetGame(g.id)}
+                    className="bg-red-500 text-white px-3 py-1 rounded-lg hover:bg-red-600"
+                  >
+                  Reset Game
+                  </button>
                   {g.status === 'DRAFT' && (
                     <Link
                       href={`/dashboard/host/games/${g.id}/edit`}

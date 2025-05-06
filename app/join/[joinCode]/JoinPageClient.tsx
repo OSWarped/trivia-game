@@ -1,9 +1,9 @@
+// app/join/[joinCode]/JoinPageClient.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-//import { io } from 'socket.io-client';
-import { getSocket } from '@/lib/socket-client';
+import { useTeamSocket } from '@/app/hooks/useTeamSocket';
 
 interface Game {
   id: string;
@@ -26,70 +26,63 @@ export default function JoinPageClient({ joinCode }: { joinCode: string }) {
   const [teamNameSuggestions, setTeamNameSuggestions] = useState<string[]>([]);
   const [filteredSuggestions, setFilteredSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [teamId, setTeamId] = useState<string | null>(null);
   const router = useRouter();
 
+  /* ---------- fetch game + suggestions ---------- */
   useEffect(() => {
-    async function loadGame() {
+    (async () => {
       const res = await fetch(`/api/games/join-code/${joinCode}`);
-      if (res.ok) {
-        const data = await res.json();
-        setGame(data);
+      if (!res.ok) return;
+      const data = await res.json();
+      setGame(data);
 
-        // Fetch team names based on event ID
-        const teamRes = await fetch(`/api/events/${data.eventId}/teams/names`);
-        if (teamRes.ok) {
-          const names = await teamRes.json();
-          setTeamNameSuggestions(names);
-        }
-      }
-    }
-
-    loadGame();
+      const teamRes = await fetch(`/api/events/${data.eventId}/teams/names`);
+      if (teamRes.ok) setTeamNameSuggestions(await teamRes.json());
+    })();
   }, [joinCode]);
 
+  /* ---------- wire the socket once we have ids ---------- */
+  useTeamSocket(!!teamId, game?.id ?? null, teamId, teamName || null);
+
+  /* ---------- handle submit ---------- */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-  
-    const result = await fetch(`/api/games/join-code/${joinCode}`);
-    const game = await result.json();
-    const gameId = game.id;
-  
-    const res = await fetch(`/api/games/${gameId}/join`, {
+
+    if (!game) return;
+
+    const res = await fetch(`/api/games/${game.id}/join`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ joinCode, teamName, pin }),
     });
-  
-    if (res.ok) {
-      const data = await res.json();
-      const { teamId, gameStatus } = data;
-  
-      localStorage.setItem('teamId', teamId);
-      localStorage.setItem('teamName', teamName);
-      localStorage.setItem('gameId', gameId);
-  
-      const socket = getSocket();
-  
-      socket.emit('team:join_lobby', {
-        gameId,
-        teamId,
-        teamName,
-      });
-  
-      // Wait just enough to ensure server updates team list
-      setTimeout(() => {
-        const redirectUrl = gameStatus === 'LIVE'
-          ? `/play/${gameId}`
-          : `/games/${gameId}/lobby`;
-        router.push(redirectUrl);
-      }, 300);
-    } else {
+
+    if (!res.ok) {
       const { error } = await res.json();
       setError(error || 'Failed to join game');
+      return;
     }
+
+    const { teamId: newTeamId, gameStatus } = await res.json();
+
+    /* persist for rejoin */
+    localStorage.setItem('teamId', newTeamId);
+    localStorage.setItem('teamName', teamName);
+    localStorage.setItem('gameId', game.id);
+
+    setTeamId(newTeamId); // triggers useTeamSocket
+
+    /* give server a tick to broadcast roster */
+    setTimeout(() => {
+      const url = gameStatus === 'LIVE'
+        ? `/games/${game.id}/play`
+        : `/games/${game.id}/lobby`;
+      router.push(url);
+    }, 300);
   };
 
+  /* ---------- UI ---------- */
   if (!game) return <div>Loading game info...</div>;
 
   return (

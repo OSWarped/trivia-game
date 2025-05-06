@@ -8,31 +8,51 @@ const SECRET_KEY = process.env.JWT_SECRET || 'your_secret_key';
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-  const gameId = searchParams.get('gameId');
-  const teamId = searchParams.get('teamId');
+  const gameId     = searchParams.get('gameId');
+  const teamId     = searchParams.get('teamId');
+  const questionId = searchParams.get('questionId');
 
-  if (!gameId || !teamId) {
-    return NextResponse.json({ error: 'Missing gameId or teamId' }, { status: 400 });
+  if (!gameId || !teamId || !questionId) {
+    return NextResponse.json(
+      { error: 'Missing gameId, teamId, or questionId' },
+      { status: 400 }
+    );
   }
 
   try {
+    /* confirm the team belongs to the game */
     const teamGame = await prisma.teamGame.findUnique({
-      where: {
-        teamId_gameId: {
-          teamId,
-          gameId,
-        },
+      where: { teamId_gameId: { teamId, gameId } },
+      select: { id: true, team: { select: { id: true, name: true } } },
+    });
+    if (!teamGame) {
+      return NextResponse.json(
+        { error: 'Team not found in game' },
+        { status: 404 }
+      );
+    }
+
+    /* fetch THAT team's answer for THAT question */
+    const answerRow = await prisma.answer.findFirst({
+      where: { teamGameId: teamGame.id, questionId },
+      orderBy: { createdAt: 'desc' },          // in case of resubmissions
+      select: {
+        given: true,
+        awardedPoints: true,
+        isCorrect: true,
       },
     });
 
-    if (!teamGame) {
-      return NextResponse.json({ error: 'Team not found in game' }, { status: 404 });
-    }
+    if (!answerRow) return NextResponse.json({ answer: null });
 
-    const answer = await prisma.answer.findFirst({
-      where: { teamGameId: teamGame.id },
-      orderBy: { createdAt: 'desc' },
-    });
+    const answer = {
+      teamId:   teamGame.team.id,
+      teamName: teamGame.team.name,
+      questionId,
+      given: answerRow.given,
+      awardedPoints: answerRow.awardedPoints,
+      isCorrect: answerRow.isCorrect,
+    };
 
     return NextResponse.json({ answer });
   } catch (err) {
@@ -40,7 +60,6 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }
-
 export async function POST(req: Request) {
   try {
     const cookieStore = await cookies();

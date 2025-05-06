@@ -250,6 +250,7 @@ model Answer {
   given         String
   isCorrect     Boolean? // null until host scores
   awardedPoints Int      @default(0)
+  pointsUsed    Int?
   createdAt     DateTime @default(now())
 
   teamGame TeamGame @relation(fields: [teamGameId], references: [id])

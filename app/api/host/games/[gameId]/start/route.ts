@@ -18,9 +18,8 @@ export async function PATCH(
           orderBy: { sortOrder: 'asc' },
           include: {
             questions: {
-              include: {
-                options: true,
-              },
+              orderBy: { sortOrder: 'asc' },
+              include: { options: true },
             },
           },
         },

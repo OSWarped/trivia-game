@@ -1,23 +1,29 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
-//import { io } from 'socket.io-client';
-import { getSocket } from '@/lib/socket-client';
-import { GameState } from '@prisma/client';
+import { useSocket } from '@/components/SocketProvider';
+import { useHostSocket } from '@/app/hooks/useHostSocket';
+import type { GameState } from '@prisma/client';
 
-////const websocketURL = process.env.NEXT_PUBLIC_WEBSOCKET_URL?.trim() || 'http://localhost:3009';
-
-//console.log("🔌 Connecting to socket at:", websocketURL);
-
-
+/* ─────────── Types ─────────── */
+interface QuestionOption { id: string; text: string; isCorrect: boolean }
 interface Question {
   id: string;
   text: string;
   type: 'SINGLE' | 'MULTIPLE_CHOICE' | 'ORDERED' | 'WAGER';
-  options: { id: string; text: string; isCorrect: boolean }[];
+  options: QuestionOption[];
+  sortOrder: number;
 }
-
+interface Round {
+  id: string;
+  name: string;
+  questions: Question[];
+  pointSystem: 'POOL' | 'FLAT';
+  pointPool?: number[];
+  pointValue?: number;
+  sortOrder: number;
+}
 interface GameStateExpanded extends GameState {
   game: {
     rounds: Round[];
@@ -28,124 +34,293 @@ interface GameStateExpanded extends GameState {
     }[];
   };
 }
-
-
-
-interface Round {
-  id: string;
-  name: string;
-  questions: Question[];
-  pointSystem: 'POOL' | 'FLAT';
-  pointPool?: number[];
-  pointValue?: number;
-  sortOrder: number;
-}
-
 interface TeamStatus {
   id: string;
   name: string;
   score?: number;
   submitted: boolean;
-  answer?: string | null;
-  isCorrect?: boolean | null;
-  pointsUsed?: number | null;
+}
+interface TeamAnswer {
+  teamId: string;
+  teamName: string;
+  questionId: string;
+  given: string;
+  isCorrect: boolean | null;
+  awardedPoints: number;
+  pointsUsed: number;
 }
 
-
+/* ─────────── Component ─────────── */
 export default function HostGameInterface() {
-  const { gameId } = useParams();
+  const { gameId } = useParams<{ gameId: string }>();
+
+  /* socket */
+  const socket = useSocket();
+  useHostSocket(true, gameId ?? null);
+
+  /* state */
   const [teamStatus, setTeamStatus] = useState<TeamStatus[]>([]);
   const [gameState, setGameState] = useState<GameStateExpanded | null>(null);
-  const [teamAnswers, setTeamAnswers] = useState<{
-    teamId: string;
-    teamName: string;
-    questionId: string;
-    given: string;
-    isCorrect: boolean | null;
-    awardedPoints: number;
-  }[]>([]);
+  const [teamAnswers, setTeamAnswers] = useState<TeamAnswer[]>([]);
 
+  /* derive current round every render */
+  const currentRound = useMemo(() => {
+    if (!gameState) return null;
+    return (
+      gameState.game.rounds.find((r) => r.id === gameState.currentRoundId) ?? null
+    );
+  }, [gameState]);
+
+  /* order rounds & questions the same way you build them server‑side */
+  const orderedRounds = useMemo(
+    () => gameState?.game.rounds.slice().sort((a, b) => a.sortOrder - b.sortOrder) || [],
+    [gameState]
+  );
+
+  const flatQuestions = useMemo(() => {
+    return orderedRounds.flatMap(r =>
+      r.questions
+        .slice()
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map(q => ({ ...q, roundId: r.id, roundName: r.name }))
+    );
+  }, [orderedRounds]);
+
+  const currentIdx = flatQuestions.findIndex(q => q.id === gameState?.currentQuestionId);
+  const isLastInRound =
+    currentRound &&
+    currentRound.questions
+      .slice()
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .at(-1)?.id === gameState?.currentQuestionId;
+
+  const isFinalQuestion = currentIdx === flatQuestions.length - 1;
+
+  const fetchAnswers = async (qId: string) => {
+    const res = await fetch(
+      `/api/host/games/${gameId}/answers?questionId=${qId}`,
+      { cache: 'no-store' }
+    );
+    if (res.ok) setTeamAnswers(await res.json());
+  };
+
+
+
+  /* helper: refetch host state after question change */
+  const refreshHostState = async () => {
+    const res = await fetch(`/api/host/games/${gameId}/state`, {
+      cache: 'no-store',
+    });
+    if (res.ok) {
+      setGameState((await res.json()) as GameStateExpanded);
+      // also clear submission flags + answer cards for a fresh question
+      setTeamStatus((prev) => prev.map((t) => ({ ...t, submitted: false })));
+      setTeamAnswers([]);
+      
+    }
+  };
 
   useEffect(() => {
-    const socket = getSocket();
-    
-    if (!gameId) return;
+    if (!socket || !gameId) return;
   
-    const setup = async () => {
-      try {
-        // ✅ Step 1: Fetch game state first
-        const res = await fetch(`/api/host/games/${gameId}/state`);
-        if (!res.ok) throw new Error("Failed to fetch game state");
-        const data = await res.json();
-        setGameState(data);
-  
-        // ✅ Step 2: Join room and request live teams
-        socket.emit('host:join', { gameId });
-        socket.emit('host:requestLiveTeams', { gameId });
-  
-        // ✅ Step 3: Handle live teams
-        const handleLiveTeams = (data: { gameId: string; teams: { id: string; name: string }[] }) => {
-          if (data.gameId !== gameId) return;
-          setTeamStatus(
-            data.teams.map((team) => ({
-              id: team.id,
-              name: team.name,
-              submitted: false,
-              answer: null,
-              isCorrect: null,
-              pointsUsed: null,
-            }))
-          );
-        };
-  
-        socket.on("host:liveTeams", handleLiveTeams);
-  
-        // ✅ Step 4: Handle answer submission
-        socket.on('host:answerSubmission', async ({ teamId, questionId, answer, pointsUsed }) => {
-          if (!data?.gameId) {
-            console.warn("Missing gameId in fetched game state");
-            return;
-          }
-  
-          console.log(`Fetching answer for team ${teamId} and for question: ${questionId}\n They wagered ${pointsUsed} on the answer: ${answer}`);
-  
-          const res = await fetch(`/api/host/answers?gameId=${data.gameId}&teamId=${teamId}`);
-          const answerData = await res.json();
-  
-          if (answerData.answer) {
-            setTeamAnswers((prev) => [...prev, answerData.answer]);
-          }
-        });
-  
-        // ✅ Cleanup
-        return () => {
-          socket.emit('host:leave', { gameId });
-          socket.off("host:liveTeams", handleLiveTeams);
-          socket.off("host:answerSubmission");
-        };
-      } catch (err) {
-        console.error("Setup error in host page:", err);
-      }
+    const onConnect = () => {
+      socket.emit('host:join', { gameId });             // ensure room join
+      socket.emit('host:requestLiveTeams', { gameId }); // get team list
     };
   
-    setup();
-  }, [gameId]);
+    if (socket.connected) {
+      onConnect();              // immediate on hard‑refresh
+    } else {
+      socket.once('connect', onConnect); // wait for handshake
+    }
+  
+    return () => {
+      socket.off('connect', onConnect);   // cleanup
+    };
+  }, [socket, gameId]);
 
+  /* ─────────── one unified effect ─────────── */
+useEffect(() => {
+  if (!socket || !gameId) return;
+
+  /* ---------- 1. helper to fetch host game state ------------- */
+  const fetchHostState = async () => {
+    const res = await fetch(`/api/host/games/${gameId}/state`, {
+      cache: 'no-store',
+    });
+    if (res.ok) {
+      setGameState((await res.json()) as GameStateExpanded);
+    }
+    if (gameState?.currentQuestionId) {
+      void fetchAnswers(gameState.currentQuestionId);
+    }
+  };
+
+  /* ---------- 2.  WebSocket handlers ------------------------- */
+  const handleLiveTeams = async ({
+    gameId: gid,
+    teams,
+  }: {
+    gameId: string;
+    teams: { id: string; name: string }[];
+  }) => {
+    if (gid !== gameId) return;
+
+    /* base list */
+    const base = teams.map((t) => ({
+      id: t.id,
+      name: t.name,
+      submitted: false,
+      score: 0,
+    }));
+
+    /* merge scores from REST endpoint */
+    try {
+      const res = await fetch(`/api/host/games/${gameId}/scores`, {
+        cache: 'no-store',
+      });
+      const data = (await res.json()) as { teamId: string; score: number }[];
+
+      setTeamStatus(
+        base.map((t) => {
+          const found = data.find((d) => d.teamId === t.id);
+          return { ...t, score: found?.score ?? 0 };
+        })
+      );
+    } catch {
+      setTeamStatus(base);
+    }
+  };
+
+  /* answer submissions (team -> host) */
+const handleAnswer = async ({
+  teamId,
+  questionId,
+  answer,          // still comes in the payload
+  pointsUsed,
+}: {
+  teamId: string;
+  questionId: string;
+  answer: string;
+  pointsUsed: number[];
+}) => {
+  try {
+    /* fetch the latest answer row for that team + question */
+    const res = await fetch(
+      `/api/host/answers?gameId=${gameId}&teamId=${teamId}&questionId=${questionId}`
+    );
+    const { answer: dbAnswer } = (await res.json()) as { answer: TeamAnswer };
+    if (!dbAnswer) return;
+
+    /* patch points for FLAT rounds if host hasn’t set them yet */
+    if (
+      dbAnswer.awardedPoints === 0 &&
+      currentRound?.pointSystem === 'FLAT' &&
+      currentRound.pointValue != null
+    ) {
+      dbAnswer.awardedPoints = currentRound.pointValue;
+    }
+
+    /* mark team as submitted */
+    setTeamStatus((prev) =>
+      prev.map((t) => (t.id === teamId ? { ...t, submitted: true } : t))
+    );
+
+    /* show the answer card */
+    setTeamAnswers((prev) => [...prev, dbAnswer]);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('Error fetching answer data:', err);
+  }
+};
+
+
+  const handleScoreUpdate = ({
+    teamId,
+    newScore,
+  }: {
+    teamId: string;
+    newScore: number;
+  }) => {
+    setTeamStatus((prev) =>
+      prev.map((t) => (t.id === teamId ? { ...t, score: newScore } : t))
+    );
+  };
+
+  
+
+  const handleQuestionAdvance = () => {
+    void refreshHostState().then(() => {
+      if (gameState?.currentQuestionId) {
+        void fetchAnswers(gameState.currentQuestionId);
+      }
+    });
+  };
+
+  const resetSubmissions = () => {
+    setTeamStatus((prev) => prev.map((t) => ({ ...t, submitted: false })));
+    setTeamAnswers([]);
+  };
+
+  /* ---------- 3.  register listeners ------------------------- */
+  socket.on('host:liveTeams', handleLiveTeams);
+  socket.on('host:answerSubmission', handleAnswer);
+  socket.on('game:resetSubmissions', resetSubmissions);
+  socket.on('score:update', handleScoreUpdate);
+  socket.on('game:updateQuestion', handleQuestionAdvance);
+
+  /* ---------- 4.  join room & request live list -------------- */
+  const joinAndRequest = () => {
+    socket.emit('host:join', { gameId });
+    socket.emit('host:requestLiveTeams', { gameId });
+  };
+
+  if (socket.connected) {
+    joinAndRequest();
+  } else {
+    socket.once('connect', joinAndRequest);
+  }
+
+  /* ---------- 5.  initial REST state fetch ------------------- */
+  void fetchHostState();
+
+  /* ---------- 6.  cleanup ------------------------------------ */
+  return () => {
+    socket.off('host:liveTeams', handleLiveTeams);
+    socket.off('host:answerSubmission', handleAnswer);
+    socket.off('game:resetSubmissions', resetSubmissions);
+    socket.off('score:update', handleScoreUpdate);
+    socket.off('game:updateQuestion', handleQuestionAdvance);
+    socket.off('connect', joinAndRequest);
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [socket, gameId]);
+
+
+/* initial game‑state fetch (runs only when gameId changes) */
+useEffect(() => {
+  if (!gameId) return;
+  (async () => {
+    const res = await fetch(`/api/host/games/${gameId}/state`, {
+      cache: 'no-store',
+    });
+    if (res.ok) setGameState((await res.json()) as GameStateExpanded);
+  })();
+}, [gameId]);
+
+  
+  /* ─────────── score API ─────────── */
   const handleScore = async (
     teamId: string,
     questionId: string,
     isCorrect: boolean
   ) => {
     try {
-      const res = await fetch("/api/host/score-answer", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ teamId, questionId, isCorrect }),
+      await fetch('/api/host/score-answer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gameId, teamId, questionId, isCorrect }),
       });
-  
-      if (!res.ok) throw new Error("Failed to update score");
-  
-      // Optionally update UI
       setTeamAnswers((prev) =>
         prev.map((a) =>
           a.teamId === teamId && a.questionId === questionId
@@ -154,145 +329,239 @@ export default function HostGameInterface() {
         )
       );
     } catch (err) {
-      console.error("Error scoring answer:", err);
+      console.error(err);
     }
+  };
+
+
+  function RevealAnswer({ question }: { question: Question | null }) {
+    const [open, setOpen] = useState(false);
+    if (!question) return null;
+
+    return open ? (
+      <div className="mt-4 rounded border border-yellow-300 bg-yellow-100 p-4">
+        <h3 className="mb-2 font-semibold text-gray-700">Correct Answer:</h3>
+        <ul className="list-inside list-disc text-gray-800">
+          {question.options.filter(o => o.isCorrect).map(o => (
+            <li key={o.id}>{o.text}</li>
+          ))}
+        </ul>
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className="mt-3 text-sm text-blue-700 hover:underline"
+        >
+          Hide Answer
+        </button>
+      </div>
+    ) : (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mt-4 rounded bg-yellow-400 px-4 py-2 font-semibold text-gray-900 hover:bg-yellow-500"
+      >
+        Reveal Correct Answer
+      </button>
+    );
+  }
+  const answerStyle = (ans: TeamAnswer) => {
+    console.log('Teams answer:' + ans.isCorrect);
+    if (ans.isCorrect === true)  return 'border-green-400 bg-green-50';
+    if (ans.isCorrect === false) return 'border-red-400  bg-red-50';
+    return 'border-gray-200';
   };
   
 
-  function RevealAnswer({ question }: { question: Question | null }) {
-    const [revealed, setRevealed] = useState(false);
-  
-    if (!question) return null;
-  
-    return (
-      <div className="mt-4">
-        {!revealed ? (
-          <button
-            onClick={() => setRevealed(true)}
-            className="bg-yellow-400 text-gray-900 font-semibold px-4 py-2 rounded hover:bg-yellow-500"
-          >
-            Reveal Correct Answer
-          </button>
-        ) : (
-          <div className="bg-yellow-100 p-4 mt-2 rounded border border-yellow-300">
-            <h3 className="font-semibold mb-2 text-gray-700">Correct Answer:</h3>
-            <ul className="list-disc list-inside text-gray-800">
-              {question.options.filter(opt => opt.isCorrect).map((opt) => (
-                <li key={opt.id}>{opt.text}</li>
-              ))}
-            </ul>
-            <button
-              onClick={() => setRevealed(false)}
-              className="mt-3 text-sm text-blue-700 hover:underline"
-            >
-              Hide Answer
-            </button>
-          </div>
-        )}
-      </div>
-    );
-  }
-  
-  
-  
-
+  /* ─────────── UI ─────────── */
   return (
     <div className="flex min-h-screen bg-gray-50">
-  {/* Sidebar with Teams */}
-  <aside className="w-64 bg-gray-100 p-4 border-r shadow-inner">
-  <h2 className="text-lg font-semibold mb-4 text-gray-700">👥 Teams</h2>
-  <div className="space-y-3">
-    {teamStatus.map((team) => (
-      <div
-        key={team.id}
-        className="bg-white p-3 rounded-lg shadow-sm border border-gray-200 flex justify-between items-center"
-      >
-        <span className="text-gray-800 font-medium">{team.name}</span>
-        <span className="text-blue-600 font-bold text-sm">{team.score ?? 0} pts</span>
-      </div>
-    ))}
-  </div>
-</aside>
-
-  {/* Main Content */}
-  <main className="flex-1 p-8 space-y-6">
-  <h1 className="text-3xl font-bold text-gray-800 mb-6 border-b pb-2">🎯 Host Game Dashboard</h1>
-
-  {gameState && (
-    <section className="bg-white p-6 border-l-4 border-blue-500 rounded-lg shadow-md space-y-6">
-      <h2 className="text-2xl font-semibold text-blue-800 flex items-center gap-2">
-        📊 Current Game Progress
-      </h2>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-blue-50 border border-blue-200 rounded-md p-4 shadow-sm">
-          <p className="text-sm text-blue-700 font-semibold uppercase tracking-wide">
-            Current Round
-          </p>
-          <p className="text-lg font-bold text-blue-900 mt-1">
-            {gameState.game.rounds.find(r => r.id === gameState.currentRoundId)?.name || "—"}
-          </p>
+      {/* Sidebar */}
+      <aside className="w-64 border-r bg-gray-100 p-4 shadow-inner">
+        <h2 className="mb-4 text-lg font-semibold text-gray-700">👥 Teams</h2>
+        <div className="space-y-3">
+          {teamStatus.map((team) => (
+            <div
+              key={team.id}
+              className={`flex items-center justify-between rounded-lg border bg-white p-3 shadow-sm ${team.submitted ? 'border-green-400 ring-2 ring-green-300' : ''
+                }`}
+            >
+              <span className="font-medium text-gray-800">
+                {team.name}
+                {team.submitted && (
+                  <span className="ml-2 rounded bg-green-200 px-2 text-xs font-semibold text-green-800">
+                    Submitted
+                  </span>
+                )}
+              </span>
+              <span className="text-sm font-bold text-blue-600">
+                {team.score ?? 0} pts
+              </span>
+            </div>
+          ))}
         </div>
+      </aside>
 
-        <div className="bg-green-50 border border-green-200 rounded-md p-4 shadow-sm">
-          <p className="text-sm text-green-700 font-semibold uppercase tracking-wide">
-            Current Question
-          </p>
-          <p className="text-lg font-medium text-green-900 mt-1">
-            {gameState.game.rounds
-              .find(r => r.id === gameState.currentRoundId)
-              ?.questions.find(q => q.id === gameState.currentQuestionId)?.text || "No active question"}
-          </p>
-        </div>
-      </div>
+      {/* Main */}
+      <main className="flex-1 space-y-6 p-8">
+        <h1 className="mb-6 border-b pb-2 text-3xl font-bold text-gray-800">
+          🎯 Host Game Dashboard
+        </h1>
 
-      <RevealAnswer
-        question={
-          gameState.game.rounds
-            .find(r => r.id === gameState.currentRoundId)
-            ?.questions.find(q => q.id === gameState.currentQuestionId) || null
-        }
-      />
-    </section>
-  )}
+        {gameState && currentRound && (
+          <section className="space-y-6 rounded-lg border-l-4 border-blue-500 bg-white p-6 shadow-md">
+            <h2 className="flex items-center gap-2 text-2xl font-semibold text-blue-800">
+              📊 Current Game Progress
+            </h2>
+            <div className="flex gap-4">
+              <button
+                type="button"
+                className="rounded bg-gray-300 px-4 py-2 font-semibold hover:bg-gray-400"
+                onClick={async () => {
+                  await fetch(`/api/host/games/${gameId}/prev`, { method: 'POST' });
+                  socket?.emit('host:previousQuestion', { gameId }); // server will broadcast
+                }}
+              >
+                ⬅ Prev
+              </button>
 
-{teamAnswers.length > 0 && (
-  <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-    {teamAnswers.map((answer, index) => (
-      <div
-        key={index}
-        className="border rounded-lg p-4 shadow bg-white flex flex-col gap-2"
-      >
-        <div className="text-lg font-semibold">{answer.teamName}</div>
-        <div className="text-gray-700">
-          Answered: <span className="font-medium">{answer.given}</span>
-        </div>
-        <div className="text-gray-500 text-sm">
-          Points Wagered: {answer.awardedPoints}
-        </div>
+              <button
+                type="button"
+                className="rounded bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700"
+                onClick={async () => {
+                  await fetch(`/api/host/games/${gameId}/next`, { method: 'POST' });
+                  socket?.emit('host:nextQuestion', { gameId });
+                }}
+              >
+                Next ➡
+              </button>
+            </div>
 
-        <div className="flex gap-2 mt-2">
-          <button
-            className="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600"
-            onClick={() => handleScore(answer.teamId, answer.questionId, true)}
-          >
-            Mark Correct
-          </button>
-          <button
-            className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
-            onClick={() => handleScore(answer.teamId, answer.questionId, false)}
-          >
-            Mark Incorrect
-          </button>
-        </div>
-      </div>
-    ))}
-  </div>
-)}
-</main>
+            {isLastInRound && !isFinalQuestion && (
+              <div className="rounded bg-indigo-100 p-3 text-indigo-800 shadow">
+                ⚠️ You’re on the last question of <strong>{currentRound?.name}</strong>.
+              </div>
+            )}
 
-</div>
+            {isFinalQuestion && (
+              <div className="rounded bg-red-100 p-3 text-red-800 shadow">
+                🚨 This is the <strong>final question</strong> of the game!
+              </div>
+            )}
 
 
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="rounded-md border border-blue-200 bg-blue-50 p-4 shadow-sm">
+                <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">
+                  Current Round
+                </p>
+                <p className="mt-1 text-lg font-bold text-blue-900">
+                  {currentRound.name}
+                </p>
+              </div>
+
+              <div className="rounded-md border border-green-200 bg-green-50 p-4 shadow-sm">
+                <p className="text-sm font-semibold uppercase tracking-wide text-green-700">
+                  Current Question
+                </p>
+                <p className="mt-1 text-lg font-medium text-green-900">
+                  {currentRound.questions.find(
+                    (q) => q.id === gameState.currentQuestionId
+                  )?.text ?? 'No active question'}
+                </p>
+              </div>
+            </div>
+
+            <RevealAnswer
+              question={
+                currentRound?.questions.find(q => q.id === gameState.currentQuestionId) || null
+              }
+            />
+
+            <div>
+            {isFinalQuestion && (
+              <button
+                type="button"
+                onClick={async () => {
+                  await fetch(`/api/host/games/${gameId}/complete`, { method: 'PATCH' });
+                  socket?.emit('host:gameCompleted', { gameId }); // you already have this in ws‑server
+                }}
+                className="mt-6 rounded bg-red-600 px-6 py-3 font-semibold text-white shadow hover:bg-red-700"
+              >
+                ✅ Complete Game
+              </button>
+            )}
+
+            </div>
+
+            
+          </section>
+        )}
+
+        {/* Answer cards */}
+        {teamAnswers.length > 0 && (
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            {teamAnswers.map((ans, idx) => {
+              const displayPoints =
+                ans.awardedPoints ||
+                (currentRound?.pointSystem === 'FLAT'
+                  ? currentRound.pointValue ?? 0
+                  : 0);
+
+              return (
+                <div
+                  key={idx}
+                  className={`flex flex-col gap-2 rounded-lg border p-4 shadow ${answerStyle(ans)}`}
+                >
+                  <div className="text-lg font-semibold">{ans.teamName}</div>
+                  <div className="text-gray-700">
+                    Answered:{' '}
+                    <span className="font-medium">{ans.given}</span>
+                    {ans.isCorrect !== null && (
+                    <span
+                      className={`self-start rounded px-2 py-0.5 text-xs font-semibold ${
+                        ans.isCorrect ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'
+                      }`}
+                    >
+                      {ans.isCorrect ? 'Correct' : 'Incorrect'}
+                    </span>
+                  )}
+                  </div>
+
+                  <div className="text-sm text-gray-500">
+                    Points: {displayPoints}
+                  </div>
+                  {ans.pointsUsed !== null && (
+                  <div className="text-sm text-gray-500">
+                    Points Used: {ans.pointsUsed ?? '—'}
+                  </div>)
+                  }
+
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      type="button"
+                      className="rounded bg-green-500 px-3 py-1 text-white hover:bg-green-600"
+                      onClick={() =>
+                        handleScore(ans.teamId, ans.questionId, true)
+                      }
+                    >
+                      Mark Correct
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded bg-red-500 px-3 py-1 text-white hover:bg-red-600"
+                      onClick={() =>
+                        handleScore(ans.teamId, ans.questionId, false)
+                      }
+                    >
+                      Mark Incorrect
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </main>
+    </div>
   );
 }

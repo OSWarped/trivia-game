@@ -5,10 +5,10 @@ import { useParams, useRouter } from 'next/navigation';
 import { QRCodeCanvas } from 'qrcode.react';
 import { io } from 'socket.io-client';
 
-const websocketURL = process.env.NEXT_PUBLIC_WEBSOCKET_URL
+const websocketURL = process.env.NEXT_PUBLIC_WEBSOCKET_URL?.trim() || 'http://localhost:3009';
 
-console.log("connection to " + websocketURL);
-const socket = io(websocketURL); // WebSocket server URL
+console.log("🔌 Connecting to socket at:", websocketURL);
+const socket = io(websocketURL, { transports: ['websocket'] });
 //const socket = io('http://192.168.1.75:3009');
 //const socket = io('http://104.56.124.234:3009');
 

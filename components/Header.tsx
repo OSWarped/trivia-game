@@ -1,29 +1,30 @@
 'use client';
 
-import { useState } from 'react';
-import Link            from 'next/link';
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
-import { Menu, X }     from 'lucide-react';
-
-import { useAuth }     from '@/context/AuthContext';
+import { Menu, X } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 
 export default function Header() {
   const { user, setUser } = useAuth();
-  const pathname  = usePathname();
-  const router    = useRouter();
-  const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+  const router = useRouter();
+  const [open, setOpen] = useState(false); 
+  const [isTeamView, setIsTeamView] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const teamId = localStorage.getItem('teamId');
+      setIsTeamView(!!teamId);
+    }
+  }, [pathname]);
+  
 
   const isAdmin = user?.role === 'ADMIN';
-  const isHost  = user?.role === 'HOST' || isAdmin;   // admins see host links too
+  const isHost = user?.role === 'HOST' || isAdmin;
 
-  console.log("Header file says user is: " + JSON.stringify(user));
-  if(user){
-    console.log("Header file says user is Admin: " + JSON.stringify(user?.role || ''));
-
-  }
-
-  /* ───── logout ───── */
   async function handleLogout() {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
@@ -34,7 +35,6 @@ export default function Header() {
     }
   }
 
-  /* helper for menu items */
   const navLink = (href: string, label: string) => (
     <Link
       href={href}
@@ -49,65 +49,79 @@ export default function Header() {
     <header className="bg-blue-600 text-white p-4 shadow-md">
       <div className="flex justify-between items-center">
         {/* logo / title */}
-        <Link href="/" className="flex items-center">
-  <Image
-    src="/Quizam_Logo.png"
-    alt="Quizam logo"
-    width={160}
-    height={50}
-    className="h-auto w-auto max-h-12"
-    priority
-  />
-</Link>
+        {isTeamView ? (
+          <div className="flex items-center cursor-default">
+            <Image
+              src="/Quizam_Logo.png"
+              alt="Quizam logo"
+              width={160}
+              height={50}
+              className="h-auto w-auto max-h-12"
+              priority
+            />
+          </div>
+        ) : (
+          <Link href="/" className="flex items-center">
+            <Image
+              src="/Quizam_Logo.png"
+              alt="Quizam logo"
+              width={160}
+              height={50}
+              className="h-auto w-auto max-h-12"
+              priority
+            />
+          </Link>
+        )}
 
         {/* hamburger for mobile */}
-        <button
-          className="block md:hidden text-white"
-          onClick={() => setOpen(!open)}
-        >
-          {open ? <X size={28} /> : <Menu size={28} />}
-        </button>
+        {!isTeamView && (
+          <button
+            className="block md:hidden text-white"
+            onClick={() => setOpen(!open)}
+          >
+            {open ? <X size={28} /> : <Menu size={28} />}
+          </button>
+        )}
 
         {/* desktop nav */}
-        <nav className="hidden md:block">
-          <ul className="flex space-x-6 items-center">
-            {navLink('/dashboard', 'Dashboard')}
-            {navLink('/games',      'Games')}
-            {navLink('/teams',      'Teams')}
+        {!isTeamView && (
+          <nav className="hidden md:block">
+            <ul className="flex space-x-6 items-center">
+              {navLink('/dashboard', 'Dashboard')}
+              {navLink('/games', 'Games')}
+              {navLink('/teams', 'Teams')}
+              {isAdmin && navLink('/admin/dashboard', 'Admin Panel')}
+              {isHost && navLink('/dashboard/host', 'Host Dashboard')}
 
-            {isAdmin && navLink('/admin/dashboard', 'Admin Panel')}
-            {isHost  && navLink('/dashboard/host',  'Host Dashboard')}
-
-            {user ? (
-              <button
-                onClick={handleLogout}
-                className="ml-4 bg-red-500 px-4 py-2 rounded hover:bg-red-600"
-              >
-                Logout
-              </button>
-            ) : (
-              <Link
-                href="/login"
-                className="ml-4 px-4 py-2 bg-green-500 rounded hover:bg-green-600"
-              >
-                Login
-              </Link>
-            )}
-          </ul>
-        </nav>
+              {user ? (
+                <button
+                  onClick={handleLogout}
+                  className="ml-4 bg-red-500 px-4 py-2 rounded hover:bg-red-600"
+                >
+                  Logout
+                </button>
+              ) : (
+                <Link
+                  href="/login"
+                  className="ml-4 px-4 py-2 bg-green-500 rounded hover:bg-green-600"
+                >
+                  Login
+                </Link>
+              )}
+            </ul>
+          </nav>
+        )}
       </div>
 
       {/* mobile menu */}
-      {open && (
+      {!isTeamView && open && (
         <nav className="md:hidden mt-2 bg-blue-700 p-4 rounded-lg">
           <ul className="flex flex-col space-y-4">
             {navLink('/dashboard', 'Dashboard')}
-            {navLink('/games',     'Games')}
-            {navLink('/teams',     'Teams')}
+            {navLink('/games', 'Games')}
+            {navLink('/teams', 'Teams')}
             {isAdmin && navLink('/admin/dashboard', 'Admin Panel')}
-            {isHost  && navLink('/dashboard/host',  'Host Dashboard')}
-
-            {/* auth button */}
+            {isHost && navLink('/dashboard/host', 'Host Dashboard')}
             <li>
               {user ? (
                 <button

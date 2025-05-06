@@ -53,6 +53,8 @@ export default function EditGame() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [questionToEdit, setQuestionToEdit] = useState<(QuestionConfig & { id: string }) | null>(null);
+  const [gameTitle, setGameTitle] = useState<string | null>(null);
+
 
   const [showAddRound, setShowAddRound] = useState(false);
   const [showAddQuestion, setShowAddQuestion] = useState(false);
@@ -74,6 +76,24 @@ export default function EditGame() {
         console.error('Error fetching rounds:', err);
       } finally {
         setLoading(false);
+      }
+    })();
+  }, [gameId]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`/api/host/games/${gameId}`, {
+          credentials: 'include',
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setGameTitle(data.title);
+        } else {
+          console.error('Failed to load game title', await res.json());
+        }
+      } catch (err) {
+        console.error('Error fetching game title:', err);
       }
     })();
   }, [gameId]);
@@ -120,7 +140,9 @@ export default function EditGame() {
         >
           <ChevronLeft className="mr-1" size={18} /> Back
         </Link>
-        <h1 className="text-2xl font-bold ml-4">Edit Game</h1>
+        <h1 className="text-2xl font-bold ml-4">
+  {gameTitle ? `Edit ${gameTitle}` : 'Edit Game'}
+</h1>
       </div>
 
       {/* Rounds Panel */}

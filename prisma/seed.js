@@ -25,7 +25,7 @@ async function main() {
       email: 'blakemilam@gmail.com',
       hashedPw: hashedPassword,
       name: 'Blake Milam',
-      role: 'HOST', // Assign both 'ADMIN' and 'HOST' roles to the user
+      role: 'ADMIN', // Assign both 'ADMIN' and 'HOST' roles to the user
     },
   });
 

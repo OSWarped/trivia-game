@@ -1,12 +1,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { io } from 'socket.io-client';
+import { useParams } from 'next/navigation';
+//import { io } from 'socket.io-client';
+import { getSocket } from '@/lib/socket-client';
 import { GameState } from '@prisma/client';
 
-const websocketURL = process.env.NEXT_PUBLIC_WEBSOCKET_URL;
-const socket = io(websocketURL);
+////const websocketURL = process.env.NEXT_PUBLIC_WEBSOCKET_URL?.trim() || 'http://localhost:3009';
+
+//console.log("🔌 Connecting to socket at:", websocketURL);
+
 
 interface Question {
   id: string;
@@ -21,10 +24,11 @@ interface GameStateExpanded extends GameState {
     teamGames: {
       team: { id: string; name: string };
       score?: number;
-      answers: any[];
+      answers: unknown[];
     }[];
   };
 }
+
 
 
 interface Round {
@@ -52,64 +56,108 @@ export default function HostGameInterface() {
   const { gameId } = useParams();
   const [teamStatus, setTeamStatus] = useState<TeamStatus[]>([]);
   const [gameState, setGameState] = useState<GameStateExpanded | null>(null);
+  const [teamAnswers, setTeamAnswers] = useState<{
+    teamId: string;
+    teamName: string;
+    questionId: string;
+    given: string;
+    isCorrect: boolean | null;
+    awardedPoints: number;
+  }[]>([]);
 
 
   useEffect(() => {
+    const socket = getSocket();
+    
     if (!gameId) return;
   
-    socket.emit('host:requestLiveTeams', { gameId });
-  
-    const handleLiveTeams = async (data: { gameId: string; teams: string[] }) => {
-      if (data.gameId !== gameId) return;
-  
+    const setup = async () => {
       try {
-        // Fetch full team info from your API using the array of IDs
-        const res = await fetch(`/api/host/games/${gameId}/teams`);
-        const fullTeamList = await res.json(); // [{ id, name }, ...]
-  
-        // Match the IDs from websocket with the full objects
-        const liveTeams = fullTeamList.filter((team: { id: string }) =>
-          data.teams.includes(team.id)
-        );
-  
-        setTeamStatus(
-          liveTeams.map((team: { id: any; name: any; }) => ({
-            id: team.id,
-            name: team.name,
-            submitted: false,
-            answer: null,
-            isCorrect: null,
-            pointsUsed: null,
-          }))
-        );
-      } catch (err) {
-        console.error("Error fetching full team info:", err);
-      }
-    };
-  
-    socket.on("host:liveTeams", handleLiveTeams);
-  
-    return () => {
-      socket.off("host:liveTeams", handleLiveTeams);
-    };
-  }, [gameId]);
-
-  useEffect(() => {
-    if (!gameId) return;
-  
-    const fetchGameState = async () => {
-      try {
+        // ✅ Step 1: Fetch game state first
         const res = await fetch(`/api/host/games/${gameId}/state`);
         if (!res.ok) throw new Error("Failed to fetch game state");
         const data = await res.json();
-        setGameState(data); // <- Add `gameState` to your state
+        setGameState(data);
+  
+        // ✅ Step 2: Join room and request live teams
+        socket.emit('host:join', { gameId });
+        socket.emit('host:requestLiveTeams', { gameId });
+  
+        // ✅ Step 3: Handle live teams
+        const handleLiveTeams = (data: { gameId: string; teams: { id: string; name: string }[] }) => {
+          if (data.gameId !== gameId) return;
+          setTeamStatus(
+            data.teams.map((team) => ({
+              id: team.id,
+              name: team.name,
+              submitted: false,
+              answer: null,
+              isCorrect: null,
+              pointsUsed: null,
+            }))
+          );
+        };
+  
+        socket.on("host:liveTeams", handleLiveTeams);
+  
+        // ✅ Step 4: Handle answer submission
+        socket.on('host:answerSubmission', async ({ teamId, questionId, answer, pointsUsed }) => {
+          if (!data?.gameId) {
+            console.warn("Missing gameId in fetched game state");
+            return;
+          }
+  
+          console.log(`Fetching answer for team ${teamId} and for question: ${questionId}\n They wagered ${pointsUsed} on the answer: ${answer}`);
+  
+          const res = await fetch(`/api/host/answers?gameId=${data.gameId}&teamId=${teamId}`);
+          const answerData = await res.json();
+  
+          if (answerData.answer) {
+            setTeamAnswers((prev) => [...prev, answerData.answer]);
+          }
+        });
+  
+        // ✅ Cleanup
+        return () => {
+          socket.emit('host:leave', { gameId });
+          socket.off("host:liveTeams", handleLiveTeams);
+          socket.off("host:answerSubmission");
+        };
       } catch (err) {
-        console.error("Error fetching GameState:", err);
+        console.error("Setup error in host page:", err);
       }
     };
   
-    fetchGameState();
+    setup();
   }, [gameId]);
+
+  const handleScore = async (
+    teamId: string,
+    questionId: string,
+    isCorrect: boolean
+  ) => {
+    try {
+      const res = await fetch("/api/host/score-answer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ teamId, questionId, isCorrect }),
+      });
+  
+      if (!res.ok) throw new Error("Failed to update score");
+  
+      // Optionally update UI
+      setTeamAnswers((prev) =>
+        prev.map((a) =>
+          a.teamId === teamId && a.questionId === questionId
+            ? { ...a, isCorrect }
+            : a
+        )
+      );
+    } catch (err) {
+      console.error("Error scoring answer:", err);
+    }
+  };
+  
 
   function RevealAnswer({ question }: { question: Question | null }) {
     const [revealed, setRevealed] = useState(false);
@@ -151,53 +199,98 @@ export default function HostGameInterface() {
   return (
     <div className="flex min-h-screen bg-gray-50">
   {/* Sidebar with Teams */}
-  <aside className="w-64 bg-white p-4 border-r shadow-inner">
-    <h2 className="text-lg font-semibold mb-4 text-gray-700">Teams</h2>
-    <ul className="space-y-2">
-      {teamStatus.map((team) => (
-        <li key={team.id} className="flex justify-between items-center border-b py-1">
-          <span className="text-sm text-gray-800">{team.name}</span>
-          <span className="text-sm font-bold text-blue-700">{team.score ?? 0}</span>
-        </li>
-      ))}
-    </ul>
-  </aside>
+  <aside className="w-64 bg-gray-100 p-4 border-r shadow-inner">
+  <h2 className="text-lg font-semibold mb-4 text-gray-700">👥 Teams</h2>
+  <div className="space-y-3">
+    {teamStatus.map((team) => (
+      <div
+        key={team.id}
+        className="bg-white p-3 rounded-lg shadow-sm border border-gray-200 flex justify-between items-center"
+      >
+        <span className="text-gray-800 font-medium">{team.name}</span>
+        <span className="text-blue-600 font-bold text-sm">{team.score ?? 0} pts</span>
+      </div>
+    ))}
+  </div>
+</aside>
 
   {/* Main Content */}
   <main className="flex-1 p-8 space-y-6">
-    <h1 className="text-3xl font-bold text-gray-800 mb-4">Host Game Dashboard</h1>
+  <h1 className="text-3xl font-bold text-gray-800 mb-6 border-b pb-2">🎯 Host Game Dashboard</h1>
 
-    {gameState && (
-      <section className="bg-white p-6 border border-blue-200 rounded-lg shadow">
-        <h2 className="text-xl font-semibold text-blue-800 mb-4">Current Game Progress</h2>
+  {gameState && (
+    <section className="bg-white p-6 border-l-4 border-blue-500 rounded-lg shadow-md space-y-6">
+      <h2 className="text-2xl font-semibold text-blue-800 flex items-center gap-2">
+        📊 Current Game Progress
+      </h2>
 
-        <div className="space-y-4">
-          <div>
-            <p className="text-gray-600 font-semibold">Current Round</p>
-            <p className="text-lg text-gray-900">
-              {gameState.game.rounds.find(r => r.id === gameState.currentRoundId)?.name || "—"}
-            </p>
-          </div>
-
-          <div>
-            <p className="text-gray-600 font-semibold">Current Question</p>
-            <p className="text-lg text-gray-900">
-              {gameState.game.rounds
-                .find(r => r.id === gameState.currentRoundId)
-                ?.questions.find(q => q.id === gameState.currentQuestionId)?.text || "No active question"}
-            </p>
-          </div>
-
-          {/* Reveal Answer Button */}
-          <RevealAnswer question={
-            gameState.game.rounds
-              .find(r => r.id === gameState.currentRoundId)
-              ?.questions.find(q => q.id === gameState.currentQuestionId) || null
-          } />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-blue-50 border border-blue-200 rounded-md p-4 shadow-sm">
+          <p className="text-sm text-blue-700 font-semibold uppercase tracking-wide">
+            Current Round
+          </p>
+          <p className="text-lg font-bold text-blue-900 mt-1">
+            {gameState.game.rounds.find(r => r.id === gameState.currentRoundId)?.name || "—"}
+          </p>
         </div>
-      </section>
-    )}
-  </main>
+
+        <div className="bg-green-50 border border-green-200 rounded-md p-4 shadow-sm">
+          <p className="text-sm text-green-700 font-semibold uppercase tracking-wide">
+            Current Question
+          </p>
+          <p className="text-lg font-medium text-green-900 mt-1">
+            {gameState.game.rounds
+              .find(r => r.id === gameState.currentRoundId)
+              ?.questions.find(q => q.id === gameState.currentQuestionId)?.text || "No active question"}
+          </p>
+        </div>
+      </div>
+
+      <RevealAnswer
+        question={
+          gameState.game.rounds
+            .find(r => r.id === gameState.currentRoundId)
+            ?.questions.find(q => q.id === gameState.currentQuestionId) || null
+        }
+      />
+    </section>
+  )}
+
+{teamAnswers.length > 0 && (
+  <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+    {teamAnswers.map((answer, index) => (
+      <div
+        key={index}
+        className="border rounded-lg p-4 shadow bg-white flex flex-col gap-2"
+      >
+        <div className="text-lg font-semibold">{answer.teamName}</div>
+        <div className="text-gray-700">
+          Answered: <span className="font-medium">{answer.given}</span>
+        </div>
+        <div className="text-gray-500 text-sm">
+          Points Wagered: {answer.awardedPoints}
+        </div>
+
+        <div className="flex gap-2 mt-2">
+          <button
+            className="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600"
+            onClick={() => handleScore(answer.teamId, answer.questionId, true)}
+          >
+            Mark Correct
+          </button>
+          <button
+            className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
+            onClick={() => handleScore(answer.teamId, answer.questionId, false)}
+          >
+            Mark Incorrect
+          </button>
+        </div>
+      </div>
+    ))}
+  </div>
+)}
+</main>
+
 </div>
 
 

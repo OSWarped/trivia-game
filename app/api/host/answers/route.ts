@@ -6,6 +6,41 @@ import { cookies } from 'next/headers';
 const prisma = new PrismaClient();
 const SECRET_KEY = process.env.JWT_SECRET || 'your_secret_key';
 
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const gameId = searchParams.get('gameId');
+  const teamId = searchParams.get('teamId');
+
+  if (!gameId || !teamId) {
+    return NextResponse.json({ error: 'Missing gameId or teamId' }, { status: 400 });
+  }
+
+  try {
+    const teamGame = await prisma.teamGame.findUnique({
+      where: {
+        teamId_gameId: {
+          teamId,
+          gameId,
+        },
+      },
+    });
+
+    if (!teamGame) {
+      return NextResponse.json({ error: 'Team not found in game' }, { status: 404 });
+    }
+
+    const answer = await prisma.answer.findFirst({
+      where: { teamGameId: teamGame.id },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return NextResponse.json({ answer });
+  } catch (err) {
+    console.error('Error fetching team answer:', err);
+    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const cookieStore = await cookies();

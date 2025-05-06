@@ -1,14 +1,25 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { io } from 'socket.io-client';
+import { getSocket } from '@/lib/socket-client';
 import { useParams, useRouter } from 'next/navigation';
-
+import { Dispatch, SetStateAction } from 'react';
+import { Game, GameStatus } from '@prisma/client';
 interface GameInfo {
   id: string;
+  eventId: string;
+  seasonId: string | null;
+  hostId: string | null;
   title: string;
-  scheduledFor: string;
-  status: string;
+  joinCode: string;
+  special: boolean;
+  tag: string | null;
+  status: GameStatus;
+  startedAt: Date | null;
+  endedAt: Date | null;
+  createdAt: Date;
+  scheduledFor: Date | null; // ← FIX THIS LINE
+  siteId: string | null;
   event?: {
     site?: {
       name: string;
@@ -16,6 +27,7 @@ interface GameInfo {
     } | null;
   } | null;
 }
+
 
 
 
@@ -30,22 +42,26 @@ export default function LobbyPage() {
   const router = useRouter();
   const gameId = params.gameId;
   const teamId = typeof window !== 'undefined' ? localStorage.getItem('teamId') : null;
+  const teamName = typeof window !== 'undefined' ? localStorage.getItem('teamName') : null;
 
   const [game, setGame] = useState<GameInfo | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchGameAndTeams = async (gameId: string, setGame: Function, setTeams: Function, setLoading: Function) => {
+  const fetchGameAndTeams = async (
+    gameId: string,
+    setGame: Dispatch<SetStateAction<Game | null>>, // or appropriate type
+    setTeams: Dispatch<SetStateAction<Team[]>>,
+    setLoading: Dispatch<SetStateAction<boolean>>
+  ) => {
     try {
       console.log("🔄 Fetching updated game & team data...");
       const gameRes = await fetch(`/api/games/${gameId}`, { cache: 'no-store' });
-      
+  
       if (gameRes.ok) {
         const { game } = await gameRes.json();
         setGame(game);
       }
-  
-     
     } catch (err) {
       console.error('❌ Failed to load lobby data:', err);
     } finally {
@@ -54,12 +70,14 @@ export default function LobbyPage() {
   };
   
   useEffect(() => {
+    const socket = getSocket();
+
     if (!gameId || !teamId) return;
   
-    const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3009');
+    // const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3009');
     console.log("🧠 Setting up socket and fetching lobby data");
   
-    socket.emit('team:join_lobby', { gameId, teamId });
+    socket.emit('team:join_lobby', { gameId, teamId, teamName });
   
     // ✅ Add small delay to ensure your own team is tracked
     setTimeout(() => {
@@ -74,25 +92,20 @@ export default function LobbyPage() {
     });
   
     socket.on('game_started', () => {
-      router.push(`/games/${gameId}/play`);
+      router.push(`/play/${gameId}`);
     });
   
-    socket.on("team:liveTeams", async ({ gameId, teams }) => {
-      try {
-        const res = await fetch(`/api/games/${gameId}/teams`);
-        const { teams: allTeams } = await res.json();
-        const filteredTeams = allTeams.filter((team: { id: string }) => teams.includes(team.id));
-        setTeams(filteredTeams);
-      } catch (error) {
-        console.error("Error loading team data from team IDs:", error);
-      }
+    socket.on("team:liveTeams", ({ gameId, teams }) => {
+      console.log("✅ Received liveTeams from server:", teams, gameId);
+      setTeams(teams); // ← direct set of full team objects
     });
+    
   
     return () => {
       socket.emit('team:leave_lobby', { gameId, teamId });
       socket.disconnect();
     };
-  }, [gameId, teamId, router]);
+  }, [gameId, teamId, teamName, router]);
   
 
   if (!teamId) return <p className="text-red-600">❌ Missing team ID in local storage.</p>;

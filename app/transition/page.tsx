@@ -4,8 +4,10 @@ import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { io } from "socket.io-client";
 
-const websocketURL = process.env.NEXT_PUBLIC_WEBSOCKET_URL;
-const socket = io(websocketURL);
+const websocketURL = process.env.NEXT_PUBLIC_WEBSOCKET_URL?.trim() || 'http://localhost:3009';
+
+console.log("🔌 Connecting to socket at:", websocketURL);
+const socket = io(websocketURL, { transports: ['websocket'] });
 
 export default function TransitionPage() {
   const router = useRouter();

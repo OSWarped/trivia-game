@@ -50,29 +50,34 @@ export async function POST(req: Request) {
         given: typeof answer === 'string' ? answer : JSON.stringify(answer),
         isCorrect: null,
         awardedPoints: 0,
+        pointsUsed,
       },
     });
 
-    // Update GameState.pointsRemaining if applicable
-    if (pointsUsed && Array.isArray(pointsUsed)) {
-      const gameState = await prisma.gameState.findUnique({
+    /* ---- update GameState.pointsRemaining for POOL rounds ------------ */
+if (typeof pointsUsed === 'number') {
+  const gameState = await prisma.gameState.findUnique({ where: { gameId } });
+
+  if (gameState?.pointsRemaining) {
+    const map = gameState.pointsRemaining as Record<string, number[]>;
+
+    /* current pool for this team */
+    const pool = map[teamId] ?? [];
+
+    /* remove ONE occurrence of the chip */
+    const idx = pool.indexOf(pointsUsed);
+    if (idx !== -1) {
+      pool.splice(idx, 1);        // mutate the array
+      map[teamId] = pool;
+
+      await prisma.gameState.update({
         where: { gameId },
+        data: { pointsRemaining: map },
       });
+    }
+  }
+}
 
-      if (gameState?.pointsRemaining) {
-        const parsed = gameState.pointsRemaining as Record<string, number[]>;
-        const remaining = parsed[teamId]?.filter(p => !pointsUsed.includes(p)) || [];
-
-        parsed[teamId] = remaining;
-
-        await prisma.gameState.update({
-          where: { gameId },
-          data: {
-            pointsRemaining: parsed,
-          },
-        });
-      }
-    }  
 
     return NextResponse.json({ success: true });
   } catch (err) {

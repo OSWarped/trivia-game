@@ -1,8 +1,9 @@
+/* eslint-disable @typescript-eslint/no-unused-expressions */
 'use client';
 
 import React, { useState, useEffect } from 'react';
 
-export type QuestionType = 'SINGLE' | 'MULTIPLE_CHOICE' | 'ORDERED' | 'WAGER';
+export type QuestionType = 'SINGLE' | 'LIST' | 'MULTIPLE_CHOICE' | 'ORDERED' | 'WAGER';
 
 export type QuestionConfig = {
   text: string;
@@ -76,7 +77,7 @@ export default function AddQuestionModal({
       if (!singleAnswer.trim()) errs.push('Correct answer is required.');
     }
 
-    if (type === 'MULTIPLE_CHOICE' || type === 'ORDERED') {
+    if (type === 'MULTIPLE_CHOICE' || type === 'LIST' || type === 'ORDERED') {
       if (options.length === 0) errs.push('At least one option is required.');
       if (correctSet.size === 0) errs.push('At least one correct option must be selected.');
       if (type === 'ORDERED' && correctSet.size !== options.length) {
@@ -101,7 +102,7 @@ export default function AddQuestionModal({
       config.correctAnswers = [singleAnswer.trim()];
     }
   
-    if (type === 'MULTIPLE_CHOICE' || type === 'ORDERED') {
+    if (type === 'MULTIPLE_CHOICE' || type === 'LIST' || type === 'ORDERED') {
       config.options = [...options];
       config.correctAnswers = Array.from(correctSet);
     }
@@ -160,6 +161,7 @@ export default function AddQuestionModal({
               onChange={(e) => setType(e.target.value as QuestionType)}
             >
               <option value="SINGLE">Single Answer</option>
+              <option value="LIST">List</option>
               <option value="MULTIPLE_CHOICE">Multiple Choice</option>
               <option value="ORDERED">Ordered List</option>
               <option value="WAGER">Wager</option>
@@ -180,7 +182,7 @@ export default function AddQuestionModal({
           )}
 
           {/* MULTIPLE_CHOICE or ORDERED: Options */}
-          {(type === 'MULTIPLE_CHOICE' || type === 'ORDERED') && (
+          {(type === 'MULTIPLE_CHOICE' || type === 'LIST' || type === 'ORDERED') && (
             <div className="space-y-2">
               <label className="block font-medium">Options</label>
               <div className="flex space-x-2">

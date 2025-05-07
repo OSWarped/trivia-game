@@ -54,7 +54,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Text is required' }, { status: 400 });
     }
   
-    const validTypes = ['SINGLE', 'MULTIPLE_CHOICE', 'ORDERED', 'WAGER'];
+    const validTypes = ['SINGLE', 'MULTIPLE_CHOICE', 'ORDERED', 'WAGER', 'LIST'];
     if (!validTypes.includes(type)) {
       return NextResponse.json({ error: 'Invalid type' }, { status: 400 });
     }

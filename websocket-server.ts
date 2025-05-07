@@ -144,6 +144,11 @@ try {
       io.to(gameId).emit('score:update', { teamId, newScore });
     });
 
+    // websocket-server.ts  (inside io.on('connection', socket => { ... })
+    socket.on('score:update', ({ gameId, teamId, newScore }) => {
+      io.to(gameId).emit('score:update', { teamId, newScore });
+    });
+
   });
 } catch (err) {
   console.error("❌ Failed to start WebSocket server:", err);

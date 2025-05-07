@@ -101,7 +101,12 @@ export default function HostGameInterface() {
       `/api/host/games/${gameId}/answers?questionId=${qId}`,
       { cache: 'no-store' }
     );
-    if (res.ok) setTeamAnswers(await res.json());
+    if (!res.ok) {
+      console.error('Failed to fetch answers for question', qId);
+      return;
+    }
+    const all = (await res.json()) as TeamAnswer[];
+    setTeamAnswers(all);
   };
 
 
@@ -116,199 +121,167 @@ export default function HostGameInterface() {
       // also clear submission flags + answer cards for a fresh question
       setTeamStatus((prev) => prev.map((t) => ({ ...t, submitted: false })));
       setTeamAnswers([]);
-      
+
     }
   };
+
+  
 
   useEffect(() => {
     if (!socket || !gameId) return;
   
-    const onConnect = () => {
-      socket.emit('host:join', { gameId });             // ensure room join
-      socket.emit('host:requestLiveTeams', { gameId }); // get team list
+    // ─────────── helper: fetch all answers for a question ───────────
+    const fetchAnswers = async (qId: string) => {
+      const res = await fetch(
+        `/api/host/games/${gameId}/answers?questionId=${qId}`,
+        { cache: 'no-store' }
+      );
+      if (!res.ok) {
+        console.error('Failed to fetch answers for question', qId);
+        return;
+      }
+      const all = (await res.json()) as TeamAnswer[];
+      setTeamAnswers(all);
     };
   
-    if (socket.connected) {
-      onConnect();              // immediate on hard‑refresh
-    } else {
-      socket.once('connect', onConnect); // wait for handshake
-    }
-  
-    return () => {
-      socket.off('connect', onConnect);   // cleanup
-    };
-  }, [socket, gameId]);
-
-  /* ─────────── one unified effect ─────────── */
-useEffect(() => {
-  if (!socket || !gameId) return;
-
-  /* ---------- 1. helper to fetch host game state ------------- */
-  const fetchHostState = async () => {
-    const res = await fetch(`/api/host/games/${gameId}/state`, {
-      cache: 'no-store',
-    });
-    if (res.ok) {
-      setGameState((await res.json()) as GameStateExpanded);
-    }
-    if (gameState?.currentQuestionId) {
-      void fetchAnswers(gameState.currentQuestionId);
-    }
-  };
-
-  /* ---------- 2.  WebSocket handlers ------------------------- */
-  const handleLiveTeams = async ({
-    gameId: gid,
-    teams,
-  }: {
-    gameId: string;
-    teams: { id: string; name: string }[];
-  }) => {
-    if (gid !== gameId) return;
-
-    /* base list */
-    const base = teams.map((t) => ({
-      id: t.id,
-      name: t.name,
-      submitted: false,
-      score: 0,
-    }));
-
-    /* merge scores from REST endpoint */
-    try {
-      const res = await fetch(`/api/host/games/${gameId}/scores`, {
+    // ─────────── helper: fetch host state & then answers ───────────
+    const fetchHostState = async () => {
+      const res = await fetch(`/api/host/games/${gameId}/state`, {
         cache: 'no-store',
       });
-      const data = (await res.json()) as { teamId: string; score: number }[];
-
-      setTeamStatus(
-        base.map((t) => {
-          const found = data.find((d) => d.teamId === t.id);
-          return { ...t, score: found?.score ?? 0 };
-        })
-      );
-    } catch {
-      setTeamStatus(base);
-    }
-  };
-
-  /* answer submissions (team -> host) */
-const handleAnswer = async ({
-  teamId,
-  questionId,
-  answer,          // still comes in the payload
-  pointsUsed,
-}: {
-  teamId: string;
-  questionId: string;
-  answer: string;
-  pointsUsed: number[];
-}) => {
-  try {
-    /* fetch the latest answer row for that team + question */
-    const res = await fetch(
-      `/api/host/answers?gameId=${gameId}&teamId=${teamId}&questionId=${questionId}`
-    );
-    const { answer: dbAnswer } = (await res.json()) as { answer: TeamAnswer };
-    if (!dbAnswer) return;
-
-    /* patch points for FLAT rounds if host hasn’t set them yet */
-    if (
-      dbAnswer.awardedPoints === 0 &&
-      currentRound?.pointSystem === 'FLAT' &&
-      currentRound.pointValue != null
-    ) {
-      dbAnswer.awardedPoints = currentRound.pointValue;
-    }
-
-    /* mark team as submitted */
-    setTeamStatus((prev) =>
-      prev.map((t) => (t.id === teamId ? { ...t, submitted: true } : t))
-    );
-
-    /* show the answer card */
-    setTeamAnswers((prev) => [...prev, dbAnswer]);
-  } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('Error fetching answer data:', err);
-  }
-};
-
-
-  const handleScoreUpdate = ({
-    teamId,
-    newScore,
-  }: {
-    teamId: string;
-    newScore: number;
-  }) => {
-    setTeamStatus((prev) =>
-      prev.map((t) => (t.id === teamId ? { ...t, score: newScore } : t))
-    );
-  };
-
-  
-
-  const handleQuestionAdvance = () => {
-    void refreshHostState().then(() => {
-      if (gameState?.currentQuestionId) {
-        void fetchAnswers(gameState.currentQuestionId);
+      if (!res.ok) return;
+      const data = (await res.json()) as GameStateExpanded;
+      setGameState(data);
+      if (data.currentQuestionId) {
+        await fetchAnswers(data.currentQuestionId);
       }
-    });
-  };
-
-  const resetSubmissions = () => {
-    setTeamStatus((prev) => prev.map((t) => ({ ...t, submitted: false })));
-    setTeamAnswers([]);
-  };
-
-  /* ---------- 3.  register listeners ------------------------- */
-  socket.on('host:liveTeams', handleLiveTeams);
-  socket.on('host:answerSubmission', handleAnswer);
-  socket.on('game:resetSubmissions', resetSubmissions);
-  socket.on('score:update', handleScoreUpdate);
-  socket.on('game:updateQuestion', handleQuestionAdvance);
-
-  /* ---------- 4.  join room & request live list -------------- */
-  const joinAndRequest = () => {
-    socket.emit('host:join', { gameId });
-    socket.emit('host:requestLiveTeams', { gameId });
-  };
-
-  if (socket.connected) {
-    joinAndRequest();
-  } else {
-    socket.once('connect', joinAndRequest);
-  }
-
-  /* ---------- 5.  initial REST state fetch ------------------- */
-  void fetchHostState();
-
-  /* ---------- 6.  cleanup ------------------------------------ */
-  return () => {
-    socket.off('host:liveTeams', handleLiveTeams);
-    socket.off('host:answerSubmission', handleAnswer);
-    socket.off('game:resetSubmissions', resetSubmissions);
-    socket.off('score:update', handleScoreUpdate);
-    socket.off('game:updateQuestion', handleQuestionAdvance);
-    socket.off('connect', joinAndRequest);
-  };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [socket, gameId]);
-
-
-/* initial game‑state fetch (runs only when gameId changes) */
-useEffect(() => {
-  if (!gameId) return;
-  (async () => {
-    const res = await fetch(`/api/host/games/${gameId}/state`, {
-      cache: 'no-store',
-    });
-    if (res.ok) setGameState((await res.json()) as GameStateExpanded);
-  })();
-}, [gameId]);
-
+    };
   
+    // ─────────── WS handlers ───────────
+    const handleLiveTeams = async ({
+      gameId: gid,
+      teams,
+    }: {
+      gameId: string;
+      teams: { id: string; name: string }[];
+    }) => {
+      if (gid !== gameId) return;
+      // build base list
+      const base = teams.map((t) => ({
+        id: t.id,
+        name: t.name,
+        submitted: false,
+        score: 0,
+      }));
+      // merge in real scores
+      try {
+        const res = await fetch(`/api/host/games/${gameId}/scores`, {
+          cache: 'no-store',
+        });
+        const scores = (await res.json()) as { teamId: string; score: number }[];
+        setTeamStatus(
+          base.map((t) => ({
+            ...t,
+            score: scores.find((s) => s.teamId === t.id)?.score ?? 0,
+          }))
+        );
+      } catch {
+        setTeamStatus(base);
+      }
+    };
+  
+    const handleAnswerSubmission = async ({
+      teamId,
+      questionId,
+    }: {
+      teamId: string;
+      questionId: string;
+    }) => {
+      // only care about the current question
+      if (questionId !== gameState?.currentQuestionId) return;
+      try {
+        const res = await fetch(
+          `/api/host/answers?gameId=${gameId}&teamId=${teamId}&questionId=${questionId}`
+        );
+        const { answer: dbAnswer } = (await res.json()) as { answer: TeamAnswer };
+        if (!dbAnswer) return;
+        // patch FLAT if needed
+        if (
+          dbAnswer.awardedPoints === 0 &&
+          currentRound?.pointSystem === 'FLAT' &&
+          currentRound.pointValue != null
+        ) {
+          dbAnswer.awardedPoints = currentRound.pointValue;
+        }
+        // flag submitted
+        setTeamStatus((prev) =>
+          prev.map((t) => (t.id === teamId ? { ...t, submitted: true } : t))
+        );
+        // add to cards
+        setTeamAnswers((prev) => [...prev, dbAnswer]);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+  
+    const handleScoreUpdate = ({
+      teamId,
+      newScore,
+    }: {
+      teamId: string;
+      newScore: number;
+    }) => {
+      setTeamStatus((prev) =>
+        prev.map((t) =>
+          t.id === teamId ? { ...t, score: newScore } : t
+        )
+      );
+    };
+  
+    const handleQuestionAdvance = () => {
+      void fetchHostState(); // reload state & answers for the new question
+    };
+  
+    const handleReset = () => {
+      setTeamStatus((prev) => prev.map((t) => ({ ...t, submitted: false })));
+      setTeamAnswers([]);
+    };
+  
+    // ─────────── register all listeners ───────────
+    socket.on('host:liveTeams', handleLiveTeams);
+    socket.on('host:answerSubmission', handleAnswerSubmission);
+    socket.on('score:update', handleScoreUpdate);
+    socket.on('game:resetSubmissions', handleReset);
+    socket.on('game:updateQuestion', handleQuestionAdvance);
+  
+    // ─────────── join room & request initial list ───────────
+    const joinAndRequest = () => {
+      socket.emit('host:join', { gameId });
+      socket.emit('host:requestLiveTeams', { gameId });
+    };
+    if (socket.connected) {
+      joinAndRequest();
+    } else {
+      socket.once('connect', joinAndRequest);
+    }
+  
+    // ─────────── initial load ───────────
+    void fetchHostState();
+  
+    // ─────────── cleanup on unmount ───────────
+    return () => {
+      socket.off('host:liveTeams', handleLiveTeams);
+      socket.off('host:answerSubmission', handleAnswerSubmission);
+      socket.off('score:update', handleScoreUpdate);
+      socket.off('game:resetSubmissions', handleReset);
+      socket.off('game:updateQuestion', handleQuestionAdvance);
+      socket.off('connect', joinAndRequest);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [socket, gameId]);
+  
+
+
   /* ─────────── score API ─────────── */
   const handleScore = async (
     teamId: string,
@@ -366,11 +339,11 @@ useEffect(() => {
   }
   const answerStyle = (ans: TeamAnswer) => {
     console.log('Teams answer:' + ans.isCorrect);
-    if (ans.isCorrect === true)  return 'border-green-400 bg-green-50';
+    if (ans.isCorrect === true) return 'border-green-400 bg-green-50';
     if (ans.isCorrect === false) return 'border-red-400  bg-red-50';
     return 'border-gray-200';
   };
-  
+
 
   /* ─────────── UI ─────────── */
   return (
@@ -478,22 +451,22 @@ useEffect(() => {
             />
 
             <div>
-            {isFinalQuestion && (
-              <button
-                type="button"
-                onClick={async () => {
-                  await fetch(`/api/host/games/${gameId}/complete`, { method: 'PATCH' });
-                  socket?.emit('host:gameCompleted', { gameId }); // you already have this in ws‑server
-                }}
-                className="mt-6 rounded bg-red-600 px-6 py-3 font-semibold text-white shadow hover:bg-red-700"
-              >
-                ✅ Complete Game
-              </button>
-            )}
+              {isFinalQuestion && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await fetch(`/api/host/games/${gameId}/complete`, { method: 'PATCH' });
+                    socket?.emit('host:gameCompleted', { gameId }); // you already have this in ws‑server
+                  }}
+                  className="mt-6 rounded bg-red-600 px-6 py-3 font-semibold text-white shadow hover:bg-red-700"
+                >
+                  ✅ Complete Game
+                </button>
+              )}
 
             </div>
 
-            
+
           </section>
         )}
 
@@ -517,23 +490,22 @@ useEffect(() => {
                     Answered:{' '}
                     <span className="font-medium">{ans.given}</span>
                     {ans.isCorrect !== null && (
-                    <span
-                      className={`self-start rounded px-2 py-0.5 text-xs font-semibold ${
-                        ans.isCorrect ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'
-                      }`}
-                    >
-                      {ans.isCorrect ? 'Correct' : 'Incorrect'}
-                    </span>
-                  )}
+                      <span
+                        className={`self-start rounded px-2 py-0.5 text-xs font-semibold ${ans.isCorrect ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'
+                          }`}
+                      >
+                        {ans.isCorrect ? 'Correct' : 'Incorrect'}
+                      </span>
+                    )}
                   </div>
 
                   <div className="text-sm text-gray-500">
                     Points: {displayPoints}
                   </div>
                   {ans.pointsUsed !== null && (
-                  <div className="text-sm text-gray-500">
-                    Points Used: {ans.pointsUsed ?? '—'}
-                  </div>)
+                    <div className="text-sm text-gray-500">
+                      Points Used: {ans.pointsUsed ?? '—'}
+                    </div>)
                   }
 
                   <div className="mt-2 flex gap-2">

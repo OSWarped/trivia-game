@@ -129,7 +129,7 @@ const submitAnswer = useCallback(async (): Promise<void> => {
     gameId,
     questionId: state.currentQuestion.id,
     answer,
-    pointsUsed: selectedPoints ? [selectedPoints] : [],
+    pointsUsed: selectedPoints ?? null,
     teamId,
   };
 

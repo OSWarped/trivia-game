@@ -40,6 +40,7 @@ export async function GET(req: Request) {
         given: true,
         awardedPoints: true,
         isCorrect: true,
+        pointsUsed: true,
       },
     });
 
@@ -52,6 +53,7 @@ export async function GET(req: Request) {
       given: answerRow.given,
       awardedPoints: answerRow.awardedPoints,
       isCorrect: answerRow.isCorrect,
+      pointsUsed: answerRow.pointsUsed,
     };
 
     return NextResponse.json({ answer });

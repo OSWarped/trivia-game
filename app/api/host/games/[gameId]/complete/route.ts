@@ -3,65 +3,33 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-export async function POST(
+export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ gameId: string }> }
 ) {
   const { gameId } = await params;
 
   try {
-    // Fetch the game along with rounds and their questions
     const game = await prisma.game.findUnique({
       where: { id: gameId },
-      include: {
-        rounds: {
-          orderBy: {
-            sortOrder: 'asc', // Ensure rounds are ordered by sortOrder in ascending order
-          },
-          include: {
-            questions: true, // Include the questions for each round
-          },
-        },
-      },
     });
-    
 
     if (!game) {
       return NextResponse.json({ error: 'Game not found' }, { status: 404 });
     }
 
-    if (game.status !== 'CLOSED') {
-      return NextResponse.json({ error: 'Game has already been completed' }, { status: 400 });
+    if (game.status !== 'LIVE') {
+      return NextResponse.json({ error: 'Game must be closed before completing' }, { status: 400 });
     }
 
-    // Fetch the first round and its first question
-    const firstRound = game.rounds[0];
-    const firstQuestion = firstRound?.questions[0] || null;
-
-    await prisma.gameState.upsert({
-      where: { gameId },
-      update: {
-        currentRoundId: firstRound?.id || null,
-        currentQuestionId: firstQuestion?.id || null,
-      },
-      create: {
-        gameId,
-        currentRoundId: firstRound?.id || null,
-        currentQuestionId: firstQuestion?.id || null,
-        pointsRemaining: {}, // ✅ required field
-      },
-    });
-    
-
-    // Update game status to STARTED
-    await prisma.game.update({
+    const updated = await prisma.game.update({
       where: { id: gameId },
-      data: { status: 'CLOSED', startedAt: new Date() },
+      data: { status: 'CLOSED' },
     });
 
-    return NextResponse.json({ message: 'Game started successfully!' });
+    return NextResponse.json({ message: 'Game marked as completed', game: updated });
   } catch (error) {
-    console.error('Error starting game:', error);
-    return NextResponse.json({ error: 'Failed to start game' }, { status: 500 });
+    console.error('Error completing game:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -61,7 +61,7 @@ export default function PlayGamePage(): JSX.Element {
         );
         if (res.ok) setState((await res.json()) as GameState);
       } catch (err) {
-        // eslint-disable-next-line no-console
+       
         console.error('Failed to fetch game state:', err);
       }
     })();
@@ -107,7 +107,7 @@ useEffect(() => {
         setSelectedPoints(null);
       }
     } catch (err) {
-      // eslint-disable-next-line no-console
+      
       console.error('Refetch after question advance failed:', err);
     }
   };
@@ -145,11 +145,11 @@ const submitAnswer = useCallback(async (): Promise<void> => {
       setSubmitted(true);
       socket?.emit('team:submitAnswer', body);
     } else {
-      // eslint-disable-next-line no-console
+      
       console.error('Failed to submit answer:', await res.json());
     }
   } catch (err) {
-    // eslint-disable-next-line no-console
+    
     console.error('Submit answer error:', err);
   }
 }, [answer, gameId, selectedPoints, socket, state?.currentQuestion, teamId]);

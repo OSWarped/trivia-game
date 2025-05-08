@@ -97,7 +97,12 @@ export async function POST(req: Request) {
 
     // Fetch the answer
     const answer = await prisma.answer.findFirst({
-      where: { questionId, teamId },
+      where: {
+        questionId,
+        teamGame: {
+          teamId, // ✅ nested query through the relation
+        },
+      },
     });
 
     if (!answer) {

@@ -46,7 +46,7 @@ export async function PUT(
       where: { id: answerId },
       data: {
         isCorrect,
-        pointsAwarded,
+        awardedPoints: pointsAwarded,
       },
     });
 

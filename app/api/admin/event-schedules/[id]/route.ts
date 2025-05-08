@@ -6,12 +6,12 @@ const prisma = new PrismaClient();
 /* ---------- PUT / DELETE  /admin/event-schedules/[id] --------- */
 export async function PUT(
   req: Request,
-  context: Promise<{ params: { id: string } }>
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const { params } = await context;
+  const { id } = await params;
   const body = await req.json();
   const updated = await prisma.eventSchedule.update({
-    where: { id: params.id },
+    where: { id: id },
     data: body,
   });
   return NextResponse.json(updated);
@@ -19,9 +19,9 @@ export async function PUT(
 
 export async function DELETE(
   _req: Request,
-  context: Promise<{ params: { id: string } }>
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const { params } = await context;
-  await prisma.eventSchedule.delete({ where: { id: params.id } });
+  const { id } = await params;
+  await prisma.eventSchedule.delete({ where: { id: id } });
   return NextResponse.json({ ok: true });
 }

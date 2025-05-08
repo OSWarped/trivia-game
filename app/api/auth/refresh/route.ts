@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
       }
 
       // Generate a new token
-      const newToken = jwt.sign({ userId: user.id, roles: user.roles }, JWT_SECRET, {
+      const newToken = jwt.sign({ userId: user.id, roles: user.role }, JWT_SECRET, {
         expiresIn: '4h',
       });
 

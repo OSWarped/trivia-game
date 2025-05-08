@@ -5,8 +5,7 @@ import { io as ioClient, Socket } from "socket.io-client";
 
 const prisma = new PrismaClient();
 const WS_URL =
-  process.env.NEXT_PUBLIC_WEBSOCKET_URL?.trim() ||
-  "http://localhost:3009";
+  process.env.NEXT_PUBLIC_WEBSOCKET_URL?.trim();
 
 export async function POST(req: NextRequest) {
   const { gameId, teamId, questionId, itemIndex, isCorrect } =

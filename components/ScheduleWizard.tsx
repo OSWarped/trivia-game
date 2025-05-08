@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 import { useState } from 'react';
 const weekdays = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];

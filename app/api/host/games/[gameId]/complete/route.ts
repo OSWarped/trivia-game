@@ -30,7 +30,7 @@ export async function POST(
       return NextResponse.json({ error: 'Game not found' }, { status: 404 });
     }
 
-    if (game.status !== 'COMPLETED') {
+    if (game.status !== 'CLOSED') {
       return NextResponse.json({ error: 'Game has already been completed' }, { status: 400 });
     }
 
@@ -38,7 +38,6 @@ export async function POST(
     const firstRound = game.rounds[0];
     const firstQuestion = firstRound?.questions[0] || null;
 
-    // Create or update GameState
     await prisma.gameState.upsert({
       where: { gameId },
       update: {
@@ -49,13 +48,15 @@ export async function POST(
         gameId,
         currentRoundId: firstRound?.id || null,
         currentQuestionId: firstQuestion?.id || null,
+        pointsRemaining: {}, // ✅ required field
       },
     });
+    
 
     // Update game status to STARTED
     await prisma.game.update({
       where: { id: gameId },
-      data: { status: 'COMPLETED', startedAt: new Date() },
+      data: { status: 'CLOSED', startedAt: new Date() },
     });
 
     return NextResponse.json({ message: 'Game started successfully!' });

@@ -86,10 +86,7 @@ export default function Header() {
         {/* desktop nav */}
         {!isTeamView && (
           <nav className="hidden md:block">
-            <ul className="flex space-x-6 items-center">
-              {navLink('/dashboard', 'Dashboard')}
-              {navLink('/games', 'Games')}
-              {navLink('/teams', 'Teams')}
+            <ul className="flex space-x-6 items-center">            
               {isAdmin && navLink('/admin/dashboard', 'Admin Panel')}
               {isHost && navLink('/dashboard/host', 'Host Dashboard')}
 

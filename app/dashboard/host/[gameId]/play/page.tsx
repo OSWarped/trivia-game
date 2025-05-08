@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client'
 
@@ -211,10 +212,10 @@ export default function HostGameInterface() {
     return gameState.game.rounds.find(r => r.id === gameState.currentRoundId) || null
   },[gameState])
 
-  const currentQuestion = useMemo(()=>{
-    if (!currentRound||!gameState) return null
-    return currentRound.questions.find(q=>q.id===gameState.currentQuestionId) || null
-  },[currentRound, gameState])
+  // const currentQuestion = useMemo(()=>{
+  //   if (!currentRound||!gameState) return null
+  //   return currentRound.questions.find(q=>q.id===gameState.currentQuestionId) || null
+  // },[currentRound, gameState])
 
   // ── Fetch answers helper (LIST vs. single) ─────────────────────────
   const fetchAnswers = async (questionId: string, isList: boolean) => {

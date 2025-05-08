@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 // app/api/host/games/route.ts
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';

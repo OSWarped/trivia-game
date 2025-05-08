@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { io } from "socket.io-client";
 
-const websocketURL = process.env.NEXT_PUBLIC_WEBSOCKET_URL?.trim() || 'http://localhost:3009';
+const websocketURL = process.env.NEXT_PUBLIC_WEBSOCKET_URL?.trim();
 
 console.log("🔌 Connecting to socket at:", websocketURL);
 const socket = io(websocketURL, { transports: ['websocket'] });

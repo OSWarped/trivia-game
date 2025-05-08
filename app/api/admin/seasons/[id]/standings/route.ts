@@ -6,14 +6,14 @@ const prisma = new PrismaClient();
 
 export async function GET(
   _req: Request,
-  context: Promise<{ params: { seasonId: string } }>
+  { params }: { params: Promise<{ seasonId: string }> }
 ) {
-  const { params } = await context;            // ✅ await
+  const { seasonId } = await params;            // ✅ await
   try {
     // aggregate totals by team across games in this season
     const standings = await prisma.teamGame.groupBy({
       by: ['teamId'],
-      where: { game: { seasonId: params.seasonId } },
+      where: { game: { seasonId: seasonId } },
       _sum: { totalPts: true },
       _count: { _all: true },
       orderBy: { _sum: { totalPts: 'desc' } },

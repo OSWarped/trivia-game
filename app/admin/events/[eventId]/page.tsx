@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/rules-of-hooks */
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -34,10 +35,10 @@ export default function EventSeasons() {
 
   // Seasons state
   const [seasons, setSeasons] = useState<Season[]>([]);
-  const [nameIn,  setNameIn]  = useState('');
-  const [startIn, setStartIn] = useState('');
-  const [endIn,   setEndIn]   = useState<string | null>(null);
-  const [loading, setLoad]    = useState(false);
+  // const [nameIn,  setNameIn]  = useState('');
+  // const [startIn, setStartIn] = useState('');
+  // const [endIn,   setEndIn]   = useState<string | null>(null);
+  // const [ setLoad]    = useState(false);
 
 
   // Games state
@@ -64,23 +65,23 @@ export default function EventSeasons() {
   
 
   // Create season
-  const addSeason = async () => {
-    if (!nameIn || !startIn) return alert('Name & start date required');
-    setLoad(true);
-    const res = await fetch(`/api/admin/events/${eventId}/seasons`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: nameIn, startsAt: startIn, endsAt: endIn }),
-    });
-    if (res.ok) {
-      const created: Season = await res.json();
-      setSeasons(a => [...a, created]);
-      setNameIn(''); setStartIn(''); setEndIn(null);
-    } else {
-      alert('Failed to create season');
-    }
-    setLoad(false);
-  };
+  // const addSeason = async () => {
+  //   if (!nameIn || !startIn) return alert('Name & start date required');
+  //   setLoad(true);
+  //   const res = await fetch(`/api/admin/events/${eventId}/seasons`, {
+  //     method: 'POST',
+  //     headers: { 'Content-Type': 'application/json' },
+  //     body: JSON.stringify({ name: nameIn, startsAt: startIn, endsAt: endIn }),
+  //   });
+  //   if (res.ok) {
+  //     const created: Season = await res.json();
+  //     setSeasons(a => [...a, created]);
+  //     setNameIn(''); setStartIn(''); setEndIn(null);
+  //   } else {
+  //     alert('Failed to create season');
+  //   }
+  //   setLoad(false);
+  // };
 
   // Toggle season active
   const toggleActive = async (id: string, value: boolean) => {

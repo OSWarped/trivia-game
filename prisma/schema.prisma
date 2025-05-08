@@ -24,6 +24,7 @@ model User {
 enum UserRole {
   ADMIN
   HOST
+  USER
 }
 
 // ----------  Venue hierarchy ----------
@@ -158,6 +159,7 @@ enum QuestionType {
   MULTIPLE_CHOICE
   ORDERED
   WAGER
+  LIST
 }
 
 model Team {
@@ -253,6 +255,8 @@ model Answer {
   pointsUsed    Int?
   createdAt     DateTime @default(now())
 
+  items AnswerItem[] // ← new relation
+
   teamGame TeamGame @relation(fields: [teamGameId], references: [id])
   question Question @relation(fields: [questionId], references: [id])
 }
@@ -266,4 +270,13 @@ model Option {
 
   //Relation back to Question
   question Question @relation(fields: [questionId], references: [id])
+}
+
+model AnswerItem {
+  id        String   @id @default(uuid())
+  answerId  String
+  submitted String // the one item they named
+  isCorrect Boolean? // null until host scores
+  awarded   Int // awardedPoints for this item (round.pointValue or 0)
+  answer    Answer   @relation(fields: [answerId], references: [id])
 }

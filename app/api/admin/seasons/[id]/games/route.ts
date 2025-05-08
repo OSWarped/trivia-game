@@ -6,12 +6,12 @@ const prisma = new PrismaClient();
 
 export async function GET(
   _req: Request,
-  context: Promise<{ params: { seasonId: string } }>
+  { params }: { params: Promise<{ seasonId: string }> }
 ) {
-  const { params } = await context;            // ✅ await lazy params
+  const { seasonId } = await params;            // ✅ await lazy params
   try {
     const games = await prisma.game.findMany({
-      where:  { seasonId: params.seasonId },
+      where:  { seasonId: seasonId },
       orderBy:{ startedAt: 'asc' },
       select: {
         id:        true,

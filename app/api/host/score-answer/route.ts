@@ -4,7 +4,7 @@ import { io as ioClient, Socket } from 'socket.io-client';
 
 const prisma = new PrismaClient();
 const WS_URL =
-  process.env.NEXT_PUBLIC_WEBSOCKET_URL?.trim() || 'http://localhost:3009';
+  process.env.NEXT_PUBLIC_WEBSOCKET_URL?.trim();
 
 /**
  * POST /api/host/score-answer
@@ -59,6 +59,12 @@ export async function POST(req: NextRequest) {
     _sum:  { awardedPoints: true },
   });
   const newScore = agg._sum.awardedPoints ?? 0;
+
+   // persist into TeamGame.totalPts so your state endpoints will pick it up
+   await prisma.teamGame.update({
+    where: { teamId_gameId: { teamId, gameId } },
+    data:  { totalPts: newScore },
+  });
 
   /* 5. emit score:update via short‑lived socket */
   let ws: Socket | null = null;

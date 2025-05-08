@@ -1,7 +1,8 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { getUserFromProvidedToken } from '@/utils/auth'; // your JWT util
-import { cookies } from 'next/headers';
+// import { getUserFromProvidedToken } from '@/utils/auth'; // your JWT util
+// import { cookies } from 'next/headers';
 
 const prisma = new PrismaClient();
 

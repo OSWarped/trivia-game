@@ -56,7 +56,7 @@ export default function LobbyPage(): JSX.Element {
         setGame(gameData);
       }
     } catch (err) {
-      // eslint-disable-next-line no-console
+      
       console.error('Failed to load lobby data:', err);
     } finally {
       setLoading(false);

@@ -25,61 +25,61 @@ export async function GET(req: Request) {
   }
 }
 
-export async function POST(req: Request) {
-  const { siteId, seasonId, title } = await req.json();
+// export async function POST(req: Request) {
+//   const { siteId, seasonId, title } = await req.json();
 
-  /* ─── basic validation ─── */
-  if (!title || typeof title !== 'string') {
-    return NextResponse.json({ error: 'Invalid title' }, { status: 400 });
-  }
-  if (!siteId || typeof siteId !== 'string') {
-    return NextResponse.json({ error: 'Invalid siteId' }, { status: 400 });
-  }
+//   /* ─── basic validation ─── */
+//   if (!title || typeof title !== 'string') {
+//     return NextResponse.json({ error: 'Invalid title' }, { status: 400 });
+//   }
+//   if (!siteId || typeof siteId !== 'string') {
+//     return NextResponse.json({ error: 'Invalid siteId' }, { status: 400 });
+//   }
   
 
-  /* ─── get or create active season for the site ─── */
-  let seasonIdToUse = seasonId;
+//   /* ─── get or create active season for the site ─── */
+//   let seasonIdToUse = seasonId;
 
-  if (!seasonIdToUse) {
-    const activeSeason = await prisma.season.findFirst({
-      where: { siteId, isActive: true },
-    });
+//   if (!seasonIdToUse) {
+//     const activeSeason = await prisma.season.findFirst({
+//       where: { siteId, isActive: true },
+//     });
 
-    if (activeSeason) {
-      seasonIdToUse = activeSeason.id;
-    } else {
-      // auto‑create an open‑ended recurring season
-      const newSeason = await prisma.season.create({
-        data: {
-          siteId,
-          name: 'Ongoing Trivia',
-          recurring: true,
-        },
-      });
-      seasonIdToUse = newSeason.id;
-    }
-  }
+//     if (activeSeason) {
+//       seasonIdToUse = activeSeason.id;
+//     } else {
+//       // auto‑create an open‑ended recurring season
+//       const newSeason = await prisma.season.create({
+//         data: {
+//           siteId,
+//           name: 'Ongoing Trivia',
+//           recurring: true,
+//         },
+//       });
+//       seasonIdToUse = newSeason.id;
+//     }
+//   }
 
-  try {
-    const newGame = await prisma.game.create({
-      data: {
-        siteId,
-        seasonId: seasonIdToUse,
-        title,
-        // status defaults to DRAFT; startedAt/endedAt null
-      },
-      include: {
-        site:   true,
-        season: true,
-      },
-    });
+//   try {
+//     const newGame = await prisma.game.create({
+//       data: {
+//         siteId,
+//         seasonId: seasonIdToUse,
+//         title,
+//         // status defaults to DRAFT; startedAt/endedAt null
+//       },
+//       include: {
+//         site:   true,
+//         season: true,
+//       },
+//     });
 
-    return NextResponse.json(newGame, { status: 201 });
-  } catch (err) {
-    console.error('Failed to create game:', err);
-    return NextResponse.json(
-      { error: 'Failed to create game' },
-      { status: 500 }
-    );
-  }
-}
+//     return NextResponse.json(newGame, { status: 201 });
+//   } catch (err) {
+//     console.error('Failed to create game:', err);
+//     return NextResponse.json(
+//       { error: 'Failed to create game' },
+//       { status: 500 }
+//     );
+//   }
+// }

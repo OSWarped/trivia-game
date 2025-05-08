@@ -1,3 +1,4 @@
+//api/host/games/[gameId]/answers/route.ts
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 
@@ -50,12 +51,15 @@ export async function GET(
 
     /* 2. shape the payload for the host UI */
     const payload = answers.map((a) => ({
-      teamId:     a.teamGame.teamId,
-      teamName:   a.teamGame.team.name,
-      given:      a.given,
-      pointsUsed: a.pointsUsed,          // assuming Int[]
-      isCorrect:  a.isCorrect,           // null until scored
-    }));
+    teamId: a.teamGame.teamId,
+    teamName: a.teamGame.team.name,
+    questionId: a.questionId,      // ← now included!
+    given: a.given,
+    isCorrect: a.isCorrect,
+    awardedPoints: a.awardedPoints,
+    pointsUsed: a.pointsUsed ?? 0
+  }));
+
 
     return NextResponse.json(payload);
   } catch (err) {

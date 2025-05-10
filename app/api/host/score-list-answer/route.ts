@@ -99,6 +99,11 @@ export async function POST(req: NextRequest) {
   });
   const newScore = agg._sum.awardedPoints ?? 0;
 
+  await prisma.teamGame.update({
+    where: { teamId_gameId: { teamId, gameId } },
+    data: { totalPts: newScore },
+  })
+
   // 9) emit via socket
   let ws: Socket | null = null;
   try {

@@ -22,10 +22,16 @@ export async function POST(req: NextRequest) {
     where: { questionId, teamGame: { teamId, gameId } },
     select: {
       id: true,
-      pointsUsed: true,          // ← needed for POOL
+      pointsUsed: true,
       question: {
         select: {
-          round: { select: { pointSystem: true, pointValue: true } },
+          round: {
+            select: {
+              roundType: true,      // e.g. 'STANDARD' or 'WAGER'
+              pointSystem: true,    // 'FLAT' vs. 'POOL'
+              pointValue:  true,    // flat‐point amount, if FLAT
+            }
+          },
         },
       },
     },
@@ -35,17 +41,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Answer not found' }, { status: 404 });
   }
 
-  const { pointSystem, pointValue } = answer.question.round;
+  const { roundType, pointSystem, pointValue } = answer.question.round;
 
   /* 2. decide awardedPoints */
-  let awardedPoints = 0;
-  if (isCorrect) {
-    if (pointSystem === 'FLAT') {
-      awardedPoints = pointValue ?? 0;
-    } else if (pointSystem === 'POOL') {
-      awardedPoints = answer.pointsUsed ?? 0;   // wagered chip
-    }
+ let awardedPoints = 0;
+if (isCorrect) {
+  if (roundType === 'WAGER') {
+    awardedPoints = answer.pointsUsed ?? 0;
+  } else if (pointSystem === 'FLAT') {
+    awardedPoints = pointValue ?? 0;
+  } else if (pointSystem === 'POOL') {
+    awardedPoints = answer.pointsUsed ?? 0; 
   }
+}
 
   /* 3. update that answer row */
   await prisma.answer.update({
@@ -59,9 +67,8 @@ export async function POST(req: NextRequest) {
     _sum:  { awardedPoints: true },
   });
   const newScore = agg._sum.awardedPoints ?? 0;
-
-   // persist into TeamGame.totalPts so your state endpoints will pick it up
-   await prisma.teamGame.update({
+  // Persist into the TeamGame row…
+  await prisma.teamGame.update({
     where: { teamId_gameId: { teamId, gameId } },
     data:  { totalPts: newScore },
   });

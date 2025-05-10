@@ -1,20 +1,21 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { Server } from "socket.io";
 import { setIo } from './lib/socket.js';
 import * as https from "https";
 import * as fs from "fs";
 const PORT = 3009;
 
-// const options = {
-//   key: fs.readFileSync("./blakdusttriviahost_com/blakdusttriviahost_com.key"),
-//   cert: fs.readFileSync("./blakdusttriviahost_com/blakdusttriviahost_com.crt"),
-// };
-// const httpsServer = https.createServer(options);
-// const io = new Server(httpsServer, {
-//   cors: { origin: "*", methods: ["GET", "POST"], credentials: true },
-// });
-// httpsServer.listen(PORT, () => {
-//   console.log("WebSocket server running on HTTPS port 3009");
-// });
+const options = {
+  key: fs.readFileSync("./blakdusttriviahost_com/blakdusttriviahost_com.key"),
+  cert: fs.readFileSync("./blakdusttriviahost_com/blakdusttriviahost_com.crt"),
+};
+const httpsServer = https.createServer(options);
+const io = new Server(httpsServer, {
+  cors: { origin: "*", methods: ["GET", "POST"], credentials: true },
+});
+httpsServer.listen(PORT, () => {
+  console.log("WebSocket server running on HTTPS port 3009");
+});
 console.log('***setting variables***');
 const teamSessions = new Map<string, { gameId: string; teamId: string; teamName: string }>();
 const activeTeamsByGame = new Map<string, Map<string, { id: string; name: string }>>();
@@ -22,37 +23,55 @@ console.log('***variables set***');
 
 
 try {
-  const io = new Server(PORT, {
-    cors: {
-      origin: "*",
-    },
-  });
+  // const io = new Server(PORT, {
+  //   cors: {
+  //     origin: "*",
+  //   },
+  // });
 
   setIo(io);
-  console.log(`WebSocket server running on port ${PORT}`);
+  //console.log(`WebSocket server running on port ${PORT}`);
 
   io.on('connection', (socket) => {
     console.log('🟢 Connected:', socket.id);
 
-    socket.on("team:join_lobby", ({ gameId, teamId, teamName }) => {
+    socket.on("team:join", ({ gameId, teamId, teamName }) => {
       if (!gameId || !teamId || !teamName) return;
-
+    
+      // Add socket to the game room
       socket.join(gameId);
+    
+      // Check if this team was already in the list (i.e. reconnect)
+      const isReconnect =
+        activeTeamsByGame.has(gameId) &&
+        activeTeamsByGame.get(gameId)?.has(teamId);
+    
+      // Save session data
       teamSessions.set(socket.id, { gameId, teamId, teamName });
-
-      console.log(`📥 Team ${teamName} (${teamId}) joined lobby for game ${gameId}`);
-
+    
+      // Add or update the team in active teams map
       if (!activeTeamsByGame.has(gameId)) {
         activeTeamsByGame.set(gameId, new Map());
       }
-
+    
       const gameTeams = activeTeamsByGame.get(gameId)!;
       gameTeams.set(teamId, { id: teamId, name: teamName });
-
+    
       const teams = Array.from(gameTeams.values());
+    
+      // Emit updated team list to everyone in the game room
       io.to(gameId).emit("team:liveTeams", { gameId, teams });
       io.to(gameId).emit("host:liveTeams", { gameId, teams });
+    
+      io.to(gameId).emit("host:teamReconnected", { teamId, teamName, gameId });
+
+if (isReconnect) {
+  console.log(`🔄 Team ${teamName} (${teamId}) rejoined game ${gameId}`);
+} else {
+  console.log(`📥 Team ${teamName} (${teamId}) joined lobby for game ${gameId}`);
+}
     });
+    
 
     socket.on("team:leave_lobby", ({ gameId, teamId }) => {
       const gameTeams = activeTeamsByGame.get(gameId);
@@ -70,12 +89,12 @@ try {
       io.to(gameId).emit("host:liveTeams", { gameId, teams });
     });
 
-    socket.on("disconnect", () => {
+    socket.on("disconnect", (reason) => {
       const session = teamSessions.get(socket.id);
       if (!session) return;
 
       const { gameId, teamId, teamName } = session;
-      console.log(`❌ Disconnected: ${teamName} (${teamId}) from game ${gameId}`);
+      console.log(`❌ Disconnected: ${teamName} (${teamId}) from game ${gameId} - Reason: ${reason}`);
       teamSessions.delete(socket.id);
 
       const gameTeams = activeTeamsByGame.get(gameId);
@@ -139,7 +158,7 @@ try {
      * payload: { gameId, teamId, newScore }
      */
     socket.on('host:scoreUpdate', ({ gameId, teamId, newScore }) => {
-      console.log(`Team ${teamId} has submitted answer.  Their new score is ${newScore}`);
+      console.log(`Host scored Team ${teamId} answer.  Their new score is ${newScore}`);
       // broadcast to everyone in that game room
       io.to(gameId).emit('score:update', { teamId, newScore });
     });

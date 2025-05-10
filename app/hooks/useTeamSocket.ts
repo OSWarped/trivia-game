@@ -15,7 +15,7 @@ export function useTeamSocket(
   useEffect(() => {
     if (!enabled || !socket || !socket.connected || !gameId) return;
 
-    socket.emit('team:join_lobby', { gameId, teamId, teamName });
+    socket.emit('team:join', { gameId, teamId, teamName });
 
     return () => {
       socket.emit('team:leave_lobby', { gameId, teamId });

@@ -66,10 +66,12 @@ export default function JoinPageClient({ joinCode }: { joinCode: string }) {
 
     const { teamId: newTeamId, gameStatus } = await res.json();
 
-    /* persist for rejoin */
-    localStorage.setItem('teamId', newTeamId);
-    localStorage.setItem('teamName', teamName);
-    localStorage.setItem('gameId', game.id);
+    // wherever you currently call setItem:
+if (typeof window !== 'undefined') {
+  localStorage.setItem('teamId', newTeamId)
+  localStorage.setItem('teamName', teamName)
+  localStorage.setItem('gameId', game.id)
+}
 
     setTeamId(newTeamId); // triggers useTeamSocket
 
@@ -146,7 +148,10 @@ export default function JoinPageClient({ joinCode }: { joinCode: string }) {
         <div>
           <label className="block font-medium mb-1">Team PIN</label>
           <input
-            type="password"
+            type="tel"
+            pattern="[0-9]*"
+            inputMode='numeric'
+            maxLength={4}
             value={pin}
             onChange={(e) => setPin(e.target.value)}
             required

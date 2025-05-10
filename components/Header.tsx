@@ -113,10 +113,7 @@ export default function Header() {
       {/* mobile menu */}
       {!isTeamView && open && (
         <nav className="md:hidden mt-2 bg-blue-700 p-4 rounded-lg">
-          <ul className="flex flex-col space-y-4">
-            {navLink('/dashboard', 'Dashboard')}
-            {navLink('/games', 'Games')}
-            {navLink('/teams', 'Teams')}
+          <ul className="flex flex-col space-y-4">           
             {isAdmin && navLink('/admin/dashboard', 'Admin Panel')}
             {isHost && navLink('/dashboard/host', 'Host Dashboard')}
             <li>

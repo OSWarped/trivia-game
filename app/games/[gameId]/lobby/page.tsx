@@ -42,6 +42,15 @@ export default function LobbyPage(): JSX.Element {
   const [game,   setGame]  = useState<GameInfo | null>(null);
   const [teams,  setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [connectionStatus, setConnectionStatus] = useState('connected');
+
+  //set Team Info in localstorage
+  if (typeof window !== 'undefined' && window.localStorage) {
+    localStorage.setItem(
+      'teamSession',
+      JSON.stringify({ gameId, teamId, teamName })
+    )
+  }
 
   /* singleton socket join */
   useTeamSocket(true, gameId ?? null, teamId, teamName);
@@ -76,6 +85,21 @@ export default function LobbyPage(): JSX.Element {
       if (gId === gameId) setTeams(t);
     };
 
+    const handleReconnect = () => {
+      const stored = localStorage.getItem('teamSession');
+      if (stored) {
+        const { gameId: gId, teamId: tId, teamName } = JSON.parse(stored);
+        if (gId && tId && teamName) {
+          socket.emit('team:join', { gameId: gId, teamId: tId, teamName });
+          console.log(`🔄 Rejoined: ${teamName} (${tId}) in game ${gId}`);
+        }
+      }
+    };
+
+    socket.on('disconnect', () => setConnectionStatus('disconnected'));
+    socket.on('connect', () => setConnectionStatus('connected'));
+    
+    socket.on('connect', handleReconnect);
     socket.on('team:update', handleTeamUpdate);
     socket.on('game_started', handleGameStarted);
     socket.on('team:liveTeams', handleLiveTeams);
@@ -85,6 +109,8 @@ export default function LobbyPage(): JSX.Element {
       socket.off('team:update', handleTeamUpdate);
       socket.off('game_started', handleGameStarted);
       socket.off('team:liveTeams', handleLiveTeams);
+      socket.off('connect', handleReconnect);
+      socket.off('connect');
     };
   }, [socket, gameId, teamId, router, fetchGameAndTeams]);
 
@@ -107,6 +133,12 @@ export default function LobbyPage(): JSX.Element {
         <h1 className="mb-6 text-3xl font-bold text-blue-800">
           🧠 Welcome to the Trivia Lobby
         </h1>
+
+        {connectionStatus === 'disconnected' && (
+          <div className="text-yellow-500 text-center mt-4">
+            Reconnecting...
+          </div>
+        )}
 
         {/* Game card */}
         <div className="mb-6 rounded bg-white p-6 shadow">

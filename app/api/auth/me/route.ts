@@ -1,27 +1,29 @@
-import { NextResponse } from 'next/server';
-import { getUserFromProvidedToken } from '@/utils/auth';
-import { cookies } from 'next/headers';
+/* eslint-disable @typescript-eslint/no-unused-vars */
+// app/api/auth/me/route.ts
+import { NextResponse }    from 'next/server'
+import { cookies }         from 'next/headers'
+import jwt                 from 'jsonwebtoken'
+
+const JWT_SECRET = process.env.JWT_SECRET!
 
 export async function GET() {
+  // 1) await the cookie store
+  const cookieStore = await cookies()
+  const token = cookieStore.get('token')?.value
+
+  if (!token) {
+    return NextResponse.json({ user: null }, { status: 401 })
+  }
+
+  // 2) verify token
   try {
-
-    console.log('[auth/me] route hit');
-    // cookies() is synchronous
-    const token = (await cookies()).get('token')?.value;
-
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const payload = jwt.verify(token, JWT_SECRET) as {
+      userId: string
+      email:  string
+      role:   string
     }
-
-    const user = await getUserFromProvidedToken(token);
-
-    return NextResponse.json({
-      userId: user?.userId,
-      email: user?.email,
-      role: user?.role ?? 'HOST',   // adjust default as you wish
-    });
+    return NextResponse.json({ user: payload })
   } catch (err) {
-    console.error('Error in /api/auth/me:', err);
-    return NextResponse.json({ error: 'Failed to authenticate' }, { status: 500 });
+    return NextResponse.json({ user: null }, { status: 401 })
   }
 }

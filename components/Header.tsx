@@ -8,7 +8,7 @@ import { Menu, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
 export default function Header() {
-  const { user, setUser } = useAuth();
+  const { user, setUser, loading } = useAuth(); // ⬅️ include loading
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false); 
@@ -20,7 +20,6 @@ export default function Header() {
       setIsTeamView(!!teamId);
     }
   }, [pathname]);
-  
 
   const isAdmin = user?.role === 'ADMIN';
   const isHost = user?.role === 'HOST' || isAdmin;
@@ -44,6 +43,9 @@ export default function Header() {
       {label}
     </Link>
   );
+
+  // 🛑 Avoid showing incorrect login/logout UI before auth is ready
+  if (loading) return null;
 
   return (
     <header className="bg-blue-600 text-white p-4 shadow-md">

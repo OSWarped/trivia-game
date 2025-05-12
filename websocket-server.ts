@@ -5,29 +5,29 @@ import * as https from "https";
 import * as fs from "fs";
 const PORT = 3009;
 
-const options = {
-  key: fs.readFileSync("./blakdusttriviahost_com/blakdusttriviahost_com.key"),
-  cert: fs.readFileSync("./blakdusttriviahost_com/blakdusttriviahost_com.crt"),
-};
-const httpsServer = https.createServer(options);
-const io = new Server(httpsServer, {
-  cors: { origin: "*", methods: ["GET", "POST"], credentials: true },
-});
-httpsServer.listen(PORT, () => {
-  console.log("WebSocket server running on HTTPS port 3009");
-});
-console.log('***setting variables***');
-const teamSessions = new Map<string, { gameId: string; teamId: string; teamName: string }>();
-const activeTeamsByGame = new Map<string, Map<string, { id: string; name: string }>>();
-console.log('***variables set***');
+// const options = {
+//   key: fs.readFileSync("./blakdusttriviahost_com/blakdusttriviahost_com.key"),
+//   cert: fs.readFileSync("./blakdusttriviahost_com/blakdusttriviahost_com.crt"),
+// };
+// const httpsServer = https.createServer(options);
+// const io = new Server(httpsServer, {
+//   cors: { origin: "*", methods: ["GET", "POST"], credentials: true },
+// });
+// httpsServer.listen(PORT, () => {
+//   console.log("WebSocket server running on HTTPS port 3009");
+// });
+// console.log('***setting variables***');
+ const teamSessions = new Map<string, { gameId: string; teamId: string; teamName: string }>();
+ const activeTeamsByGame = new Map<string, Map<string, { id: string; name: string }>>();
+// console.log('***variables set***');
 
 
 try {
-  // const io = new Server(PORT, {
-  //   cors: {
-  //     origin: "*",
-  //   },
-  // });
+  const io = new Server(PORT, {
+    cors: {
+      origin: "*",
+    },
+  });
 
   setIo(io);
   //console.log(`WebSocket server running on port ${PORT}`);

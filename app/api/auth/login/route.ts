@@ -28,11 +28,12 @@ export async function POST(req: NextRequest) {
 
   res.cookies.set('token', token, {
     httpOnly: true,
-    sameSite:  'strict',
-    path:      '/',
-    maxAge:    60 * 60 * 4,                     // 4 hours
-    secure:    process.env.NODE_ENV === 'production',
-  })
+    sameSite: 'lax', // ✅ critical change
+    path: '/',
+    maxAge: 60 * 60 * 4, // 4 hours
+    secure: process.env.NODE_ENV === 'production',
+  });
+  
 
   return res
 }

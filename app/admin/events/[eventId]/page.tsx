@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/rules-of-hooks */
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -8,84 +7,64 @@ import { useAuth } from '@/context/AuthContext';
 import { ChevronLeft } from 'lucide-react';
 
 interface Season {
-  id:        string;
-  name:      string;
-  startsAt:  string;
-  endsAt:    string | null;
-  active:    boolean;
+  id: string;
+  name: string;
+  startsAt: string;
+  endsAt: string | null;
+  active: boolean;
   recurring: boolean;
 }
 
 interface GameRow {
-  id:           string;
-  title:        string;
+  id: string;
+  title: string;
   scheduledFor: string | null;
-  status:       string;
+  status: string;
 }
 
 export default function EventSeasons() {
   const { eventId } = useParams<{ eventId: string }>();
-  const router      = useRouter();
-  const { isAdmin } = useAuth();
+  const router = useRouter();
+  const { isAdmin, loading: authLoading } = useAuth();
 
-  if (!isAdmin) {
-    router.push('/login');
-    return null;
-  }
+  const [authChecked, setAuthChecked] = useState(false);
 
-  // Seasons state
   const [seasons, setSeasons] = useState<Season[]>([]);
-  // const [nameIn,  setNameIn]  = useState('');
-  // const [startIn, setStartIn] = useState('');
-  // const [endIn,   setEndIn]   = useState<string | null>(null);
-  // const [ setLoad]    = useState(false);
+  const [games, setGames] = useState<GameRow[]>([]);
+  const [newTitle, setNewTitle] = useState('');
+  const [scheduledFor, setScheduledFor] = useState('');
+  const [gameLoading, setGameLoading] = useState(false);
 
-
-  // Games state
-  const [games, setGames]         = useState<GameRow[]>([]);
-  const [newTitle, setNewTitle]   = useState('');
-  const [gameLoading, setGameLoad] = useState(false);
-  const [scheduledFor, setScheduledFor] = useState('');            // yyyy-MM-ddThh:mm
-  
-  
-  // Fetch seasons & games
+  // ✅ Auth check & redirect
   useEffect(() => {
+    if (authLoading) return;
+
+    if (!isAdmin) {
+      router.push('/login');
+    } else {
+      setAuthChecked(true);
+    }
+  }, [authLoading, isAdmin, router]);
+
+  // ✅ Fetch once auth is confirmed
+  useEffect(() => {
+    if (!authChecked) return;
+
     (async () => {
-      // Seasons
-      const res  = await fetch(`/api/admin/events/${eventId}/seasons`);
+      const res = await fetch(`/api/admin/events/${eventId}/seasons`);
       const data = await res.json();
       setSeasons(data as Season[]);
-      // Games
-      const gRes  = await fetch(`/api/admin/events/${eventId}/games`);
+
+      const gRes = await fetch(`/api/admin/events/${eventId}/games`);
       const gData = await gRes.json();
       setGames(gData as GameRow[]);
     })();
-  }, [eventId]);
+  }, [authChecked, eventId]);
 
-  
+  if (!authChecked) return null;
 
-  // Create season
-  // const addSeason = async () => {
-  //   if (!nameIn || !startIn) return alert('Name & start date required');
-  //   setLoad(true);
-  //   const res = await fetch(`/api/admin/events/${eventId}/seasons`, {
-  //     method: 'POST',
-  //     headers: { 'Content-Type': 'application/json' },
-  //     body: JSON.stringify({ name: nameIn, startsAt: startIn, endsAt: endIn }),
-  //   });
-  //   if (res.ok) {
-  //     const created: Season = await res.json();
-  //     setSeasons(a => [...a, created]);
-  //     setNameIn(''); setStartIn(''); setEndIn(null);
-  //   } else {
-  //     alert('Failed to create season');
-  //   }
-  //   setLoad(false);
-  // };
-
-  // Toggle season active
   const toggleActive = async (id: string, value: boolean) => {
-    setSeasons(arr => arr.map(s => s.id === id ? { ...s, active: value } : s));
+    setSeasons(arr => arr.map(s => (s.id === id ? { ...s, active: value } : s)));
     await fetch(`/api/admin/seasons/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -93,21 +72,19 @@ export default function EventSeasons() {
     });
   };
 
-  // Delete season
   const deleteSeason = async (id: string) => {
     if (!confirm('Delete this season?')) return;
     const res = await fetch(`/api/admin/seasons/${id}`, { method: 'DELETE' });
     if (res.ok) setSeasons(arr => arr.filter(s => s.id !== id));
   };
 
-  // Draft a new game
   const createGame = async () => {
     if (!newTitle) return alert('Game title required');
-    setGameLoad(true);
+    setGameLoading(true);
     const res = await fetch(`/api/admin/events/${eventId}/games`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: newTitle, scheduledFor: scheduledFor }),
+      body: JSON.stringify({ title: newTitle, scheduledFor }),
     });
     if (res.ok) {
       const created: GameRow = await res.json();
@@ -116,7 +93,7 @@ export default function EventSeasons() {
     } else {
       alert('Failed to draft game');
     }
-    setGameLoad(false);
+    setGameLoading(false);
   };
 
   return (
@@ -141,7 +118,7 @@ export default function EventSeasons() {
                   {se.name}
                 </Link>
                 <span className="text-gray-600 ml-2">
-                  ({se.startsAt.slice(0,10)} – {se.endsAt ? se.endsAt.slice(0,10) : 'ongoing'})
+                  ({se.startsAt.slice(0, 10)} – {se.endsAt ? se.endsAt.slice(0, 10) : 'ongoing'})
                 </span>
               </div>
               <div className="flex items-center space-x-3">
@@ -168,38 +145,34 @@ export default function EventSeasons() {
 
       {/* Games Section */}
       <section className="mb-8">
-      <h2 className="text-xl font-semibold mb-4"> Games </h2>
-  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-    {/* Title */}
-    <input
-      type="text"
-      placeholder="Game title"
-      className="border p-2 rounded col-span-1 md:col-span-2"
-      value={newTitle}
-      onChange={e => setNewTitle(e.target.value)}
-    />
-    {/* Scheduled for */}
-    <input
-      type="datetime-local"
-      className="border p-2 rounded"
-      value={scheduledFor}
-      onChange={e => setScheduledFor(e.target.value)}
-    />
-    
-    {/* Button */}
-    <button
-      className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:opacity-50 col-span-1 md:col-span-1"
-      onClick={createGame}
-      disabled={gameLoading || !newTitle || !scheduledFor }
-    >
-      Draft Game
-    </button>
-  </div>
+        <h2 className="text-xl font-semibold mb-4">Games</h2>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+          <input
+            type="text"
+            placeholder="Game title"
+            className="border p-2 rounded col-span-1 md:col-span-2"
+            value={newTitle}
+            onChange={e => setNewTitle(e.target.value)}
+          />
+          <input
+            type="datetime-local"
+            className="border p-2 rounded"
+            value={scheduledFor}
+            onChange={e => setScheduledFor(e.target.value)}
+          />
+          <button
+            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:opacity-50 col-span-1 md:col-span-1"
+            onClick={createGame}
+            disabled={gameLoading || !newTitle || !scheduledFor}
+          >
+            Draft Game
+          </button>
+        </div>
         <ul className="space-y-2">
           {games.map(g => (
             <li key={g.id} className="bg-white p-3 rounded shadow flex justify-between">
               <span>
-                {g.scheduledFor ? g.scheduledFor.slice(0,16).replace('T',' ') : '—'} — {g.title}
+                {g.scheduledFor ? g.scheduledFor.slice(0, 16).replace('T', ' ') : '—'} — {g.title}
               </span>
               <span className="text-sm text-gray-600">{g.status}</span>
             </li>

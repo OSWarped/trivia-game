@@ -1,46 +1,52 @@
-/* eslint-disable react-hooks/rules-of-hooks */
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link                    from 'next/link';
-import { useRouter }           from 'next/navigation';
-import { useAuth }             from '@/context/AuthContext';
-import { ChevronLeft }         from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
+import { ChevronLeft } from 'lucide-react';
 
 /* ───────────────────────────── Types ──────────────────────────── */
 interface Site {
-  id:      string;
-  name:    string;
+  id: string;
+  name: string;
   address: string | null;
 }
 
 /* ─────────────────────────── Component ────────────────────────── */
 export default function ManageSites() {
-  const router              = useRouter();
-  const { isAdmin }         = useAuth();
-  const [sites, setSites]   = useState<Site[]>([]);
+  const router = useRouter();
+  const { isAdmin, loading } = useAuth();
+
+  const [authChecked, setAuthChecked] = useState(false);
+  const [sites, setSites] = useState<Site[]>([]);
   const [editSite, setEdit] = useState<Site | null>(null);
-
-  const [nameInput,    setName]    = useState('');
+  const [nameInput, setName] = useState('');
   const [addressInput, setAddress] = useState('');
-  const [loading,      setLoad]    = useState(false);
+  const [uiLoading, setUiLoading] = useState(false);
 
-  /* --- auth gate --- */
-  if (!isAdmin) {
-    router.push('/login');
-    return null;
-  }
-
-  /* --- fetch sites on mount --- */
+  // 🔐 Auth gate: redirect if not admin
   useEffect(() => {
+    if (loading) return;
+  
+    if (!isAdmin) {
+      router.push('/login');
+    } else {
+      setAuthChecked(true);
+    }
+  }, [isAdmin, loading, router]);
+
+  // ✅ Fetch data only after auth check
+  useEffect(() => {
+    if (!authChecked) return;
+
     (async () => {
-      const res  = await fetch('/api/admin/sites');
+      const res = await fetch('/api/admin/sites');
       const data = await res.json();
       setSites(data as Site[]);
     })();
-  }, []);
+  }, [authChecked]);
 
-  /* --- helpers --- */
   const startEdit = (s: Site) => {
     setEdit(s);
     setName(s.name);
@@ -49,7 +55,7 @@ export default function ManageSites() {
 
   const saveEdit = async () => {
     if (!editSite) return;
-    setLoad(true);
+    setUiLoading(true);
     const res = await fetch(`/api/admin/sites/${editSite.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -60,7 +66,7 @@ export default function ManageSites() {
       setSites(arr => arr.map(s => (s.id === updated.id ? updated : s)));
       cancelEdit();
     } else alert('Failed to update site');
-    setLoad(false);
+    setUiLoading(false);
   };
 
   const cancelEdit = () => {
@@ -76,7 +82,7 @@ export default function ManageSites() {
   };
 
   const addSite = async () => {
-    setLoad(true);
+    setUiLoading(true);
     const res = await fetch('/api/admin/sites', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -88,13 +94,13 @@ export default function ManageSites() {
       setName('');
       setAddress('');
     } else alert('Failed to create site');
-    setLoad(false);
+    setUiLoading(false);
   };
 
-  /* ───────────────────────────── UI ──────────────────────────── */
+  if (!authChecked) return null;
+
   return (
     <div className="p-6 bg-gray-100 min-h-screen">
-      {/* back */}
       <Link
         href="/admin/dashboard"
         className="mb-4 flex items-center text-blue-600 hover:underline"
@@ -105,7 +111,6 @@ export default function ManageSites() {
 
       <h1 className="text-2xl font-bold mb-6">Manage Sites</h1>
 
-      {/* list */}
       <section className="mb-6">
         <h2 className="text-xl font-semibold mb-4">Sites</h2>
         <ul className="space-y-2">
@@ -125,7 +130,6 @@ export default function ManageSites() {
                 >
                   Manage&nbsp;Events
                 </Link>
-
                 <button
                   className="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600"
                   onClick={() => startEdit(site)}
@@ -144,7 +148,6 @@ export default function ManageSites() {
         </ul>
       </section>
 
-      {/* edit form */}
       {editSite && (
         <EditOrAddForm
           title="Edit Site"
@@ -155,11 +158,10 @@ export default function ManageSites() {
           primaryLabel="Save"
           onPrimary={saveEdit}
           onCancel={cancelEdit}
-          loading={loading}
+          loading={uiLoading}
         />
       )}
 
-      {/* add form */}
       {!editSite && (
         <EditOrAddForm
           title="Add New Site"
@@ -173,7 +175,7 @@ export default function ManageSites() {
             setName('');
             setAddress('');
           }}
-          loading={loading}
+          loading={uiLoading}
         />
       )}
     </div>

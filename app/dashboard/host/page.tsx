@@ -13,15 +13,21 @@ interface Game {
 }
 
 export default function HostDashboard() {
-  const { user, isHost, isAdmin } = useAuth();
+  const { user, isHost, isAdmin, loading: authLoading } = useAuth();
   const router = useRouter();
 
   // Redirect non-hosts
   useEffect(() => {
+    if (authLoading) return;
+
+    console.log('user:', user);
+    console.log('isHost:', isHost);
+    console.log('isAdmin:', isAdmin);
+
     if (!user || (!isHost && !isAdmin)) {
       router.push('/login');
     }
-  }, [user, isHost, isAdmin, router]);
+  }, [user, isHost, isAdmin, authLoading, router]);
 
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,17 +45,18 @@ export default function HostDashboard() {
       }
     })();
   }, []);
+
   const handleResetGame = async (gameId: string) => {
     const confirmed = confirm("Are you sure you want to reset this game?");
     if (!confirmed) return;
-  
+
     try {
       const res = await fetch('/api/host/debug/reset-game', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ gameId }),
       });
-  
+
       const result = await res.json();
       if (res.ok) {
         alert("Game reset successfully.");
@@ -62,14 +69,15 @@ export default function HostDashboard() {
       alert("An error occurred while resetting the game.");
     }
   };
-  
 
+  if (authLoading) {
+    return <div className="p-6">Checking login...</div>;
+  }
 
   if (loading) {
     return <div className="p-6">Loading games...</div>;
   }
 
-  // Separate upcoming vs past
   const now = new Date();
   const upcoming = games.filter(g => g.scheduledFor && new Date(g.scheduledFor) >= now);
   const past = games.filter(g => g.scheduledFor && new Date(g.scheduledFor) < now);
@@ -96,12 +104,11 @@ export default function HostDashboard() {
                   <div className="text-sm text-gray-600">{formatDate(g.scheduledFor)}</div>
                 </div>
                 <div className="flex space-x-2">
-                  {/* Reset Game Button */}
                   <button
                     onClick={() => handleResetGame(g.id)}
                     className="bg-red-500 text-white px-3 py-1 rounded-lg hover:bg-red-600"
                   >
-                  Reset Game
+                    Reset Game
                   </button>
                   {g.status === 'DRAFT' && (
                     <Link
@@ -115,7 +122,6 @@ export default function HostDashboard() {
                     href={`/dashboard/host/${g.id}/command`}
                     className="px-3 py-1 bg-blue-500 text-white rounded"
                   >
-                    {/* {g.status === 'LIVE' ? 'Manage' : 'Start'} */}
                     Launch
                   </Link>
                 </div>

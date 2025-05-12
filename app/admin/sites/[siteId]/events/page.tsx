@@ -1,74 +1,79 @@
-/* eslint-disable react-hooks/rules-of-hooks */
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link                     from 'next/link';
-import { useRouter }            from 'next/navigation';
-import { useParams }            from 'next/navigation';
-import { useAuth }              from '@/context/AuthContext';
-import { ChevronLeft }          from 'lucide-react';
-
+import Link from 'next/link';
+import { useRouter, useParams } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
+import { ChevronLeft } from 'lucide-react';
 import ScheduleWizard from '@/components/ScheduleWizard';
-
 
 /* ——— Types coming from API ——— */
 interface EventSchedule {
-  id:         string;
-  freq:       'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
-  dow?:       number;   // 0‑6
-  nthDow?:    number;   // 1‑5
-  dayOfMonth?:number;   // 1‑31
-  timeUTC:    string;   // "19:00"
+  id: string;
+  freq: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
+  dow?: number;
+  nthDow?: number;
+  dayOfMonth?: number;
+  timeUTC: string;
 }
 
 interface Event {
-  id:        string;
-  name:      string;
+  id: string;
+  name: string;
   schedules: EventSchedule[];
 }
 
 /* ——— Utils ——— */
-const weekdays = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 function formatSchedule(s: EventSchedule) {
-  if (s.freq === 'WEEKLY')   return `${weekdays[s.dow!]} ${s.timeUTC}`;
+  if (s.freq === 'WEEKLY') return `${weekdays[s.dow!]} ${s.timeUTC}`;
   if (s.freq === 'BIWEEKLY') return `Every other ${weekdays[s.dow!]} ${s.timeUTC}`;
-  if (s.dayOfMonth)          return `Month‑day ${s.dayOfMonth} ${s.timeUTC}`;
-  return `${['1st','2nd','3rd','4th','5th'][s.nthDow!-1]} ${weekdays[s.dow!]} ${s.timeUTC}`;
+  if (s.dayOfMonth) return `Month‑day ${s.dayOfMonth} ${s.timeUTC}`;
+  return `${['1st', '2nd', '3rd', '4th', '5th'][s.nthDow! - 1]} ${weekdays[s.dow!]} ${s.timeUTC}`;
 }
 
 /* ——— Component ——— */
 export default function ManageEvents() {
-  const router       = useRouter();
-  const { siteId }   = useParams<{ siteId: string }>();
-  const { isAdmin }  = useAuth();
+  const router = useRouter();
+  const { siteId } = useParams<{ siteId: string }>();
+  const { isAdmin, loading: authLoading } = useAuth();
 
+  const [authChecked, setAuthChecked] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
   const [activeEventId, setActiveEventId] = useState<string | null>(null);
 
+  const [events, setEvents] = useState<Event[]>([]);
+  const [edit, setEdit] = useState<Event | null>(null);
+  const [nameIn, setNameIn] = useState('');
+  const [dowIn, setDowIn] = useState(4);
+  const [timeIn, setTimeIn] = useState('19:00');
+  const [uiLoading, setUiLoading] = useState(false);
 
-  if (!isAdmin) {
-    router.push('/login');
-    return null;
-  }
-
-  const [events, setEvents]   = useState<Event[]>([]);
-  const [edit,   setEdit]     = useState<Event | null>(null);
-  const [nameIn, setNameIn]   = useState('');
-  const [dowIn,  setDowIn]    = useState(4);        // Thu default
-  const [timeIn, setTimeIn]   = useState('19:00');
-  const [loading,setLoading]  = useState(false);
-
-  /* fetch */
+  // 🔐 Auth redirect
   useEffect(() => {
+    if (authLoading) return;
+
+    if (!isAdmin) {
+      router.push('/login');
+    } else {
+      setAuthChecked(true);
+    }
+  }, [authLoading, isAdmin, router]);
+
+  // ✅ Fetch after auth passes
+  useEffect(() => {
+    if (!authChecked) return;
+
     (async () => {
-      const res  = await fetch(`/api/admin/sites/${siteId}/events`);
+      const res = await fetch(`/api/admin/sites/${siteId}/events`);
       const data = await res.json();
       setEvents(data as Event[]);
     })();
-  }, [siteId]);
+  }, [authChecked, siteId]);
 
-  /* helpers */
+  if (!authChecked) return null;
+
   const startEdit = (e: Event) => {
     setEdit(e);
     setNameIn(e.name);
@@ -76,37 +81,40 @@ export default function ManageEvents() {
 
   const saveEdit = async () => {
     if (!edit) return;
-    setLoading(true);
+    setUiLoading(true);
     const res = await fetch(`/api/admin/events/${edit.id}`, {
-      method:'PUT',
-      headers:{'Content-Type':'application/json'},
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: nameIn }),
     });
     if (res.ok) {
       const upd: Event = await res.json();
-      setEvents(arr => arr.map(ev => ev.id === upd.id ? upd : ev));
+      setEvents(arr => arr.map(ev => (ev.id === upd.id ? upd : ev)));
       cancel();
     }
-    setLoading(false);
+    setUiLoading(false);
   };
 
-  const cancel = () => { setEdit(null); setNameIn(''); };
+  const cancel = () => {
+    setEdit(null);
+    setNameIn('');
+  };
 
   const deleteEvent = async (id: string) => {
     if (!confirm('Delete this event (and schedules)?')) return;
-    const res = await fetch(`/api/admin/events/${id}`, { method:'DELETE' });
+    const res = await fetch(`/api/admin/events/${id}`, { method: 'DELETE' });
     if (res.ok) setEvents(arr => arr.filter(ev => ev.id !== id));
   };
 
   const addEvent = async () => {
-    setLoading(true);
+    setUiLoading(true);
     const res = await fetch('/api/admin/events', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         siteId,
         name: nameIn,
-        schedules:[{ freq:'WEEKLY', dow:dowIn, timeUTC:timeIn }],
+        schedules: [{ freq: 'WEEKLY', dow: dowIn, timeUTC: timeIn }],
       }),
     });
     if (res.ok) {
@@ -114,17 +122,13 @@ export default function ManageEvents() {
       setEvents(arr => [...arr, created]);
       setNameIn('');
     }
-    setLoading(false);
+    setUiLoading(false);
   };
 
-  /* ——— UI ——— */
   return (
     <div className="p-6 bg-gray-100 min-h-screen">
-      <Link
-        href="/admin/sites"
-        className="mb-4 flex items-center text-blue-600 hover:underline"
-      >
-        <ChevronLeft className="mr-1" size={18}/> Back to Sites
+      <Link href="/admin/sites" className="mb-4 flex items-center text-blue-600 hover:underline">
+        <ChevronLeft className="mr-1" size={18} /> Back to Sites
       </Link>
 
       <h1 className="text-2xl font-bold mb-6">Events for Site</h1>
@@ -133,8 +137,7 @@ export default function ManageEvents() {
         <h2 className="text-xl font-semibold mb-4">Events</h2>
         <ul className="space-y-2">
           {events.map(ev => (
-            <li key={ev.id}
-                className="flex justify-between items-center bg-white p-3 rounded shadow">
+            <li key={ev.id} className="flex justify-between items-center bg-white p-3 rounded shadow">
               <span className="text-gray-700">
                 {ev.name} — {ev.schedules.map(formatSchedule).join(' • ')}
               </span>
@@ -148,12 +151,14 @@ export default function ManageEvents() {
                 </Link>
 
                 <button
-  className="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600"
-  onClick={() => { setActiveEventId(ev.id); setShowWizard(true); }}
->
-  + Schedule
-</button>
-
+                  className="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600"
+                  onClick={() => {
+                    setActiveEventId(ev.id);
+                    setShowWizard(true);
+                  }}
+                >
+                  + Schedule
+                </button>
 
                 <button
                   className="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600"
@@ -173,7 +178,6 @@ export default function ManageEvents() {
         </ul>
       </section>
 
-      {/* Edit */}
       {edit && (
         <FormCard
           title="Edit Event"
@@ -181,13 +185,12 @@ export default function ManageEvents() {
           setName={setNameIn}
           onPrimary={saveEdit}
           primaryLabel="Save"
-          loading={loading}
+          loading={uiLoading}
           onCancel={cancel}
           scheduleFields={false}
         />
       )}
 
-      {/* Add */}
       {!edit && (
         <FormCard
           title="Add Weekly Event"
@@ -195,7 +198,7 @@ export default function ManageEvents() {
           setName={setNameIn}
           onPrimary={addEvent}
           primaryLabel="Add Event"
-          loading={loading}
+          loading={uiLoading}
           onCancel={() => setNameIn('')}
           scheduleFields={true}
           dowIn={dowIn}
@@ -205,36 +208,29 @@ export default function ManageEvents() {
         />
       )}
 
-       {/* Schedule Wizard Modal */}
-       {showWizard && activeEventId && (
+      {showWizard && activeEventId && (
         <ScheduleWizard
           onSave={async payload => {
-            const res = await fetch(
-              `/api/admin/events/${activeEventId}/schedules`,
-              {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-              }
-            );
+            const res = await fetch(`/api/admin/events/${activeEventId}/schedules`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
             if (res.ok) {
               const newRow = await res.json();
-              setEvents(arr => arr.map(ev =>
-                ev.id === activeEventId
-                  ? { ...ev, schedules: [...ev.schedules, newRow] }
-                  : ev
-              ));
+              setEvents(arr =>
+                arr.map(ev =>
+                  ev.id === activeEventId ? { ...ev, schedules: [...ev.schedules, newRow] } : ev
+                )
+              );
             }
           }}
           onClose={() => setShowWizard(false)}
         />
       )}
-
-      
     </div>
   );
 }
-
 
 /* ——— Re‑usable Card ——— */
 function FormCard(props: {
@@ -251,7 +247,6 @@ function FormCard(props: {
   timeIn?: string;
   setTimeIn?: (t: string) => void;
 }) {
-  const weekdays = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   return (
     <section className="bg-white p-6 rounded shadow mb-6">
       <h2 className="text-xl font-semibold mb-4">{props.title}</h2>
@@ -274,9 +269,11 @@ function FormCard(props: {
                 value={props.dowIn}
                 onChange={e => props.setDowIn!(parseInt(e.target.value))}
               >
-                {weekdays.map((d,i)=>
-                  <option key={i} value={i}>{d}</option>
-                )}
+                {weekdays.map((d, i) => (
+                  <option key={i} value={i}>
+                    {d}
+                  </option>
+                ))}
               </select>
             </div>
             <div>
@@ -309,10 +306,5 @@ function FormCard(props: {
         </button>
       </div>
     </section>
-
-    
   );
-
-
-  
 }

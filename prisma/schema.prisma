@@ -246,16 +246,16 @@ model Round {
 }
 
 model Answer {
-  id            String   @id @default(uuid())
+  id            String       @id @default(uuid())
   teamGameId    String
   questionId    String
   given         String
   isCorrect     Boolean? // null until host scores
-  awardedPoints Int      @default(0)
+  awardedPoints Int          @default(0)
   pointsUsed    Int?
-  createdAt     DateTime @default(now())
-
-  items AnswerItem[] // ← new relation
+  createdAt     DateTime     @default(now())
+  favorite      Boolean      @default(false)
+  items         AnswerItem[] // ← new relation
 
   teamGame TeamGame @relation(fields: [teamGameId], references: [id])
   question Question @relation(fields: [questionId], references: [id])

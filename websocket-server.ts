@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { Server } from "socket.io";
 import { setIo } from './lib/socket.js';
+import { registerReliableHandler } from './lib/reliable-handshake.js';
 import * as https from "https";
 import * as fs from "fs";
 const PORT = 3009;
@@ -30,7 +31,35 @@ try {
   });
 
   setIo(io);
+
   //console.log(`WebSocket server running on port ${PORT}`);
+
+  // === Reliable handlers (with three-way handshake) ===
+  registerReliableHandler(io, 'host:nextQuestion', async (socket, { gameId }) => {
+    console.log('Host is moving to the next question. EMIT: game:updateQuestion');
+    io.to(gameId).emit('game:updateQuestion', { gameId });
+    return {};
+  });
+
+  registerReliableHandler(io, 'host:previousQuestion', async (socket, { gameId }) => {
+    console.log('Host is moving to the previous question. EMIT: game:updateQuestion');
+    io.to(gameId).emit('game:updateQuestion', { gameId });
+    return {};
+  });
+
+  registerReliableHandler(io, 'team:submitAnswer', async (socket, { gameId, teamId, questionId, answer, pointsUsed }) => {
+    console.log(`TEAM: ${teamId} submitted an answer to ${questionId}`);
+    io.to(gameId).emit('host:answerSubmission', { teamId, questionId, answer, pointsUsed });
+    return {};
+  });
+
+  // Add reliable handler for score updates
+  registerReliableHandler(io, 'host:scoreUpdate', async (socket, { gameId, teamId, newScore }) => {
+    console.log(`Score update for Team ${teamId}: ${newScore}`);
+    io.to(gameId).emit('score:update', { teamId, newScore });
+    return {};
+  });
+
 
   io.on('connection', (socket) => {
     console.log('🟢 Connected:', socket.id);
@@ -118,11 +147,6 @@ if (isReconnect) {
     socket.on("host:join", ({ gameId }) => {
       socket.join(gameId);
     });
-
-    socket.on("team:submitAnswer", ({ teamId, questionId, answer, pointsUsed }) => {
-      console.log('TEAM: ' + teamId + ' has submitted an answer');
-      io.emit("host:answerSubmission", { teamId, questionId, answer, pointsUsed });
-    });
     
     socket.on("host:resetSubmissions", ({ gameId }) => {
       io.to(gameId).emit("game:resetSubmissions", { gameId });
@@ -136,34 +160,10 @@ if (isReconnect) {
       io.to(gameId).emit("game:scoresVisibilityChanged", { gameId, scoresVisibleToPlayers });
     });
 
-    socket.on('host:nextQuestion', ({ gameId }) => {
-      console.log('Host is moving to the next question.  EMIT: game:updateQuestion')
-      io.to(gameId).emit('game:updateQuestion');
-    });
-
-    socket.on('host:previousQuestion', ({ gameId }) => {
-      console.log('Host is moving to the previous question.  EMIT: game:updateQuestion')
-      io.to(gameId).emit('game:updateQuestion');
-    });
-
     socket.on("host:gameCompleted", ({ gameId }) => {
       io.to(gameId).emit("game:gameCompleted", { gameId });
     });
 
-
-    /*  place inside io.on('connection', (socket) => { … })  */
-
-    /**
-     * Relay score updates coming from the API route's short‑lived socket.
-     * payload: { gameId, teamId, newScore }
-     */
-    socket.on('host:scoreUpdate', ({ gameId, teamId, newScore }) => {
-      console.log(`Host scored Team ${teamId} answer.  Their new score is ${newScore}`);
-      // broadcast to everyone in that game room
-      io.to(gameId).emit('score:update', { teamId, newScore });
-    });
-
-    // websocket-server.ts  (inside io.on('connection', socket => { ... })
     socket.on('score:update', ({ gameId, teamId, newScore }) => {
       io.to(gameId).emit('score:update', { teamId, newScore });
     });

@@ -2,10 +2,11 @@
 'use client';
 
 import React, { JSX, useCallback, useEffect, useRef, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useSocket } from '@/components/SocketProvider';
 import { useTeamSocket } from '@/app/hooks/useTeamSocket';
-import OrderedQuestion from './components/SortableList'
+import OrderedQuestion from './components/SortableList';
+import { useReliableEmit } from '@/lib/reliable-handshake';
 
 type QuestionType = 'SINGLE' | 'MULTIPLE_CHOICE' | 'ORDERED' | 'WAGER' | 'LIST';
 
@@ -40,18 +41,24 @@ export default function PlayGamePage(): JSX.Element {
   const { gameId } = useParams<{ gameId: string }>();
   const teamId = typeof window !== 'undefined' ? localStorage.getItem('teamId') : null;
   const teamName = typeof window !== 'undefined' ? localStorage.getItem('teamName') : null;
+  const router = useRouter();
+
+  // Save session
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(
+        'teamSession',
+        JSON.stringify({ gameId, teamId, teamName })
+      );
+    }
+  }, [gameId, teamId, teamName]);
 
 
-  //set Team Info in localstorage
-  if (typeof window !== 'undefined' && window.localStorage) {
-    localStorage.setItem(
-      'teamSession',
-      JSON.stringify({ gameId, teamId, teamName })
-    )
-  }
+  
   /* ── socket hookup (keeps connection alive & in the room) ─────── */
   useTeamSocket(true, gameId ?? null, teamId, teamName);
   const socket = useSocket();
+  const reliableEmit = useReliableEmit(socket!, { timeoutMs: 3000, maxRetries: 3 });
 
   /* ── local state ──────────────────────────────────────────────── */
   const [state, setState] = useState<GameState | null>(null);
@@ -121,8 +128,6 @@ export default function PlayGamePage(): JSX.Element {
       }
     };
 
-
-
     /* host advanced to next / previous question */
     const handleQuestionAdvance = async () => {
       try {
@@ -133,7 +138,6 @@ export default function PlayGamePage(): JSX.Element {
         if (res.ok) {
           const newState = (await res.json()) as GameState;
           setState(newState);
-
           /* reset per‑question UI */
           setSubmitted(false);
           setAnswer('');
@@ -156,57 +160,51 @@ export default function PlayGamePage(): JSX.Element {
       }
     };
 
-
     socket.on('disconnect', () => setConnectionStatus('disconnected'));
     socket.on('connect', () => setConnectionStatus('connected'));
     socket.on('connect', handleReconnect);
     socket.on('score:update', handleScoreUpdate);
     socket.on('game:updateQuestion', handleQuestionAdvance);
+    // When the host completes the game…
+    socket.on('game:gameCompleted', () => {
+        router.replace(`/games/${gameId}/play/results`);
+    });
 
     return () => {
       socket.off('score:update', handleScoreUpdate);
       socket.off('game:updateQuestion', handleQuestionAdvance);
       socket.off('connect', handleReconnect);
       socket.off('connect');
+      socket.off('game:gameComplete');
     };
   }, [socket, gameId, teamId]);
 
-  useEffect(() => {
-    console.log('Q-Type:', state?.currentQuestion?.type);
-  }, [state?.currentQuestion?.type]);
-
   /* ── helper: submit answer ─────────────────────────────────────── */
-  const submitAnswer = useCallback(async (): Promise<void> => {
-    if (!state?.currentQuestion || !teamId || !gameId) return;
-
-    const body = {
+  // Submit answer with handshake
+  const submitAnswer = useCallback(async () => {
+    if (!state?.currentQuestion) return;
+    const payload = {
       gameId,
       questionId: state.currentQuestion.id,
       answer,
       pointsUsed: selectedPoints ? [selectedPoints] : [],
       teamId,
     };
-
     try {
       const res = await fetch('/api/play/answers', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
       });
-
-      if (res.ok) {
-        setSubmitted(true);
-        socket?.emit('team:submitAnswer', body);
-      } else {
-
-        console.error('Failed to submit answer:', await res.json());
-      }
+      if (!res.ok) throw new Error('API save failed');
+      reliableEmit(
+        'team:submitAnswer',
+        payload,
+        () => setSubmitted(true),
+        err => console.error('Answer delivery failed', err)
+      );
     } catch (err) {
-
       console.error('Submit answer error:', err);
     }
-  }, [answer, gameId, selectedPoints, socket, state?.currentQuestion, teamId]);
+  }, [state, answer, selectedPoints, gameId, teamId, reliableEmit]);
 
 
   /* ── early exits ──────────────────────────────────────────────── */
@@ -221,6 +219,8 @@ export default function PlayGamePage(): JSX.Element {
   const isOrdered = state.currentQuestion?.type === 'ORDERED';
   const isWager = state?.round?.roundType === 'WAGER'
   const maxWager = state?.team.score ?? 0
+
+  console.log("QUESTION TYPE: " + state.round?.pointSystem + ":" + state.currentQuestion?.type);
 
   // build a truly-Option[] list:
   const orderedOptions: { id: string; text: string }[] =

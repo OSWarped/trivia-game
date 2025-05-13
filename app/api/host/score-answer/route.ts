@@ -1,6 +1,9 @@
 import { PrismaClient } from '@prisma/client';
 import { NextRequest, NextResponse } from 'next/server';
-import { io as ioClient, Socket } from 'socket.io-client';
+//import { io as ioClient, Socket } from 'socket.io-client';
+  // 5️⃣ emit via your long-running Socket.IO server
+  import { getIo } from '@/lib/socket';  // wherever you exposed the io instance
+
 
 const prisma = new PrismaClient();
 const WS_URL =
@@ -44,16 +47,23 @@ export async function POST(req: NextRequest) {
   const { roundType, pointSystem, pointValue } = answer.question.round;
 
   /* 2. decide awardedPoints */
- let awardedPoints = 0;
-if (isCorrect) {
+  let awardedPoints = 0;
+
   if (roundType === 'WAGER') {
-    awardedPoints = answer.pointsUsed ?? 0;
-  } else if (pointSystem === 'FLAT') {
-    awardedPoints = pointValue ?? 0;
-  } else if (pointSystem === 'POOL') {
-    awardedPoints = answer.pointsUsed ?? 0; 
+    // win: +stake; lose: –stake
+    const stake = answer.pointsUsed ?? 0;
+    awardedPoints = isCorrect ? stake : -stake;
+
+    console.log('Team wagered: ' + stake + '\nResult is ' + awardedPoints);
+  
+  } else if (isCorrect) {
+    // non-wager logic unchanged
+    if (pointSystem === 'FLAT') {
+      awardedPoints = pointValue ?? 0;
+    } else if (pointSystem === 'POOL') {
+      awardedPoints = answer.pointsUsed ?? 0;
+    }
   }
-}
 
   /* 3. update that answer row */
   await prisma.answer.update({
@@ -63,7 +73,7 @@ if (isCorrect) {
 
   /* 4. recompute team’s total score */
   const agg = await prisma.answer.aggregate({
-    where: { teamGame: { teamId, gameId }, isCorrect: true },
+    where: { teamGame: { teamId, gameId }},
     _sum:  { awardedPoints: true },
   });
   const newScore = agg._sum.awardedPoints ?? 0;
@@ -73,22 +83,13 @@ if (isCorrect) {
     data:  { totalPts: newScore },
   });
 
-  /* 5. emit score:update via short‑lived socket */
-  let ws: Socket | null = null;
-  try {
-    ws = ioClient(WS_URL, { transports: ['websocket'], forceNew: true });
 
-    await new Promise<void>((resolve) => {
-      ws!.on('connect', resolve);
-      setTimeout(resolve, 1000);        // fallback after 1 s
-    });
+try {
+  const io = getIo();
+  io.to(gameId).emit('score:update', { teamId, newScore });
+} catch (err) {
+  console.error('Emit on server socket failed:', err);
+}
 
-    ws.emit('score:update', { gameId, teamId, newScore });
-  } catch (err) {
-    console.error('WS emit failed:', err);
-  } finally {
-    ws?.disconnect();
-  }
-
-  return NextResponse.json({ ok: true, newScore });
+return NextResponse.json({ ok: true, newScore });
 }

@@ -3,14 +3,14 @@
 'use client'
 
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { useSocket } from '@/components/SocketProvider'
 import { useHostSocket } from '@/app/hooks/useHostSocket'
 import TeamSidebar, { TeamStatus } from './components/TeamSidebar'
 import CurrentGamePanel from './components/CurrentGamePanel'
 import TeamAnswerGrid, { TeamAnswer } from './components/TeamAnswerGrid'
 import TeamDrawer from './components/TeamDrawer'
-
+import { useReliableEmit } from '@/lib/reliable-handshake';
 import type { GameState } from '@prisma/client'
 
 interface QuestionOption { id: string; text: string; isCorrect: boolean }
@@ -45,12 +45,21 @@ export default function HostDashboard() {
   const { gameId } = useParams<{ gameId: string }>()
   const socket = useSocket()
   useHostSocket(true, gameId ?? null)
+  const router = useRouter();
 
   // State
   const [gameState, setGameState] = useState<GameStateExpanded | null>(null)
   const [teamStatus, setTeamStatus] = useState<TeamStatus[]>([])
   const [teamAnswers, setTeamAnswers] = useState<TeamAnswer[]>([])
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected'>('connected')
+  const reliableEmit = useReliableEmit(socket!, {
+    timeoutMs: 3000,
+    maxRetries: 3
+  });
+  
+  const [loadingPrev, setLoadingPrev] = useState(false);
+  const [loadingNext, setLoadingNext] = useState(false);
+  
 
   // Refs for sync
   const currentQuestionRef = useRef<string | null>(null)
@@ -207,67 +216,106 @@ export default function HostDashboard() {
     currentRound.questions.slice().sort((a, b) => a.sortOrder - b.sortOrder).at(-1)?.id === gameState?.currentQuestionId
   const isFinalQuestion = currentIdx === flatQuestions.length - 1
 
-  // Handlers for controls
-  const handlePrev = async () => {
-    await fetch(`/api/host/games/${gameId}/prev`, { method: 'POST' })
-    socket?.emit('host:previousQuestion', { gameId })
-  }
-  const handleNext = async () => {
-    await fetch(`/api/host/games/${gameId}/next`, { method: 'POST' })
-    socket?.emit('host:nextQuestion', { gameId })
-  }
+  // PREVIOUS QUESTION
+const handlePrev = async () => {
+  setLoadingPrev(true);
+  await fetch(`/api/host/games/${gameId}/prev`, { method: 'POST' });
+  reliableEmit(
+    'host:previousQuestion',
+    { gameId },
+    () => setLoadingPrev(false),              // ack ➞ stop loading
+    (err) => {
+      console.error('Prev delivery failed', err);
+      setLoadingPrev(false);
+    }
+  );
+};
+
+// NEXT QUESTION
+const handleNext = async () => {
+  setLoadingNext(true);
+  await fetch(`/api/host/games/${gameId}/next`, { method: 'POST' });
+  reliableEmit(
+    'host:nextQuestion',
+    { gameId },
+    () => setLoadingNext(false),
+    (err) => {
+      console.error('Next delivery failed', err);
+      setLoadingNext(false);
+    }
+  );
+};
+
   const handleComplete = async () => {
     await fetch(`/api/host/games/${gameId}/complete`, { method: 'PATCH' })
     socket?.emit('host:gameCompleted', { gameId })
+    router.push(`/dashboard/host/${gameId}/play/results`);
   }
 
-  const handleScore = async (teamId: string, questionId: string, isCorrect: boolean) => {
-    const res = await fetch('/api/host/score-answer', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ gameId, teamId, questionId, isCorrect }),
-    });
-    const result = await res.json();
-    if (result.ok) {
-      const { newScore } = result;
-      socket?.emit('host:scoreUpdate', { gameId, teamId, newScore });
-      setTeamAnswers(prev =>
-        prev.map(a =>
-          a.teamId === teamId && a.questionId === questionId
-            ? { ...a, isCorrect }
-            : a
-        )
-      );
-    }
-  };
+  // SCORE UPDATE (single-answer)
+const handleScore = async (teamId: string, questionId: string, isCorrect: boolean) => {
+  const res = await fetch('/api/host/score-answer', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ gameId, teamId, questionId, isCorrect }),
+  });
+  const { ok, newScore } = await res.json();
+  if (!ok) return;
 
-  const handleListScore = async (
-    teamId: string,
-    questionId: string,
-    itemIndex: number,
-    isCorrect: boolean
-  ) => {
-    const res = await fetch('/api/host/score-list-answer', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ gameId, teamId, questionId, itemIndex, isCorrect }),
-    })
-    const { ok, newScore } = await res.json()
-    if (!ok) return
-  
-    // 1) Update the per-item UI
-    setTeamAnswers(ans =>
-      ans.map(a => {
-        if (a.teamId !== teamId || a.questionId !== questionId) return a
-        const items = [...(a.items || [])]
-        items[itemIndex] = { ...items[itemIndex], isCorrect }
-        return { ...a, items }
-      })
+  // optimistically update your UI
+  setTeamAnswers(prev =>
+    prev.map(a =>
+      a.teamId === teamId && a.questionId === questionId
+        ? { ...a, isCorrect }
+        : a
     )
-  
-    // 2) Tell everyone (host list, hosts, teams) about the new total
-    socket?.emit('host:scoreUpdate', { gameId, teamId, newScore })
-  }
+  );
+
+  reliableEmit(
+    'host:scoreUpdate',
+    { gameId, teamId, newScore },
+    () => {
+      /* ack: nothing else to do */
+    },
+    (err) => {
+      console.error('ScoreUpdate delivery failed', err);
+    }
+  );
+};
+
+// SCORE UPDATE (list-answer)
+const handleListScore = async (
+  teamId: string,
+  questionId: string,
+  itemIndex: number,
+  isCorrect: boolean
+) => {
+  const res = await fetch('/api/host/score-list-answer', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ gameId, teamId, questionId, itemIndex, isCorrect }),
+  });
+  const { ok, newScore } = await res.json();
+  if (!ok) return;
+
+  setTeamAnswers(ans =>
+    ans.map(a => {
+      if (a.teamId !== teamId || a.questionId !== questionId) return a;
+      const items = [...(a.items || [])];
+      items[itemIndex] = { ...items[itemIndex], isCorrect };
+      return { ...a, items };
+    })
+  );
+
+  reliableEmit(
+    'host:scoreUpdate',
+    { gameId, teamId, newScore },
+    () => { /* ack received */ },
+    (err) => {
+      console.error('ScoreUpdate delivery failed', err);
+    }
+  );
+};
 
   return (
     <div className="flex min-h-screen bg-gray-50">

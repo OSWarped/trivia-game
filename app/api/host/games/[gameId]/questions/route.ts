@@ -25,7 +25,7 @@ export async function GET(
     });
 
     return NextResponse.json(questions);
-  } catch (err: any) {
+  } catch (err) {
     console.error('Error fetching questions for host results:', err);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }

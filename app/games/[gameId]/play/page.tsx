@@ -177,7 +177,7 @@ export default function PlayGamePage(): JSX.Element {
       socket.off('connect');
       socket.off('game:gameComplete');
     };
-  }, [socket, gameId, teamId]);
+  }, [socket, gameId, teamId, router]);
 
   /* ── helper: submit answer ─────────────────────────────────────── */
   // Submit answer with handshake

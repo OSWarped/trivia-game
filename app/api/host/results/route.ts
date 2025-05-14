@@ -68,8 +68,8 @@ export async function GET(req: NextRequest) {
     };
 
     return NextResponse.json(payload);
-  } catch (err: any) {
+  } catch (err) {
     console.error('Error in host results API:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: err }, { status: 500 });
   }
 }

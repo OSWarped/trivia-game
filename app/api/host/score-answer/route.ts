@@ -6,8 +6,8 @@ import { NextRequest, NextResponse } from 'next/server';
 
 
 const prisma = new PrismaClient();
-const WS_URL =
-  process.env.NEXT_PUBLIC_WEBSOCKET_URL?.trim();
+// const WS_URL =
+//   process.env.NEXT_PUBLIC_WEBSOCKET_URL?.trim();
 
 /**
  * POST /api/host/score-answer

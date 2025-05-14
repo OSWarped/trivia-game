@@ -76,7 +76,7 @@ const OrderedQuestion: React.FC<OrderedQuestionProps> = ({ options, onChange }) 
     setItems(shuffled)
     onChange(shuffled)
     // Runs only once on mount; parent should supply a unique key (e.g. questionId) to remount per question
-  }, [])
+  }, [options, onChange])
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })

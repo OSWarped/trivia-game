@@ -1,5 +1,4 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client'
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -57,8 +56,8 @@ export default function HostDashboard() {
     maxRetries: 3
   });
   
-  const [loadingPrev, setLoadingPrev] = useState(false);
-  const [loadingNext, setLoadingNext] = useState(false);
+  const [, setLoadingPrev] = useState(false);
+  const [, setLoadingNext] = useState(false);
 
   const [favoriteMap, setFavoriteMap] = useState<Record<string,boolean>>({})
   

@@ -68,14 +68,14 @@ interface OrderedQuestionProps {
 }
 
 const OrderedQuestion: React.FC<OrderedQuestionProps> = ({ options, onChange }) => {
-  // State for items, initialized via effect
   const [items, setItems] = useState<Option[]>([])
 
+  // Initialize and shuffle once when options change
   useEffect(() => {
-    // shuffle once on mount or options change
     const shuffled = shuffleArray(options)
     setItems(shuffled)
     onChange(shuffled)
+    // Runs only once on mount; parent should supply a unique key (e.g. questionId) to remount per question
   }, [])
 
   const sensors = useSensors(
@@ -85,13 +85,11 @@ const OrderedQuestion: React.FC<OrderedQuestionProps> = ({ options, onChange }) 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
     if (over && active.id !== over.id) {
-      setItems((current) => {
-        const oldIndex = current.findIndex(i => i.id === active.id)
-        const newIndex = current.findIndex(i => i.id === over.id)
-        const newItems = arrayMove(current, oldIndex, newIndex)
-        onChange(newItems)
-        return newItems
-      })
+      const oldIndex = items.findIndex(i => i.id === active.id)
+      const newIndex = items.findIndex(i => i.id === over.id)
+      const newItems = arrayMove(items, oldIndex, newIndex)
+      setItems(newItems)
+      onChange(newItems)
     }
   }
 
@@ -105,7 +103,7 @@ const OrderedQuestion: React.FC<OrderedQuestionProps> = ({ options, onChange }) 
         items={items.map(item => item.id)}
         strategy={verticalListSortingStrategy}
       >
-        {items.map((item) => (
+        {items.map(item => (
           <SortableItem key={item.id} id={item.id} label={item.text} />
         ))}
       </SortableContext>

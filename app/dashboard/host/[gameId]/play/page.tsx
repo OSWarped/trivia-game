@@ -2,13 +2,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client'
 
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useSocket } from '@/components/SocketProvider'
 import { useHostSocket } from '@/app/hooks/useHostSocket'
 import TeamSidebar, { TeamStatus } from './components/TeamSidebar'
 import CurrentGamePanel from './components/CurrentGamePanel'
-import TeamAnswerGrid, { TeamAnswer } from './components/TeamAnswerGrid'
+import TeamAnswerGrid, { TeamAnswerWithFavorite } from './components/TeamAnswerGrid'
 import TeamDrawer from './components/TeamDrawer'
 import { useReliableEmit } from '@/lib/reliable-handshake';
 import type { GameState } from '@prisma/client'
@@ -50,7 +50,7 @@ export default function HostDashboard() {
   // State
   const [gameState, setGameState] = useState<GameStateExpanded | null>(null)
   const [teamStatus, setTeamStatus] = useState<TeamStatus[]>([])
-  const [teamAnswers, setTeamAnswers] = useState<TeamAnswer[]>([])
+  const [teamAnswers, setTeamAnswers] = useState<TeamAnswerWithFavorite[]>([])
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected'>('connected')
   const reliableEmit = useReliableEmit(socket!, {
     timeoutMs: 3000,
@@ -59,6 +59,8 @@ export default function HostDashboard() {
   
   const [loadingPrev, setLoadingPrev] = useState(false);
   const [loadingNext, setLoadingNext] = useState(false);
+
+  const [favoriteMap, setFavoriteMap] = useState<Record<string,boolean>>({})
   
 
   // Refs for sync
@@ -66,6 +68,30 @@ export default function HostDashboard() {
   const pointSystemRef = useRef<'POOL' | 'FLAT' | null>(null)
   const pointValueRef = useRef<number | null>(null)
   const questionTypeRef = useRef<Question['type'] | null>(null)
+
+  // Toggle favorite
+  const handleFavorite = useCallback((answerId: string, fav: boolean) => {
+        const key = `${answerId}`
+        setFavoriteMap(m => ({ ...m, [key]: fav }))
+        fetch(`/api/host/answers/${answerId}/favorite`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ favorite: fav }),
+        }).catch(() => {
+          setFavoriteMap(m => ({ ...m, [key]: !fav }))
+        })
+      }, [])
+
+  // Seed favorites when teamAnswers change
+  useEffect(() => {
+    const map: Record<string, boolean> = {}
+    teamAnswers.forEach(a => {
+      map[`${a.teamId}:${a.questionId}`] = !!a.favorite
+    })
+    setFavoriteMap(map)
+  }, [teamAnswers])
+
+  
 
   useEffect(() => {
     currentQuestionRef.current = gameState?.currentQuestionId ?? null
@@ -122,7 +148,7 @@ export default function HostDashboard() {
       const res = await fetch(
         `/api/host/answers?gameId=${gameId}&teamId=${teamId}&questionId=${questionId}`
       )
-      const { answer: db } = await res.json() as { answer: TeamAnswer }
+      const { answer: db } = await res.json() as { answer: TeamAnswerWithFavorite }
       if (!db) return
       if (db.awardedPoints === 0 && pointSystemRef.current === 'FLAT' && pointValueRef.current != null) {
         db.awardedPoints = pointValueRef.current
@@ -152,6 +178,7 @@ export default function HostDashboard() {
       socket.emit('host:requestLiveTeams', { gameId })
     }
 
+    
     // Connection status
     socket.on('disconnect', () => setConnectionStatus('disconnected'))
     socket.on('connect', () => setConnectionStatus('connected'))
@@ -187,7 +214,7 @@ export default function HostDashboard() {
   const fetchAnswers = async (questionId: string, isList: boolean) => {
     const res = await fetch(`/api/host/games/${gameId}/answers?questionId=${questionId}`, { cache: 'no-store' })
     if (!res.ok) return
-    const raw = await res.json() as TeamAnswer[]
+    const raw = await res.json() as TeamAnswerWithFavorite[]
     if (!isList) { setTeamAnswers(raw); return }
     const withItems = raw.map(a => {
       let arr: string[] = []
@@ -271,6 +298,8 @@ const handleScore = async (teamId: string, questionId: string, isCorrect: boolea
     )
   );
 
+  
+
   reliableEmit(
     'host:scoreUpdate',
     { gameId, teamId, newScore },
@@ -348,13 +377,26 @@ const handleListScore = async (
           />
         )}
 
-        {/* Answer cards */}
-        <TeamAnswerGrid
-          teamAnswers={teamAnswers}
-          currentRound={currentRound}
-          handleScore={handleScore}
-          handleListScore={handleListScore}
-        />
+       {/* Answer cards */}
+<TeamAnswerGrid
+  teamAnswers={teamAnswers.map(a => ({
+    ...a,
+    favorite: favoriteMap[a.id] ?? false,
+  }))}
+  currentRound={currentRound}
+  handleScore={handleScore}
+  handleListScore={handleListScore}
+  // wrap the 3-arg grid callback into your 2-arg handler:
+  handleFavorite={(teamId, questionId, fav) => {
+    // find the matching answer record
+    const answer = teamAnswers.find(
+      a => a.teamId === teamId && a.questionId === questionId
+    )
+    if (!answer) return
+    // now call your new signature
+    handleFavorite(answer.id, fav)
+  }}
+/>
 
         {/* Reconnecting banner */}
         {connectionStatus === 'disconnected' && (

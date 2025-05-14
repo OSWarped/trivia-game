@@ -1,59 +1,81 @@
-'use client';
+'use client'
 
-import React, { JSX, useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import Link from 'next/link';
+import React, { JSX, useEffect, useState } from 'react'
+import { useParams, useRouter } from 'next/navigation'
+import Link from 'next/link'
+
+interface FavoriteEntry {
+  questionId: string
+  yourAnswer: string
+}
 
 interface TeamResult {
-  teamId: string;
-  teamName: string;
-  finalScore: number;
-  rank: number;
-  favorites: { questionId: string; yourAnswer: string }[];
+  teamId: string
+  teamName: string
+  finalScore: number
+  rank: number
+  favorites: FavoriteEntry[]
 }
 
 interface HostResultsData {
-  game: { id: string; title: string; date: string; status: 'DRAFT' | 'LIVE' | 'CLOSED' };
-  teams: TeamResult[];
-  totalTeams: number;
+  game: { id: string; title: string; date: string; status: 'DRAFT' | 'LIVE' | 'CLOSED' }
+  teams: TeamResult[]
+  totalTeams: number
+}
+
+interface QuestionInfo {
+  id: string
+  text: string
 }
 
 export default function HostResultsPage(): JSX.Element {
-  const { gameId } = useParams() as { gameId: string };
-  const router = useRouter();
+  const { gameId } = useParams() as { gameId: string }
+  const router = useRouter()
 
-  const [data, setData] = useState<HostResultsData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<HostResultsData | null>(null)
+  const [questionsMap, setQuestionsMap] = useState<Record<string, string>>({})
+  const [loading, setLoading] = useState(true)
 
+  // Fetch game results and question texts
   useEffect(() => {
-    if (!gameId) return;
-    (async () => {
-      setLoading(true);
+    if (!gameId) return
+    ;(async () => {
+      setLoading(true)
       try {
-        const res = await fetch(`/api/host/results?gameId=${gameId}`, { cache: 'no-store' });
+        // Fetch results
+        const res = await fetch(`/api/host/results?gameId=${gameId}`, { cache: 'no-store' })
         if (!res.ok) {
-          console.error('Failed to load host results', await res.text());
-          setLoading(false);
-          return;
+          console.error('Failed to load host results', await res.text())
+          setLoading(false)
+          return
         }
-        const json = (await res.json()) as HostResultsData;
+        const json = (await res.json()) as HostResultsData
         if (json.game.status !== 'CLOSED') {
-          router.replace(`/dashboard/host/${gameId}/play`);
-          return;
+          router.replace(`/dashboard/host/${gameId}/play`)
+          return
         }
-        setData(json);
+        setData(json)
+
+        // Fetch question texts
+        const qres = await fetch(`/api/host/games/${gameId}/questions`, { cache: 'no-store' })
+        if (qres.ok) {
+          const qs = (await qres.json()) as QuestionInfo[]
+          const map: Record<string, string> = {}
+          qs.forEach(q => { map[q.id] = q.text })
+          setQuestionsMap(map)
+        }
       } catch (err) {
-        console.error('Error fetching host results:', err);
+        console.error('Error fetching host results:', err)
       } finally {
-        setLoading(false);
+        setLoading(false)
       }
-    })();
-  }, [gameId, router]);
+    })()
+  }, [gameId, router])
 
-  if (loading) return <div className="p-6">Loading host results…</div>;
-  if (!data) return <div className="p-6 text-red-600">Host results not available.</div>;
+  if (loading) return <div className="p-6">Loading host results…</div>
+  if (!data) return <div className="p-6 text-red-600">Host results not available.</div>
 
-  const { game, teams, totalTeams } = data;
+  const { game, teams, totalTeams } = data
 
   return (
     <div className="p-6">
@@ -86,7 +108,8 @@ export default function HostResultsPage(): JSX.Element {
                       <ul className="list-disc list-inside">
                         {team.favorites.map((f, idx) => (
                           <li key={idx} className="text-sm">
-                            Q{f.questionId}: <em>{f.yourAnswer}</em>
+                            {/* display question text if available, else ID */}
+                            {questionsMap[f.questionId] ?? `Q${f.questionId}`}: <em>{f.yourAnswer}</em>
                           </li>
                         ))}
                       </ul>
@@ -110,5 +133,5 @@ export default function HostResultsPage(): JSX.Element {
         </Link>
       </footer>
     </div>
-  );
+  )
 }

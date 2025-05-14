@@ -7,14 +7,36 @@ export interface ListItem {
   isCorrect: boolean | null
 }
 
+// in components/TeamAnswerGrid.tsx (or wherever you keep TeamAnswer)
 export interface TeamAnswer {
+  /** The database PK of this Answer record */
+  id: string
+
+  /** ID of the team that submitted */
   teamId: string
+
+  /** Display name of that team */
   teamName: string
+
+  /** The question this answer belongs to */
   questionId: string
+
+  /** Raw text the team submitted */
   given: string
+
+  /** Whether the host marked it correct (null = unscored) */
   isCorrect: boolean | null
+
+  /** Points awarded (can be negative for missed wagers) */
   awardedPoints: number
-  pointsUsed: number | null
+
+  /** How many points the team risked/used */
+  pointsUsed: number
+
+  /** Host’s manual “clever answer” flag */
+  favorite: boolean
+
+  /** For LIST questions, the breakdown into items */
   items?: ListItem[]
 }
 
@@ -23,8 +45,12 @@ export interface Round {
   pointValue?: number
 }
 
-interface TeamAnswerGridProps {
-  teamAnswers: TeamAnswer[]
+export interface TeamAnswerWithFavorite extends TeamAnswer {
+  favorite: boolean
+}
+
+export interface TeamAnswerGridProps {
+  teamAnswers: TeamAnswerWithFavorite[]
   currentRound: Round | null
   handleScore: (teamId: string, questionId: string, isCorrect: boolean) => void
   handleListScore: (
@@ -33,6 +59,7 @@ interface TeamAnswerGridProps {
     itemIndex: number,
     isCorrect: boolean
   ) => void
+  handleFavorite: (teamId: string, questionId: string, favorite: boolean) => void
 }
 
 export default function TeamAnswerGrid({
@@ -40,6 +67,7 @@ export default function TeamAnswerGrid({
   currentRound,
   handleScore,
   handleListScore,
+  handleFavorite,
 }: TeamAnswerGridProps) {
   return (
     <div className="mt-6 grid gap-4 md:grid-cols-2 pb-20">
@@ -55,12 +83,27 @@ export default function TeamAnswerGrid({
         return (
           <div
             key={idx}
-            className={`flex flex-col gap-4 rounded-lg border p-4 shadow ${answerStyle(ans)}`}
+            className={`relative flex flex-col gap-4 rounded-lg border p-4 shadow ${answerStyle(ans)}`}
           >
-            <div className="text-lg font-semibold">{ans.teamName}</div>
+            {/* Favorite toggle */}
+            <button
+              type="button"
+              onClick={() => handleFavorite(ans.teamId, ans.questionId, !ans.favorite)}
+              className="absolute top-2 right-2 p-1 focus:outline-none"
+              title={ans.favorite ? 'Unmark Favorite' : 'Mark Favorite'}
+            >
+              {ans.favorite ? (
+                <span className="text-yellow-500 text-xl">★</span>
+              ) : (
+                <span className="text-gray-300 text-xl">☆</span>
+              )}
+            </button>
+
+            <div className="text-lg font-semibold flex items-center">
+              {ans.teamName}
+            </div>
 
             {isList ? (
-              // LIST question: existing per-item UI
               <div className="space-y-2">
                 <p className="font-medium text-gray-700">Submitted Items:</p>
                 {ans.items?.map((it, i) => (
@@ -99,11 +142,9 @@ export default function TeamAnswerGrid({
                 ))}
               </div>
             ) : (
-              // SINGLE or ORDERED question: render answer or ordered list
               <div className="text-gray-700">
                 <p className="font-medium">Answered:</p>
                 {(() => {
-                  // Try parsing a JSON array for ORDERED
                   try {
                     const arr = JSON.parse(ans.given)
                     if (Array.isArray(arr)) {
@@ -118,7 +159,7 @@ export default function TeamAnswerGrid({
                       )
                     }
                   } catch {
-                    // Not an array, fall back to plain text
+                    
                   }
                   return <span className="font-medium">{ans.given}</span>
                 })()}
@@ -137,7 +178,6 @@ export default function TeamAnswerGrid({
               </div>
             )}
 
-            {/* ── Points info ── */}
             {ans.pointsUsed == null ? (
               <div className="text-sm text-gray-500">Points: {displayPoints}</div>
             ) : (
@@ -146,7 +186,6 @@ export default function TeamAnswerGrid({
               </div>
             )}
 
-            {/* ── for non‐LIST, show global score buttons ── */}
             {!isList && (
               <div className="mt-2 flex gap-2">
                 <button
@@ -172,8 +211,7 @@ export default function TeamAnswerGrid({
   )
 }
 
-// Helper for card styling
-function answerStyle(ans: TeamAnswer) {
+function answerStyle(ans: TeamAnswerWithFavorite) {
   if (ans.isCorrect === true) return 'border-green-400 bg-green-50'
   if (ans.isCorrect === false) return 'border-red-400 bg-red-50'
   return 'border-gray-200'

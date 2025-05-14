@@ -32,13 +32,19 @@ export async function GET(
   }
 
   try {
-    /* 1. fetch all answers for this question within the game */
+    // 1. fetch all answers for this question within the game
     const answers = await prisma.answer.findMany({
       where: {
         questionId,
         teamGame: { gameId },      // join via TeamGame relation
       },
-      include: {
+      select: {
+        id: true,                  // answer record ID
+        given: true,
+        isCorrect: true,
+        awardedPoints: true,
+        pointsUsed: true,
+        favorite: true,
         teamGame: {
           select: {
             teamId: true,
@@ -49,17 +55,18 @@ export async function GET(
       orderBy: { createdAt: 'asc' },
     });
 
-    /* 2. shape the payload for the host UI */
+    // 2. shape the payload for the host UI
     const payload = answers.map((a) => ({
-    teamId: a.teamGame.teamId,
-    teamName: a.teamGame.team.name,
-    questionId: a.questionId,      // ← now included!
-    given: a.given,
-    isCorrect: a.isCorrect,
-    awardedPoints: a.awardedPoints,
-    pointsUsed: a.pointsUsed ?? 0
-  }));
-
+      id: a.id,
+      teamId: a.teamGame.teamId,
+      teamName: a.teamGame.team.name,
+      given: a.given,
+      isCorrect: a.isCorrect,
+      awardedPoints: a.awardedPoints,
+      pointsUsed: a.pointsUsed,
+      favorite: a.favorite,
+      questionId: questionId,
+    }));
 
     return NextResponse.json(payload);
   } catch (err) {

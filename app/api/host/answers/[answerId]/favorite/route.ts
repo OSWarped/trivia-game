@@ -9,7 +9,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ an
   try {
     body = await req.json();
   } catch (err) {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid JSON', err }, { status: 400 });
   }
 
   const { favorite } = body;
@@ -28,10 +28,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ an
     });
 
     return NextResponse.json({ ok: true });
-  } catch (err: any) {
+  } catch (err) {
     console.error('Error updating favorite:', err);
     return NextResponse.json(
-      { error: err.message || 'Server error' },
+      { error: err || 'Server error' },
       { status: 500 }
     );
   }

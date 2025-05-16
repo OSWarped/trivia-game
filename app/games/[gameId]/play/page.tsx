@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
-import React, { JSX, useCallback, useEffect, useRef, useState } from 'react';
+import React, { JSX, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSocket } from '@/components/SocketProvider';
 import { useTeamSocket } from '@/app/hooks/useTeamSocket';
@@ -34,6 +34,11 @@ interface GameState {
     submittedAnswer?: { answer: string; pointsUsed: number[] } | null;
     score: number;
   };
+}
+
+export interface TriviaOption {
+  id: string;
+  text: string;
 }
 
 export default function PlayGamePage(): JSX.Element {
@@ -159,6 +164,8 @@ export default function PlayGamePage(): JSX.Element {
         }
       }
     };
+    
+    
 
     socket.on('disconnect', () => setConnectionStatus('disconnected'));
     socket.on('connect', () => setConnectionStatus('connected'));
@@ -178,6 +185,25 @@ export default function PlayGamePage(): JSX.Element {
       socket.off('game:gameComplete');
     };
   }, [socket, gameId, teamId, router]);
+
+  // build a truly-Option[] list:
+  const orderedOptions = useMemo(() => {
+    if (
+      !state?.currentQuestion ||
+      state.currentQuestion.type !== 'ORDERED' ||
+      !state.currentQuestion.options
+    )
+      return [];
+
+    return state.currentQuestion.options.map((opt) =>
+      typeof opt === 'string'
+        ? { id: opt, text: opt }
+        : { id: (opt as any).id, text: (opt as any).text }
+    );
+    // 🚨  If you'd rather key off the question itself:
+    // }, [state?.currentQuestion?.id]);
+  }, [state?.currentQuestion?.options]);   
+  
 
   /* ── helper: submit answer ─────────────────────────────────────── */
   // Submit answer with handshake
@@ -206,6 +232,13 @@ export default function PlayGamePage(): JSX.Element {
     }
   }, [state, answer, selectedPoints, gameId, teamId, reliableEmit]);
 
+  
+
+
+  const handleOrderChange = useCallback(
+    (newOrder: TriviaOption[]) => setAnswer(newOrder.map(o => o.text)),
+    []
+  );
 
   /* ── early exits ──────────────────────────────────────────────── */
   if (!state) return <div className="p-6">Loading question…</div>;
@@ -222,17 +255,7 @@ export default function PlayGamePage(): JSX.Element {
 
   console.log("QUESTION TYPE: " + state.round?.pointSystem + ":" + state.currentQuestion?.type);
 
-  // build a truly-Option[] list:
-  const orderedOptions: { id: string; text: string }[] =
-  isOrdered && state.currentQuestion?.options
-    ? state.currentQuestion.options.map(opt =>
-        typeof opt === 'string'
-          ? { id: opt, text: opt }
-          : // if it already looks like {id,text}, just trust it
-            ({ id: (opt as any).id, text: (opt as any).text })
-      )
-    : []
-
+  
   /* ── render ───────────────────────────────────────────────────── */
   return (
 
@@ -366,12 +389,7 @@ export default function PlayGamePage(): JSX.Element {
             </div>
           )}
 
-          {/* ── wager ── */}
-{state.round?.roundType === 'WAGER' && (
-  <div className="mb-4">
-    WAGER DETECTED
-  </div>
-)}
+         
 
           {isWager && (
             <div className="mb-4">
@@ -408,12 +426,14 @@ export default function PlayGamePage(): JSX.Element {
             </div>
           )}
 
-          {isOrdered && orderedOptions.length > 0 && (
-            <OrderedQuestion
-              options={orderedOptions}
-              onChange={(newOrder) => setAnswer(newOrder.map(o => o.text))}
-            />
-          )}
+{isOrdered && orderedOptions.length > 0 && (
+  <OrderedQuestion
+    key={state.currentQuestion?.id}      // 🔑 remounts component for a new question
+    options={orderedOptions}             // now a stable reference
+    onChange={handleOrderChange}
+  />
+)}
+
 
           <button
             type="button"

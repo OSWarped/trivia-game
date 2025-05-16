@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import {
   DndContext,
   closestCenter,
@@ -68,15 +68,17 @@ interface OrderedQuestionProps {
 }
 
 const OrderedQuestion: React.FC<OrderedQuestionProps> = ({ options, onChange }) => {
-  const [items, setItems] = useState<Option[]>([])
+  // 1. shuffle once per options change
+  const shuffledOptions = useMemo(() => shuffleArray(options), [options]);
+
+  // 2. local DnD list state
+  const [items, setItems] = useState<Option[]>(shuffledOptions);
 
   // Initialize and shuffle once when options change
   useEffect(() => {
-    const shuffled = shuffleArray(options)
-    setItems(shuffled)
-    onChange(shuffled)
-    // Runs only once on mount; parent should supply a unique key (e.g. questionId) to remount per question
-  }, [options, onChange])
+    setItems(shuffledOptions);
+    onChange(shuffledOptions);          // notify parent once
+  }, [shuffledOptions]);   
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })

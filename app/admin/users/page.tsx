@@ -19,7 +19,7 @@ export default function ManageUsers() {
   const [editUserModal, setEditUserModal] = useState<User | null>(null);
   const [editedName, setEditedName] = useState('');
   const [editedEmail, setEditedEmail] = useState('');
-  const [editedRole, setEditedRole] = useState<string>('HOST'); // or default ''
+  const [editedRole, setEditedRole] = useState<string>('HOST');
 
   useEffect(() => {
     async function fetchUsers() {
@@ -51,6 +51,8 @@ export default function ManageUsers() {
     if (!editUserModal) return;
 
     try {
+      setError('');
+
       const res = await fetch(`/api/admin/users/${editUserModal.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -61,10 +63,13 @@ export default function ManageUsers() {
         }),
       });
 
-      if (!res.ok) throw new Error('Failed to update user');
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null);
+        throw new Error(errorData?.error || 'Failed to update user');
+      }
+
       const updatedUser = await res.json();
 
-      // Update the users state with the updated user
       setUsers((prev) =>
         prev.map((user) => (user.id === updatedUser.id ? updatedUser : user))
       );
@@ -72,7 +77,37 @@ export default function ManageUsers() {
       setEditUserModal(null);
     } catch (err) {
       console.error(err);
-      setError('Failed to save changes.');
+      setError(err instanceof Error ? err.message : 'Failed to save changes.');
+    }
+  }
+
+  async function handleDeleteUser(user: User) {
+    const confirmed = window.confirm(
+      `Are you sure you want to delete ${user.name || user.email}? This action cannot be undone.`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setError('');
+
+      const res = await fetch(`/api/admin/users/${user.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null);
+        throw new Error(errorData?.error || 'Failed to delete user');
+      }
+
+      setUsers((prev) => prev.filter((u) => u.id !== user.id));
+
+      if (editUserModal?.id === user.id) {
+        setEditUserModal(null);
+      }
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : 'Failed to delete user.');
     }
   }
 
@@ -88,7 +123,9 @@ export default function ManageUsers() {
         <ChevronLeft className="mr-1" size={18} />
         Back to Admin Panel
       </button>
+
       <h1 className="text-2xl font-bold mb-4">Manage Users</h1>
+
       <table className="w-full border-collapse border border-gray-300">
         <thead>
           <tr className="bg-gray-100">
@@ -104,24 +141,29 @@ export default function ManageUsers() {
               <td className="border border-gray-300 px-4 py-2">{user.name || 'N/A'}</td>
               <td className="border border-gray-300 px-4 py-2">{user.email}</td>
               <td className="border border-gray-300 px-4 py-2">
-  {user.role ?? 'No role'}
-</td>
-
-
+                {user.role ?? 'No role'}
+              </td>
               <td className="border border-gray-300 px-4 py-2">
-                <button
-                  onClick={() => openEditModal(user)}
-                  className="bg-blue-500 text-white px-3 py-1 rounded"
-                >
-                  Edit
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => openEditModal(user)}
+                    className="bg-blue-500 text-white px-3 py-1 rounded"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleDeleteUser(user)}
+                    className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700"
+                  >
+                    Delete
+                  </button>
+                </div>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
 
-      {/* Edit User Modal */}
       {editUserModal && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
           <div className="bg-white p-6 rounded shadow-lg">
@@ -143,17 +185,15 @@ export default function ManageUsers() {
               />
               <div className="mb-4">
                 <label className="block font-medium mb-2">Roles</label>
-                {/* Role (single‑select) */}
-<select
-  value={editedRole}                    // ← string, not array
-  onChange={(e) => setEditedRole(e.target.value)}
-  className="border p-2 w-full"
->
-  <option value="ADMIN">Admin</option>
-  <option value="HOST">Host</option>
-  <option value="PLAYER">Player</option>
-</select>
-
+                <select
+                  value={editedRole}
+                  onChange={(e) => setEditedRole(e.target.value)}
+                  className="border p-2 w-full"
+                >
+                  <option value="ADMIN">Admin</option>
+                  <option value="HOST">Host</option>
+                  <option value="PLAYER">Player</option>
+                </select>
               </div>
               <div className="flex justify-end space-x-2">
                 <button

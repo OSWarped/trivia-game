@@ -11,8 +11,6 @@ export default function useAuthRefresh() {
   useEffect(() => {
     if (!user) return; // Don't refresh if no user is logged in
 
-    let interval: NodeJS.Timeout;
-
     const checkAndRefreshToken = async () => {
       try {
         const res = await fetch('/api/auth/check-expiry');
@@ -42,7 +40,7 @@ export default function useAuthRefresh() {
     };
 
     // Check every 10 minutes (600,000 ms)
-    interval = setInterval(checkAndRefreshToken, 600000);
+    const interval = setInterval(checkAndRefreshToken, 600000);
 
     return () => clearInterval(interval); // Cleanup interval on unmount
   }, [user, router, setUser]);

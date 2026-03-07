@@ -9,7 +9,7 @@ interface Game {
   id: string;
   title: string;
   scheduledFor: string | null;
-  status: 'DRAFT' | 'LIVE' | 'CLOSED';
+  status: 'DRAFT' | 'LIVE' | 'CLOSED' | 'SCHEDULED' | 'CANCELED';
 }
 
 export default function HostDashboard() {
@@ -110,7 +110,7 @@ export default function HostDashboard() {
                   >
                     Reset Game
                   </button>
-                  {g.status === 'DRAFT' && (
+                  {g.status === 'DRAFT' || g.status === 'SCHEDULED' && (
                     <Link
                       href={`/dashboard/host/games/${g.id}/edit`}
                       className="px-3 py-1 bg-yellow-500 text-white rounded"

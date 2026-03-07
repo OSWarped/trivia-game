@@ -10,7 +10,7 @@ interface Game {
   id: string;
   title: string;
   scheduledFor: string | null;
-  status: 'DRAFT' | 'LIVE' | 'CLOSED';
+  status: 'DRAFT' | 'LIVE' | 'CLOSED' | 'SCHEDULED' | 'CANCELED';
 }
 
 export default function HostGameDetail() {

@@ -1,22 +1,23 @@
-// app/api/host/games/[gameId]/route.ts
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { cookies }       from 'next/headers';
+import { cookies } from 'next/headers';
 import { getUserFromProvidedToken } from '@/utils/auth';
 
 const prisma = new PrismaClient();
 
 export async function GET(
-  req: Request,
+  _req: Request,
   { params }: { params: Promise<{ gameId: string }> }
 ) {
-  // 1. Authenticate via token cookie
   const cookieStore = await cookies();
   const token = cookieStore.get('token')?.value;
+
   if (!token) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
   const user = await getUserFromProvidedToken(token);
+
   if (!user || (user.role !== 'HOST' && user.role !== 'ADMIN')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
@@ -24,7 +25,6 @@ export async function GET(
   const { gameId } = await params;
 
   try {
-    // 2. Fetch game details
     const game = await prisma.game.findUnique({
       where: { id: gameId },
       select: {
@@ -33,31 +33,57 @@ export async function GET(
         scheduledFor: true,
         status: true,
         joinCode: true,
-        event: {
-          select: { id: true, name: true }
-        },
+        hostId: true,
         season: {
-          select: { id: true, name: true }
-        }
-      }
+          select: {
+            id: true,
+            name: true,
+            event: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!game) {
       return NextResponse.json({ error: 'Game not found' }, { status: 404 });
     }
 
-    // 3. Return sanitized game object
+    // Optional extra protection:
+    // if HOST (not ADMIN), only allow access to their own assigned games
+    if (user.role === 'HOST' && game.hostId && game.hostId !== user.userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     return NextResponse.json({
-      id:           game.id,
-      title:        game.title,
+      id: game.id,
+      title: game.title,
       scheduledFor: game.scheduledFor,
-      status:       game.status,
-      joinCode:     game.joinCode,
-      event:        game.event,
-      season:       game.season
+      status: game.status,
+      joinCode: game.joinCode,
+      season: game.season
+        ? {
+          id: game.season.id,
+          name: game.season.name,
+        }
+        : null,
+      event: game.season?.event
+        ? {
+          id: game.season.event.id,
+          name: game.season.event.name,
+        }
+        : null,
     });
   } catch (err) {
-    console.error('GET /api/host/games/[gameId] error:', err);
+    console.error(
+      'GET /api/host/games/[gameId] error:',
+      err instanceof Error ? err.message : String(err)
+    );
+
     return NextResponse.json({ error: 'Failed to load game' }, { status: 500 });
   }
 }

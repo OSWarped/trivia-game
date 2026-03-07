@@ -141,8 +141,8 @@ export default function EditGame() {
           <ChevronLeft className="mr-1" size={18} /> Back
         </Link>
         <h1 className="text-2xl font-bold ml-4">
-  {gameTitle ? `Edit ${gameTitle}` : 'Edit Game'}
-</h1>
+          {gameTitle ? `Edit ${gameTitle}` : 'Edit Game'}
+        </h1>
       </div>
 
       {/* Rounds Panel */}
@@ -158,34 +158,34 @@ export default function EditGame() {
         </div>
 
         <DragDropContext
-  onDragEnd={async (result: DropResult) => {
-    const { source, destination } = result;
-    if (!destination || destination.index === source.index) return;
+          onDragEnd={async (result: DropResult) => {
+            const { source, destination } = result;
+            if (!destination || destination.index === source.index) return;
 
-    let newRounds = reorder(rounds, source.index, destination.index);
+            let newRounds = reorder(rounds, source.index, destination.index);
 
-    // Update sortOrder to reflect new indices (starting from 1)
-    newRounds = newRounds.map((round, index) => ({
-      ...round,
-      sortOrder: index + 1,
-    }));
+            // Update sortOrder to reflect new indices (starting from 1)
+            newRounds = newRounds.map((round, index) => ({
+              ...round,
+              sortOrder: index + 1,
+            }));
 
-    setRounds(newRounds);
+            setRounds(newRounds);
 
-    try {
-      await fetch(`/api/host/games/${gameId}/rounds/reorder`, {
-        method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          order: newRounds.map((r) => r.id),
-        }),
-      });
-    } catch (err) {
-      console.error('Failed to save new round order', err);
-    }
-  }}
->
+            try {
+              await fetch(`/api/host/games/${gameId}/rounds/reorder`, {
+                method: 'PATCH',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  order: newRounds.map((r) => r.id),
+                }),
+              });
+            } catch (err) {
+              console.error('Failed to save new round order', err);
+            }
+          }}
+        >
 
           <Droppable droppableId="rounds-droppable">
             {(provided) => (
@@ -196,39 +196,36 @@ export default function EditGame() {
               >
                 {rounds.map((r, index) => (
                   <Draggable key={r.id} draggableId={r.id} index={index}>
-                  {(prov) => (
-                    <li
-                      ref={prov.innerRef}
-                      {...prov.draggableProps}
-                      className={`flex items-center p-3 rounded shadow cursor-pointer transition-colors ${
-                        selectedRound?.id === r.id
-                          ? 'bg-blue-500 text-white'  // Primary background and white text when selected
-                          : 'bg-white text-gray-800'  // Default background and text
-                      }`}
-                      onClick={() => setSelectedRound(r)}
-                    >
-                      <span
-                        {...prov.dragHandleProps}
-                        className={`mr-2 cursor-move select-none ${
-                          selectedRound?.id === r.id ? 'text-white' : 'text-gray-500'
-                        }`}
+                    {(prov) => (
+                      <li
+                        ref={prov.innerRef}
+                        {...prov.draggableProps}
+                        className={`flex items-center p-3 rounded shadow cursor-pointer transition-colors ${selectedRound?.id === r.id
+                            ? 'bg-blue-500 text-white'  // Primary background and white text when selected
+                            : 'bg-white text-gray-800'  // Default background and text
+                          }`}
+                        onClick={() => setSelectedRound(r)}
                       >
-                        ⋮⋮
-                      </span>
-                      <span className="flex-1">
-                        {r.sortOrder}. {r.name}
-                      </span>
-                      <span
-                        className={`text-sm ${
-                          selectedRound?.id === r.id ? 'text-gray-200' : 'text-gray-600'
-                        }`}
-                      >
-                        {r.roundType}
-                      </span>
-                    </li>
-                  )}
-                </Draggable>
-                
+                        <span
+                          {...prov.dragHandleProps}
+                          className={`mr-2 cursor-move select-none ${selectedRound?.id === r.id ? 'text-white' : 'text-gray-500'
+                            }`}
+                        >
+                          ⋮⋮
+                        </span>
+                        <span className="flex-1">
+                          {r.sortOrder}. {r.name}
+                        </span>
+                        <span
+                          className={`text-sm ${selectedRound?.id === r.id ? 'text-gray-200' : 'text-gray-600'
+                            }`}
+                        >
+                          {r.roundType}
+                        </span>
+                      </li>
+                    )}
+                  </Draggable>
+
                 ))}
                 {provided.placeholder}
               </ul>
@@ -238,121 +235,121 @@ export default function EditGame() {
       </div>
 
       {/* Questions Panel */}
-<div className="col-span-12 md:col-span-8 bg-white p-4 rounded shadow">
-  <div className="flex justify-between items-center mb-3">
-    <h2 className="text-xl font-semibold">
-      Questions{selectedRound ? ` – ${selectedRound.name}` : ''}
-    </h2>
-    {selectedRound ? (
-      <button
-        className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600"
-        onClick={() => setShowAddQuestion(true)}
-      >
-        + Add Question
-      </button>
-    ) : (
-      <span className="text-gray-500">Select a round to add questions</span>
-    )}
-  </div>
+      <div className="col-span-12 md:col-span-8 bg-white p-4 rounded shadow">
+        <div className="flex justify-between items-center mb-3">
+          <h2 className="text-xl font-semibold">
+            Questions{selectedRound ? ` – ${selectedRound.name}` : ''}
+          </h2>
+          {selectedRound ? (
+            <button
+              className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600"
+              onClick={() => setShowAddQuestion(true)}
+            >
+              + Add Question
+            </button>
+          ) : (
+            <span className="text-gray-500">Select a round to add questions</span>
+          )}
+        </div>
 
-  {selectedRound ? (
-    <DragDropContext
-    onDragEnd={async (result: DropResult) => {
-      const { source, destination } = result;
-      if (!destination || destination.index === source.index) return;
-  
-      let newQuestions = reorder(questions, source.index, destination.index);
-  
-      // Update sortOrder to reflect new indices (starting from 1)
-      newQuestions = newQuestions.map((question, index) => ({
-        ...question,
-        sortOrder: index + 1,
-      }));
-  
-      setQuestions(newQuestions);
-  
-      try {
-        await fetch(`/api/host/rounds/${selectedRound.id}/questions/reorder`, {
-          method: 'PATCH',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            order: newQuestions.map((q) => q.id),
-          }),
-        });
-      } catch (err) {
-        console.error('Failed to save new question order', err);
-      }
-    }}
-  >
-      <Droppable droppableId="questions-droppable">
-        {(provided) => (
-          <ul
-            ref={provided.innerRef}
-            {...provided.droppableProps}
-            className="space-y-2"
+        {selectedRound ? (
+          <DragDropContext
+            onDragEnd={async (result: DropResult) => {
+              const { source, destination } = result;
+              if (!destination || destination.index === source.index) return;
+
+              let newQuestions = reorder(questions, source.index, destination.index);
+
+              // Update sortOrder to reflect new indices (starting from 1)
+              newQuestions = newQuestions.map((question, index) => ({
+                ...question,
+                sortOrder: index + 1,
+              }));
+
+              setQuestions(newQuestions);
+
+              try {
+                await fetch(`/api/host/rounds/${selectedRound.id}/questions/reorder`, {
+                  method: 'PATCH',
+                  credentials: 'include',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    order: newQuestions.map((q) => q.id),
+                  }),
+                });
+              } catch (err) {
+                console.error('Failed to save new question order', err);
+              }
+            }}
           >
-            {questions.map((q, idx) => (
-              <Draggable key={q.id} draggableId={q.id} index={idx}>
-                {(prov) => (
-                  <li
-                    ref={prov.innerRef}
-                    {...prov.draggableProps}
-                    className="p-2 border rounded flex items-center justify-between bg-white"
-                  >
-                    {/* drag-handle */}
-                    <span
-                      {...prov.dragHandleProps}
-                      className="mr-2 cursor-move text-gray-500 select-none"
-                    >
-                      ⋮⋮
-                    </span>
+            <Droppable droppableId="questions-droppable">
+              {(provided) => (
+                <ul
+                  ref={provided.innerRef}
+                  {...provided.droppableProps}
+                  className="space-y-2"
+                >
+                  {questions.map((q, idx) => (
+                    <Draggable key={q.id} draggableId={q.id} index={idx}>
+                      {(prov) => (
+                        <li
+                          ref={prov.innerRef}
+                          {...prov.draggableProps}
+                          className="p-2 border rounded flex items-center justify-between bg-white"
+                        >
+                          {/* drag-handle */}
+                          <span
+                            {...prov.dragHandleProps}
+                            className="mr-2 cursor-move text-gray-500 select-none"
+                          >
+                            ⋮⋮
+                          </span>
 
-                    {/* question text */}
-                    <div className="flex-1">
-                      <div className="font-medium">
-                        {q.sortOrder}. {q.text}
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        Type: {q.type}
-                      </div>
-                    </div>
+                          {/* question text */}
+                          <div className="flex-1">
+                            <div className="font-medium">
+                              {q.sortOrder}. {q.text}
+                            </div>
+                            <div className="text-sm text-gray-600">
+                              Type: {q.type}
+                            </div>
+                          </div>
 
-                    {/* edit button */}
-                    <button
-  className="ml-4 px-2 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600"
-  onClick={async () => {
-    try {
-      const res = await fetch(`/api/host/questions/${q.id}`, {
-        credentials: 'include',
-      });
-      if (res.ok) {
-        const fullQuestion = await res.json();
-        setQuestionToEdit(fullQuestion);
-        setShowAddQuestion(true);
-      } else {
-        console.error('Failed to load question', await res.json());
-      }
-    } catch (err) {
-      console.error('Error fetching question', err);
-    }
-  }}
->
-  Edit
-</button>
-                  </li>
-                )}
-              </Draggable>
-            ))}
-            {provided.placeholder}
-          </ul>
+                          {/* edit button */}
+                          <button
+                            className="ml-4 px-2 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600"
+                            onClick={async () => {
+                              try {
+                                const res = await fetch(`/api/host/questions/${q.id}`, {
+                                  credentials: 'include',
+                                });
+                                if (res.ok) {
+                                  const fullQuestion = await res.json();
+                                  setQuestionToEdit(fullQuestion);
+                                  setShowAddQuestion(true);
+                                } else {
+                                  console.error('Failed to load question', await res.json());
+                                }
+                              } catch (err) {
+                                console.error('Error fetching question', err);
+                              }
+                            }}
+                          >
+                            Edit
+                          </button>
+                        </li>
+                      )}
+                    </Draggable>
+                  ))}
+                  {provided.placeholder}
+                </ul>
+              )}
+            </Droppable>
+          </DragDropContext>
+        ) : (
+          <p className="text-gray-600">No round selected.</p>
         )}
-      </Droppable>
-    </DragDropContext>
-  ) : (
-    <p className="text-gray-600">No round selected.</p>
-  )}
-</div>
+      </div>
 
       {/* Modals */}
       <AddRoundModal
@@ -380,11 +377,11 @@ export default function EditGame() {
 
       {selectedRound && (
         <AddQuestionModal
-        isOpen={showAddQuestion}
-  onClose={() => {
-    setQuestionToEdit(null); // this stays
-    setShowAddQuestion(false);
-  }}
+          isOpen={showAddQuestion}
+          onClose={() => {
+            setQuestionToEdit(null); // this stays
+            setShowAddQuestion(false);
+          }}
           onSave={async (config, idToUpdate) => {
             if (idToUpdate) {
               // UPDATE existing question
@@ -394,7 +391,7 @@ export default function EditGame() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(config),
               });
-          
+
               if (res.ok) {
                 const updated = await res.json();
                 setQuestions((prev) =>
@@ -413,7 +410,7 @@ export default function EditGame() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(config),
               });
-          
+
               if (res.ok) {
                 const newQ = await res.json();
                 setQuestions((qs) => [...qs, newQ]);

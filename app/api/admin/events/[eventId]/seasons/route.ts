@@ -22,31 +22,86 @@ export async function GET(
 }
 
 export async function POST(
-    req: Request,
-    { params }: { params: Promise<{ eventId: string }> },
-  ) {
-    const { eventId } = await params;
-    const { name, startsAt, endsAt, recurring } = await req.json();
-  
-    if (!name || !startsAt) {
-      return NextResponse.json({ error: 'Bad request' }, { status: 400 });
+  req: Request,
+  { params }: { params: Promise<{ eventId: string }> },
+) {
+  const { eventId } = await params;
+
+  const body = (await req.json()) as {
+    name?: string;
+    startsAt?: string;
+    endsAt?: string | null;
+    active?: boolean;
+  };
+
+  const name = body.name?.trim();
+
+  if (!name) {
+    return NextResponse.json({ error: 'Season name is required' }, { status: 400 });
+  }
+
+  if (!body.startsAt) {
+    return NextResponse.json({ error: 'Start date is required' }, { status: 400 });
+  }
+
+  try {
+    const event = await prisma.event.findUnique({
+      where: { id: eventId },
+      select: { id: true },
+    });
+
+    if (!event) {
+      return NextResponse.json({ error: 'Event not found' }, { status: 404 });
     }
-  
-    try {
-      const season = await prisma.season.create({
+
+    let created;
+
+    if (body.active === true) {
+      [, created] = await prisma.$transaction([
+        prisma.season.updateMany({
+          where: { eventId },
+          data: { active: false },
+        }),
+        prisma.season.create({
+          data: {
+            eventId,
+            name,
+            startsAt: new Date(body.startsAt),
+            endsAt: body.endsAt ? new Date(body.endsAt) : null,
+            active: true,
+          },
+          select: {
+            id: true,
+            name: true,
+            startsAt: true,
+            endsAt: true,
+            active: true,
+          },
+        }),
+      ]);
+    } else {
+      created = await prisma.season.create({
         data: {
-          eventId:  eventId,
+          eventId,
           name,
-          startsAt: new Date(startsAt),
-          endsAt:   endsAt ? new Date(endsAt) : null,
-          recurring: recurring ?? false,
-          active:    true,
+          startsAt: new Date(body.startsAt),
+          endsAt: body.endsAt ? new Date(body.endsAt) : null,
+          active: false,
+        },
+        select: {
+          id: true,
+          name: true,
+          startsAt: true,
+          endsAt: true,
+          active: true,
         },
       });
-      return NextResponse.json(season, { status: 201 });
-    } catch (err) {
-      console.error('Error creating season:', err);
-      return NextResponse.json({ error: 'Failed' }, { status: 500 });
     }
+
+    return NextResponse.json(created, { status: 201 });
+  } catch (err) {
+    console.error('Failed to create season:', err);
+    return NextResponse.json({ error: 'Failed to create season' }, { status: 500 });
   }
+}
   

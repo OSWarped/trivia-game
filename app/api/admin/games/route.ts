@@ -3,83 +3,234 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-export async function GET(req: Request) {
-  try {
-    console.log(req);
-    const games = await prisma.game.findMany({
-      include: {
-        teamGames: {
-          include: {
-            team: true, // Include details of the associated teams
-          },
-        },
-        Site: true, // Include hosting site details
-      },
-    });
+type GameListItem = {
+  id: string;
+  title: string;
+  joinCode: string;
+  status: string;
+  scheduledFor: string | null;
+  startedAt: string | null;
+  endedAt: string | null;
+  special: boolean;
+  tag: string | null;
+  season: {
+    id: string;
+    name: string;
+  };
+  host: {
+    id: string;
+    name: string;
+    email: string;
+  } | null;
+};
 
-    // If no games found, return an empty array
-    return NextResponse.json(games || []);
-  } catch (error) {
-    console.error('Error fetching games:', error);
-    return NextResponse.json({ error: 'Failed to fetch games' }, { status: 500 });
-  }
+type EventGroup = {
+  eventId: string;
+  eventName: string;
+  upcomingGames: GameListItem[];
+  pastGames: GameListItem[];
+};
+
+type SiteGroup = {
+  siteId: string;
+  siteName: string;
+  events: EventGroup[];
+};
+
+function toGameListItem(game: {
+  id: string;
+  title: string;
+  joinCode: string;
+  status: string;
+  scheduledFor: Date | null;
+  startedAt: Date | null;
+  endedAt: Date | null;
+  special: boolean;
+  tag: string | null;
+  season: {
+    id: string;
+    name: string;
+    event: {
+      id: string;
+      name: string;
+      site: {
+        id: string;
+        name: string;
+      };
+    };
+  };
+  host: {
+    id: string;
+    name: string;
+    email: string;
+  } | null;
+}): GameListItem {
+  return {
+    id: game.id,
+    title: game.title,
+    joinCode: game.joinCode,
+    status: game.status,
+    scheduledFor: game.scheduledFor ? game.scheduledFor.toISOString() : null,
+    startedAt: game.startedAt ? game.startedAt.toISOString() : null,
+    endedAt: game.endedAt ? game.endedAt.toISOString() : null,
+    special: game.special,
+    tag: game.tag,
+    season: {
+      id: game.season.id,
+      name: game.season.name,
+    },
+    host: game.host
+      ? {
+          id: game.host.id,
+          name: game.host.name,
+          email: game.host.email,
+        }
+      : null,
+  };
 }
 
-// export async function POST(req: Request) {
-//   const { siteId, seasonId, title } = await req.json();
+function isUpcoming(game: {
+  status: string;
+  scheduledFor: Date | null;
+  startedAt: Date | null;
+  endedAt: Date | null;
+}, now: Date): boolean {
+  if (game.status === 'CLOSED' || game.status === 'CANCELED') {
+    return false;
+  }
 
-//   /* ─── basic validation ─── */
-//   if (!title || typeof title !== 'string') {
-//     return NextResponse.json({ error: 'Invalid title' }, { status: 400 });
-//   }
-//   if (!siteId || typeof siteId !== 'string') {
-//     return NextResponse.json({ error: 'Invalid siteId' }, { status: 400 });
-//   }
-  
+  if (game.endedAt) {
+    return false;
+  }
 
-//   /* ─── get or create active season for the site ─── */
-//   let seasonIdToUse = seasonId;
+  if (game.startedAt && game.status === 'LIVE') {
+    return true;
+  }
 
-//   if (!seasonIdToUse) {
-//     const activeSeason = await prisma.season.findFirst({
-//       where: { siteId, isActive: true },
-//     });
+  if (!game.scheduledFor) {
+    return game.status === 'DRAFT' || game.status === 'SCHEDULED';
+  }
 
-//     if (activeSeason) {
-//       seasonIdToUse = activeSeason.id;
-//     } else {
-//       // auto‑create an open‑ended recurring season
-//       const newSeason = await prisma.season.create({
-//         data: {
-//           siteId,
-//           name: 'Ongoing Trivia',
-//           recurring: true,
-//         },
-//       });
-//       seasonIdToUse = newSeason.id;
-//     }
-//   }
+  return game.scheduledFor >= now;
+}
 
-//   try {
-//     const newGame = await prisma.game.create({
-//       data: {
-//         siteId,
-//         seasonId: seasonIdToUse,
-//         title,
-//         // status defaults to DRAFT; startedAt/endedAt null
-//       },
-//       include: {
-//         site:   true,
-//         season: true,
-//       },
-//     });
+export async function GET() {
+  try {
+    const now = new Date();
 
-//     return NextResponse.json(newGame, { status: 201 });
-//   } catch (err) {
-//     console.error('Failed to create game:', err);
-//     return NextResponse.json(
-//       { error: 'Failed to create game' },
-//       { status: 500 }
-//     );
-//   }
-// }
+    const games = await prisma.game.findMany({
+      include: {
+        season: {
+          select: {
+            id: true,
+            name: true,
+            event: {
+              select: {
+                id: true,
+                name: true,
+                site: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        host: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: [
+        {
+          season: {
+            event: {
+              site: {
+                name: 'asc',
+              },
+            },
+          },
+        },
+        {
+          season: {
+            event: {
+              name: 'asc',
+            },
+          },
+        },
+        { scheduledFor: 'asc' },
+        { createdAt: 'desc' },
+      ],
+    });
+
+    const siteMap = new Map<string, SiteGroup>();
+
+    for (const game of games) {
+      const site = game.season.event.site;
+      const event = game.season.event;
+
+      let siteGroup = siteMap.get(site.id);
+      if (!siteGroup) {
+        siteGroup = {
+          siteId: site.id,
+          siteName: site.name,
+          events: [],
+        };
+        siteMap.set(site.id, siteGroup);
+      }
+
+      let eventGroup = siteGroup.events.find((e) => e.eventId === event.id);
+      if (!eventGroup) {
+        eventGroup = {
+          eventId: event.id,
+          eventName: event.name,
+          upcomingGames: [],
+          pastGames: [],
+        };
+        siteGroup.events.push(eventGroup);
+      }
+
+      const item = toGameListItem(game);
+
+      if (isUpcoming(game, now)) {
+        eventGroup.upcomingGames.push(item);
+      } else {
+        eventGroup.pastGames.push(item);
+      }
+    }
+
+    const payload: SiteGroup[] = Array.from(siteMap.values()).map((siteGroup) => ({
+      ...siteGroup,
+      events: siteGroup.events.map((eventGroup) => ({
+        ...eventGroup,
+        upcomingGames: eventGroup.upcomingGames.sort((a, b) => {
+          const aTime = a.scheduledFor ? new Date(a.scheduledFor).getTime() : Number.MAX_SAFE_INTEGER;
+          const bTime = b.scheduledFor ? new Date(b.scheduledFor).getTime() : Number.MAX_SAFE_INTEGER;
+          return aTime - bTime;
+        }),
+        pastGames: eventGroup.pastGames.sort((a, b) => {
+          const aTime = a.scheduledFor ? new Date(a.scheduledFor).getTime() : 0;
+          const bTime = b.scheduledFor ? new Date(b.scheduledFor).getTime() : 0;
+          return bTime - aTime;
+        }),
+      })),
+    }));
+
+    return NextResponse.json(payload);
+  } catch (error) {
+    console.error(
+      'Error fetching admin game list:',
+      error instanceof Error ? error.message : String(error),
+    );
+
+    return NextResponse.json(
+      { error: 'Failed to fetch games' },
+      { status: 500 },
+    );
+  }
+}

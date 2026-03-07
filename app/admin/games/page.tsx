@@ -1,306 +1,370 @@
 'use client';
 
-import { Round } from '@prisma/client';
-import { ChevronLeft } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
+import { ChevronLeft, CalendarDays, FolderTree, MapPin, } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useAuth } from '@/context/AuthContext';
 
-interface HostingSite {
-  id: string;
-  name: string;
-  location: string;
-}
-
-interface Team {
-  id: string;
-  name: string;
-  captainId: string;
-  gameId: string;
-  score: number;
-}
-
-interface Game {
+interface GameListItem {
   id: string;
   title: string;
-  date: string;
-  hostingSiteId: string;
-  hostingSite: HostingSite | null;
-  hostId: string; // Directly store hostId in the Game model
-  teams: Team[];
-  rounds: Round[];
+  joinCode: string;
+  status: string;
+  scheduledFor: string | null;
+  startedAt: string | null;
+  endedAt: string | null;
+  special: boolean;
+  tag: string | null;
+  season: {
+    id: string;
+    name: string;
+  };
+  host: {
+    id: string;
+    name: string;
+    email: string;
+  } | null;
 }
 
-interface User {
-  id: string;
-  name: string;
-  role: string;
+interface EventGroup {
+  eventId: string;
+  eventName: string;
+  upcomingGames: GameListItem[];
+  pastGames: GameListItem[];
 }
 
-export default function ManageGames() {
+interface SiteGroup {
+  siteId: string;
+  siteName: string;
+  events: EventGroup[];
+}
+
+function formatDateTime(date: string | null): string {
+  if (!date) return 'Unscheduled';
+  return new Date(date).toLocaleString();
+}
+
+function getStatusBadgeClasses(status: string): string {
+  switch (status.toUpperCase()) {
+    case 'LIVE':
+      return 'bg-green-100 text-green-700';
+    case 'CLOSED':
+      return 'bg-gray-200 text-gray-700';
+    case 'DRAFT':
+      return 'bg-yellow-100 text-yellow-700';
+    case 'SCHEDULED':
+      return 'bg-blue-100 text-blue-700';
+    case 'CANCELED':
+      return 'bg-red-100 text-red-700';
+    default:
+      return 'bg-gray-100 text-gray-600';
+  }
+}
+
+export default function ManageGamesPage() {
   const router = useRouter();
-  const [games, setGames] = useState<Game[]>([]);
-  const [hostingSites, setHostingSites] = useState<HostingSite[]>([]);
-  const [hosts, setHosts] = useState<User[]>([]);
-  const [editGame, setEditGame] = useState<Game | null>(null);
-  const [newGame, setNewGame] = useState({ title: '', date: '', hostingSiteId: '', hostId: '' });
-  const [showModal, setShowModal] = useState(false);
+  const { isAdmin, loading: authLoading } = useAuth();
 
-  const [loading, setLoading] = useState<boolean>(true);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Function to fetch games
-  const fetchGames = async () => {
+  const [siteGroups, setSiteGroups] = useState<SiteGroup[]>([]);
+
+  useEffect(() => {
+    if (authLoading) return;
+
+    if (!isAdmin) {
+      router.push('/login');
+      return;
+    }
+
+    setAuthChecked(true);
+  }, [authLoading, isAdmin, router]);
+
+  const loadGames = useCallback(async () => {
     try {
-      const res = await fetch('/api/admin/games');
-      const data = await res.json();
-      setGames(data);
+      setLoading(true);
+      setError(null);
+
+      const res = await fetch('/api/admin/games', {
+        cache: 'no-store',
+      });
+
+      if (!res.ok) {
+        const data = (await res.json()) as { error?: string };
+        throw new Error(data.error ?? 'Failed to fetch games.');
+      }
+
+      const data = (await res.json()) as SiteGroup[];
+      setSiteGroups(data);
     } catch (err) {
-      console.error('Error fetching games:', err);
-      setError('Failed to fetch games');
+      setError(err instanceof Error ? err.message : 'Something went wrong.');
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    // Fetch the initial data when the component mounts
-    async function fetchHostingSites() {
-      try {
-        const res = await fetch('/api/admin/sites');
-        const data = await res.json();
-        setHostingSites(data);
-      } catch (err) {
-        console.error('Error fetching hosting sites:', err);
-      }
-    }
-
-    async function fetchHosts() {
-      try {
-        const res = await fetch('/api/admin/users');
-        const data = await res.json();
-        const hosts = data.filter((user: User) => (user.role =='HOST' || user.role == 'ADMIN'));
-        setHosts(hosts);
-      } catch (err) {
-        console.error('Error fetching hosts:', err);
-      }
-    }
-
-    fetchGames();
-    fetchHostingSites();
-    fetchHosts();
   }, []);
 
-  // Save or update game
-  const handleSaveGame = async () => {
-    const endpoint = editGame ? `/api/admin/games/${editGame.id}` : '/api/admin/games';
-    const method = editGame ? 'PUT' : 'POST';
+  useEffect(() => {
+    if (!authChecked) return;
+    void loadGames();
+  }, [authChecked, loadGames]);
 
-    const body = editGame
-      ? { ...editGame, hostId: editGame.hostId }
-      : { ...newGame, hostId: newGame.hostId };
+  async function handleDeleteGame(gameId: string): Promise<void> {
+    if (!window.confirm('Delete this game?')) return;
 
-    try {
-      const res = await fetch(endpoint, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-
-      if (res.ok) {
-        const updatedGame = await res.json();
-        // Update the game list
-        setGames((prevGames) =>
-          prevGames.map((game) => (game.id === updatedGame.id ? updatedGame : game))
-        );
-        setEditGame(null);
-        setNewGame({ title: '', date: '', hostingSiteId: '', hostId: '' });
-        setShowModal(false);
-        fetchGames(); // Re-fetch the games list after saving
-      } else {
-        alert('Failed to save game');
-      }
-    } catch (err) {
-      console.error('Error saving game:', err);
-    }
-  };
-
-  const handleDeleteGame = async (gameId: string) => {
-    try {
-      const res = await fetch(`/api/admin/games/${gameId}`, {
-        method: 'DELETE',
-      });
-
-      if (res.ok) {
-        setGames((prevGames) => prevGames.filter((game) => game.id !== gameId));
-      } else {
-        alert('Failed to delete game');
-      }
-    } catch (err) {
-      console.error('Error deleting game:', err);
-    }
-  };
-
-  const handleEditGame = (game: Game) => {
-    setEditGame(game);
-    setNewGame({
-      title: game.title,
-      date: game.date,
-      hostingSiteId: game.hostingSiteId,
-      hostId: game.hostId, // Directly use hostId
+    const res = await fetch(`/api/admin/games/${gameId}`, {
+      method: 'DELETE',
     });
-    setShowModal(true);
-  };
 
-  if (loading) {
-    return <div>Loading...</div>;
+    if (!res.ok) {
+      const data = (await res.json()) as { error?: string };
+      window.alert(data.error ?? 'Failed to delete game.');
+      return;
+    }
+
+    await loadGames();
+  }
+
+  if (!authChecked || loading) {
+    return (
+      <div className="min-h-screen bg-gray-100 p-6">
+        <div className="rounded-xl bg-white p-6 shadow">Loading games...</div>
+      </div>
+    );
   }
 
   if (error) {
-    return <div className="text-red-500">{error}</div>;
+    return (
+      <div className="min-h-screen bg-gray-100 p-6">
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
+          {error}
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="p-6 bg-gray-100 min-h-screen">
-    <button
+    <div className="min-h-screen bg-gray-100 p-6">
+      <button
+        type="button"
         onClick={() => router.push('/admin/dashboard')}
-        className="mb-4 flex items-center text-blue-600 hover:underline"
+        className="mb-4 inline-flex items-center text-blue-600 hover:underline"
       >
         <ChevronLeft className="mr-1" size={18} />
         Back to Admin Panel
       </button>
-      <h1 className="text-2xl font-bold mb-6">Manage Games</h1>
-      <button
-        className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 mb-4"
-        onClick={() => {
-          setShowModal(true);
-          setEditGame(null);
-          setNewGame({ title: '', date: '', hostingSiteId: '', hostId: '' });
-        }}
-      >
-        Add New Game
-      </button>
-      <ul className="space-y-4">
-  {games.map((game) => {
-    const host = hosts.find((host) => host.id === game.hostId); // Find the host by hostId
-    return (
-      <li key={game.id} className="flex justify-between items-center bg-white p-4 rounded shadow-md">
-        <div>
-          <h2 className="text-lg font-semibold">{game.title}</h2>
-          <p className="text-sm text-gray-600">
-            Date: {new Date(game.date).toLocaleDateString('en-US')}
-          </p>
-          <p className="text-sm text-gray-600">
-            Hosting Site: {game.hostingSite ? game.hostingSite.name : 'No hosting site assigned'}
-          </p>
-          <p className="text-sm text-gray-600">
-            Host: {host ? host.name : 'No host assigned'} {/* Display the host's name */}
-          </p>
-        </div>
-        <div className="flex space-x-2">
-          <button
-            className="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600"
-            onClick={() => handleEditGame(game)}
-          >
-            Edit
-          </button>
-          <button
-            className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
-            onClick={() => handleDeleteGame(game.id)}
-          >
-            Delete
-          </button>
-        </div>
-      </li>
-    );
-  })}
-</ul>
 
+      <div className="mb-6 rounded-xl bg-white p-6 shadow">
+        <h1 className="text-2xl font-bold text-gray-900">Games</h1>
+        <p className="mt-1 text-sm text-gray-600">
+          Browse all games grouped by site and event. Upcoming games appear first.
+        </p>
+      </div>
 
-      {/* Modal to Add/Edit Game */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-          <div className="bg-white p-6 rounded shadow-md w-1/2">
-            <h2 className="text-xl font-bold mb-4">{editGame ? 'Edit Game' : 'Add Game'}</h2>
-            <div className="space-y-4">
-              <div>
-                <label className="block font-medium mb-1">Name</label>
-                <input
-                  className="border border-gray-300 p-2 rounded w-full"
-                  value={editGame ? editGame.title : newGame.title}
-                  onChange={(e) =>
-                    editGame
-                      ? setEditGame({ ...editGame, title: e.target.value })
-                      : setNewGame({ ...newGame, title: e.target.value })
-                  }
-                />
+      {siteGroups.length === 0 ? (
+        <div className="rounded-xl bg-white p-6 shadow">
+          <p className="text-gray-600">No games found.</p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {siteGroups.map((site) => (
+            <section key={site.siteId} className="rounded-xl bg-white p-6 shadow">
+              <div className="mb-5 flex items-center gap-2">
+                <MapPin size={20} className="text-gray-600" />
+                <h2 className="text-2xl font-semibold text-gray-900">{site.siteName}</h2>
               </div>
-              <div>
-                <label className="block font-medium mb-1">Date</label>
-                <input
-                  type="date"
-                  className="border border-gray-300 p-2 rounded w-full"
-                  value={editGame ? editGame.date.substring(0, 10) : newGame.date.substring(0, 10)}
-                  onChange={(e) =>
-                    editGame
-                      ? setEditGame({ ...editGame, date: e.target.value })
-                      : setNewGame({ ...newGame, date: e.target.value })
-                  }
-                />
-              </div>
-              <div>
-                <label className="block font-medium mb-1">Hosting Site</label>
-                <select
-                  className="border border-gray-300 p-2 rounded w-full"
-                  value={editGame ? editGame.hostingSiteId : newGame.hostingSiteId}
-                  onChange={(e) =>
-                    editGame
-                      ? setEditGame({ ...editGame, hostingSiteId: e.target.value })
-                      : setNewGame({ ...newGame, hostingSiteId: e.target.value })
-                  }
-                >
-                  <option value="">Select a hosting site</option>
-                  {hostingSites.map((site) => (
-                    <option key={site.id} value={site.id}>
-                      {site.name}
-                    </option>
+
+              {site.events.length === 0 ? (
+                <p className="text-gray-500">No events found for this site.</p>
+              ) : (
+                <div className="space-y-6">
+                  {site.events.map((event) => (
+                    <div key={event.eventId} className="rounded-lg border border-gray-200 p-5">
+                      <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                        <div className="flex items-center gap-2">
+                          <FolderTree size={18} className="text-gray-500" />
+                          <h3 className="text-xl font-semibold text-gray-900">{event.eventName}</h3>
+                        </div>
+
+                        <Link
+                          href={`/admin/events/${event.eventId}`}
+                          className="text-sm font-medium text-blue-600 hover:underline"
+                        >
+                          Open Event
+                        </Link>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+                        <div>
+                          <h4 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
+                            Upcoming / Current Games
+                          </h4>
+
+                          {event.upcomingGames.length === 0 ? (
+                            <p className="text-sm text-gray-500">No upcoming games.</p>
+                          ) : (
+                            <ul className="space-y-3">
+                              {event.upcomingGames.map((game) => (
+                                <li
+                                  key={game.id}
+                                  className="flex flex-col gap-3 rounded-lg border border-gray-200 p-4"
+                                >
+                                  <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                                    <div className="min-w-0">
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <p className="font-medium text-gray-900">{game.title}</p>
+                                        {game.special && (
+                                          <span className="rounded bg-purple-600 px-2 py-0.5 text-xs text-white">
+                                            {game.tag ?? 'Special'}
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      <p className="mt-1 text-sm text-gray-500">
+                                        <CalendarDays className="mr-1 inline" size={14} />
+                                        {formatDateTime(game.scheduledFor)}
+                                      </p>
+
+                                      <p className="mt-1 text-sm text-gray-500">
+                                        Season: <span className="font-medium">{game.season.name}</span>
+                                      </p>
+
+                                      <p className="mt-1 text-sm text-gray-500">
+                                        Host: {game.host?.name ?? 'No host assigned'}
+                                      </p>
+
+                                      <p className="mt-1 text-sm text-gray-500">
+                                        Join Code: <span className="font-mono">{game.joinCode}</span>
+                                      </p>
+                                    </div>
+
+                                    <span
+                                      className={`self-start rounded-full px-2 py-1 text-xs font-medium uppercase tracking-wide ${getStatusBadgeClasses(
+                                        game.status
+                                      )}`}
+                                    >
+                                      {game.status}
+                                    </span>
+                                  </div>
+
+                                  <div className="flex gap-3">
+                                    <Link
+                                      href={`/admin/games/${game.id}`}
+                                      className="text-sm font-medium text-blue-600 hover:underline"
+                                    >
+                                      View / Edit
+                                    </Link>
+                                    <Link
+                                      href={`/admin/seasons/${game.season.id}`}
+                                      className="text-sm font-medium text-gray-700 hover:underline"
+                                    >
+                                      Open Season
+                                    </Link>
+                                    <button
+                                      type="button"
+                                      className="text-sm font-medium text-red-600 hover:underline"
+                                      onClick={() => {
+                                        void handleDeleteGame(game.id);
+                                      }}
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+
+                        <div>
+                          <h4 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
+                            Past / Closed Games
+                          </h4>
+
+                          {event.pastGames.length === 0 ? (
+                            <p className="text-sm text-gray-500">No past games.</p>
+                          ) : (
+                            <ul className="space-y-3">
+                              {event.pastGames.map((game) => (
+                                <li
+                                  key={game.id}
+                                  className="flex flex-col gap-3 rounded-lg border border-gray-200 p-4"
+                                >
+                                  <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                                    <div className="min-w-0">
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <p className="font-medium text-gray-900">{game.title}</p>
+                                        {game.special && (
+                                          <span className="rounded bg-purple-600 px-2 py-0.5 text-xs text-white">
+                                            {game.tag ?? 'Special'}
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      <p className="mt-1 text-sm text-gray-500">
+                                        <CalendarDays className="mr-1 inline" size={14} />
+                                        {formatDateTime(game.scheduledFor)}
+                                      </p>
+
+                                      <p className="mt-1 text-sm text-gray-500">
+                                        Season: <span className="font-medium">{game.season.name}</span>
+                                      </p>
+
+                                      <p className="mt-1 text-sm text-gray-500">
+                                        Host: {game.host?.name ?? 'No host assigned'}
+                                      </p>
+
+                                      <p className="mt-1 text-sm text-gray-500">
+                                        Join Code: <span className="font-mono">{game.joinCode}</span>
+                                      </p>
+                                    </div>
+
+                                    <span
+                                      className={`self-start rounded-full px-2 py-1 text-xs font-medium uppercase tracking-wide ${getStatusBadgeClasses(
+                                        game.status
+                                      )}`}
+                                    >
+                                      {game.status}
+                                    </span>
+                                  </div>
+
+                                  <div className="flex gap-3">
+                                    <Link
+                                      href={`/admin/games/${game.id}`}
+                                      className="text-sm font-medium text-blue-600 hover:underline"
+                                    >
+                                      View / Edit
+                                    </Link>
+                                    <Link
+                                      href={`/admin/seasons/${game.season.id}`}
+                                      className="text-sm font-medium text-gray-700 hover:underline"
+                                    >
+                                      Open Season
+                                    </Link>
+                                    <button
+                                      type="button"
+                                      className="text-sm font-medium text-red-600 hover:underline"
+                                      onClick={() => {
+                                        void handleDeleteGame(game.id);
+                                      }}
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   ))}
-                </select>
-              </div>
-              <div>
-                <label className="block font-medium mb-1">Assign Host</label>
-                <select
-                  className="border border-gray-300 p-2 rounded w-full"
-                  value={editGame ? editGame.hostId : newGame.hostId}
-                  onChange={(e) =>
-                    editGame
-                      ? setEditGame({ ...editGame, hostId: e.target.value })
-                      : setNewGame({ ...newGame, hostId: e.target.value })
-                  }
-                >
-                  <option value="">Select a host</option>
-                  {hosts.map((host) => (
-                    <option key={host.id} value={host.id}>
-                      {host.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div className="flex justify-end space-x-4 mt-4">
-              <button
-                className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
-                onClick={handleSaveGame}
-              >
-                Save
-              </button>
-              <button
-                className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
-                onClick={() => setShowModal(false)}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
+                </div>
+              )}
+            </section>
+          ))}
         </div>
       )}
     </div>

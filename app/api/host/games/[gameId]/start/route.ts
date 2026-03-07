@@ -1,7 +1,108 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
+
+class StartGameError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+    this.name = 'StartGameError';
+  }
+}
+
+const startGameArgs = Prisma.validator<Prisma.GameDefaultArgs>()({
+  include: {
+    site: {
+      select: {
+        id: true,
+        name: true,
+        address: true,
+      },
+    },
+    gameState: true,
+    rounds: {
+      orderBy: { sortOrder: 'asc' },
+      select: {
+        id: true,
+        sortOrder: true,
+        pointSystem: true,
+        pointPool: true,
+        questions: {
+          orderBy: { sortOrder: 'asc' },
+          select: {
+            id: true,
+            sortOrder: true,
+          },
+        },
+      },
+    },
+    teamGames: {
+      select: {
+        team: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    },
+  },
+});
+
+type StartableGame = Prisma.GameGetPayload<typeof startGameArgs>;
+
+function normalizePointPool(pointPool: Prisma.JsonValue | null): number[] {
+  if (!Array.isArray(pointPool)) {
+    return [];
+  }
+
+  return pointPool.filter(
+    (value): value is number =>
+      typeof value === 'number' && Number.isInteger(value) && value >= 0
+  );
+}
+
+function buildPointsRemaining(
+  teamIds: string[],
+  pointPool: number[]
+): Record<string, number[]> {
+  return teamIds.reduce<Record<string, number[]>>((acc, teamId) => {
+    acc[teamId] = [...pointPool];
+    return acc;
+  }, {});
+}
+
+function buildResponse(game: StartableGame, message: string) {
+  return {
+    id: game.id,
+    title: game.title,
+    status: game.status,
+    startedAt: game.startedAt,
+    scheduledFor: game.scheduledFor,
+    hostingSite: {
+      id: game.site?.id ?? null,
+      name: game.site?.name ?? null,
+      location: game.site?.address ?? null,
+    },
+    gameState: game.gameState
+      ? {
+          currentRoundId: game.gameState.currentRoundId,
+          currentQuestionId: game.gameState.currentQuestionId,
+          pointsRemaining: game.gameState.pointsRemaining,
+          isAcceptingAnswers: game.gameState.isAcceptingAnswers,
+          questionStartedAt: game.gameState.questionStartedAt,
+        }
+      : null,
+    teams: game.teamGames.map(({ team }) => ({
+      id: team.id,
+      name: team.name,
+    })),
+    message,
+  };
+}
 
 export async function PATCH(
   _req: Request,
@@ -10,107 +111,167 @@ export async function PATCH(
   const { gameId } = await params;
 
   try {
-    // Fetch game and related data
-    const game = await prisma.game.findUnique({
-      where: { id: gameId },
-      include: {
-        rounds: {
-          orderBy: { sortOrder: 'asc' },
-          include: {
-            questions: {
-              orderBy: { sortOrder: 'asc' },
-              include: { options: true },
-            },
-          },
-        },
-        teamGames: {
-          include: { team: true },
-        },
-      },
-    });
+    const payload = await prisma.$transaction(async (tx) => {
+      const game = await tx.game.findUnique({
+        where: { id: gameId },
+        ...startGameArgs,
+      });
 
-    if (!game) {
-      return NextResponse.json({ error: 'Game not found' }, { status: 404 });
-    }
+      if (!game) {
+        throw new StartGameError(404, 'Game not found');
+      }
 
-    if (game.status !== 'DRAFT') {
-      return NextResponse.json({ error: 'Game has already started or completed' }, { status: 400 });
-    }
+      // TODO: Add host/admin authorization check here when wiring auth into this route.
 
-    const firstRound = game.rounds[0];
-    const firstQuestion = firstRound?.questions[0] || null;
+      if (game.status === 'CLOSED') {
+        throw new StartGameError(400, 'Game has already been closed.');
+      }
 
-    let pointsRemaining: Record<string, number[]> = {};
+      if (game.status === 'CANCELED') {
+        throw new StartGameError(400, 'Game has been canceled.');
+      }
 
-    if (firstRound && firstRound.pointSystem === 'POOL') {
-      const pointPool = Array.isArray(firstRound.pointPool) ? firstRound.pointPool : [];
-
-      if (pointPool.length === 0) {
-        return NextResponse.json(
-          { error: 'First round is POOL type but has no valid point pool defined.' },
-          { status: 400 }
+      if (
+        game.status !== 'DRAFT' &&
+        game.status !== 'SCHEDULED' &&
+        game.status !== 'LIVE'
+      ) {
+        throw new StartGameError(
+          400,
+          `Game cannot be started from status ${game.status}.`
         );
       }
 
-      pointsRemaining = game.teamGames.reduce((acc, teamGame) => {
-        acc[teamGame.team.id] = [...pointPool];
-        return acc;
-      }, {} as Record<string, number[]>);
+      if (game.teamGames.length === 0) {
+        throw new StartGameError(
+          400,
+          'Add at least one team before starting the game.'
+        );
+      }
+
+      if (game.rounds.length === 0) {
+        throw new StartGameError(
+          400,
+          'Add at least one round before starting the game.'
+        );
+      }
+
+      const firstRound = game.rounds[0];
+      const firstQuestion = firstRound.questions[0];
+
+      if (!firstQuestion) {
+        throw new StartGameError(
+          400,
+          'The first round does not contain a valid first question.'
+        );
+      }
+
+      let pointsRemaining: Record<string, number[]> = {};
+
+      if (firstRound.pointSystem === 'POOL') {
+        const pointPool = normalizePointPool(firstRound.pointPool);
+
+        if (pointPool.length === 0) {
+          throw new StartGameError(
+            400,
+            'First round is POOL type but has no valid point pool defined.'
+          );
+        }
+
+        const teamIds = game.teamGames.map(({ team }) => team.id);
+        pointsRemaining = buildPointsRemaining(teamIds, pointPool);
+      }
+
+      // Already live with state: idempotent success
+      if (game.status === 'LIVE' && game.gameState) {
+        return buildResponse(game, 'Game is already live.');
+      }
+
+      // LIVE but missing state: repair it
+      await tx.gameState.upsert({
+        where: { gameId },
+        update: {
+          currentRoundId: firstRound.id,
+          currentQuestionId: firstQuestion.id,
+          pointsRemaining,
+          isAcceptingAnswers: false,
+          questionStartedAt: null,
+        },
+        create: {
+          gameId,
+          currentRoundId: firstRound.id,
+          currentQuestionId: firstQuestion.id,
+          pointsRemaining,
+          isAcceptingAnswers: false,
+          questionStartedAt: null,
+        },
+      });
+
+      if (game.status !== 'LIVE') {
+        const claimed = await tx.game.updateMany({
+          where: {
+            id: gameId,
+            status: {
+              in: ['DRAFT', 'SCHEDULED'],
+            },
+          },
+          data: {
+            status: 'LIVE',
+            startedAt: game.startedAt ?? new Date(),
+          },
+        });
+
+        if (claimed.count === 0) {
+          throw new StartGameError(
+            409,
+            'Game could not be started because its status changed. Refresh and try again.'
+          );
+        }
+      }
+
+      const startedGame = await tx.game.findUnique({
+        where: { id: gameId },
+        ...startGameArgs,
+      });
+
+      if (!startedGame || !startedGame.gameState) {
+        throw new Error(
+          'Game was not returned with a valid initial state after start.'
+        );
+      }
+
+      return buildResponse(startedGame, 'Game started successfully!');
+    });
+
+    return NextResponse.json(payload);
+  } catch (error: unknown) {
+    if (error instanceof StartGameError) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.status }
+      );
     }
 
-    // 🔄 Use upsert to create or update the game state safely
-    await prisma.gameState.upsert({
-      where: { gameId },
-      update: {
-        currentRoundId: firstRound?.id || null,
-        currentQuestionId: firstQuestion?.id || null,
-        pointsRemaining: pointsRemaining ?? {},
-        isAcceptingAnswers: false,
-        questionStartedAt: null,
-      },
-      create: {
-        gameId,
-        currentRoundId: firstRound?.id || null,
-        currentQuestionId: firstQuestion?.id || null,
-        pointsRemaining: pointsRemaining ?? {},
-        isAcceptingAnswers: false,
-        questionStartedAt: null,
-      },
-    });
-
-    // Update the game's status to LIVE
-    const updatedGame = await prisma.game.update({
-      where: { id: gameId },
-      data: {
-        status: 'LIVE',
-        startedAt: new Date(),
-      },
-      include: {
-        Site: true,
-        teamGames: {
-          include: { team: true },
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2034'
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            'Another request tried to start this game at the same time. Refresh and try again.',
         },
-      },
-    });
+        { status: 409 }
+      );
+    }
 
-    return NextResponse.json({
-      id: updatedGame.id,
-      title: updatedGame.title,
-      status: updatedGame.status,
-      scheduledFor: updatedGame.scheduledFor,
-      hostingSite: {
-        id: updatedGame.Site?.id,
-        name: updatedGame.Site?.name,
-        location: updatedGame.Site?.address,
-      },
-      teams: updatedGame.teamGames.map((teamGame) => ({
-        id: teamGame.team.id,
-        name: teamGame.team.name,
-      })),
-      message: 'Game started successfully!',
-    });
-  } catch (error) {
     console.error('Error starting game:', error);
-    return NextResponse.json({ error: 'Failed to start game' }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: 'Failed to start game',
+        details: error instanceof Error ? error.message : String(error),
+      },
+      { status: 500 }
+    );
   }
 }

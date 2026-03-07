@@ -43,16 +43,12 @@ model Site {
 model Event {
   id        String   @id @default(uuid())
   siteId    String
-  name      String // “Thursday Trivia” or “Murky Waters Trivia”
+  name      String
   createdAt DateTime @default(now())
 
-  /**
-   * relations
-   */
   site       Site            @relation(fields: [siteId], references: [id])
-  schedules  EventSchedule[] // one or more rows (see below)
+  schedules  EventSchedule[]
   seasons    Season[]
-  games      Game[]
   teamEvents TeamEvent[]
 }
 
@@ -84,50 +80,47 @@ enum ScheduleFreq {
 
 model Season {
   id             String    @id @default(uuid())
-  eventId        String // ← NEW
+  eventId        String
   name           String
   startsAt       DateTime  @default(now())
   endsAt         DateTime?
-  recurring      Boolean   @default(false)
   active         Boolean   @default(true)
   championGameId String?
 
-  event Event  @relation(fields: [eventId], references: [id]) // ← NEW
+  event Event  @relation(fields: [eventId], references: [id])
   games Game[]
 }
 
 model Game {
-  id        String     @id @default(uuid())
-  eventId   String
-  seasonId  String?
-  hostId    String?
-  title     String
-  joinCode  String     @unique
-  special   Boolean    @default(false) // <- NEW
-  tag       String? // <- optional label (“Championship”)
-  status    GameStatus @default(DRAFT)
-  startedAt DateTime?
-  endedAt   DateTime?
-  createdAt DateTime   @default(now())
+  id           String     @id @default(uuid())
+  seasonId     String
+  hostId       String?
+  title        String
+  joinCode     String     @unique
+  special      Boolean    @default(false)
+  tag          String?
+  status       GameStatus @default(DRAFT)
+  startedAt    DateTime?
+  endedAt      DateTime?
+  createdAt    DateTime   @default(now())
+  scheduledFor DateTime?
+  siteId       String?
 
-  event  Event   @relation(fields: [eventId], references: [id])
-  season Season? @relation(fields: [seasonId], references: [id])
-  host   User?   @relation("HostGames", fields: [hostId], references: [id])
-
+  season    Season            @relation(fields: [seasonId], references: [id])
+  host      User?             @relation("HostGames", fields: [hostId], references: [id])
+  site      Site?             @relation(fields: [siteId], references: [id])
   gameState GameState?
-
-  scheduledFor DateTime? // ← when this session is scheduled
-
-  rounds    Round[] // <- NEW back‑relation
+  rounds    Round[]
   teamGames TeamGame[]
-  Site      Site?      @relation(fields: [siteId], references: [id])
-  siteId    String?
+  sessions  TeamGameSession[]
 }
 
 enum GameStatus {
   DRAFT // host building questions / waiting room
+  SCHEDULED // game is scheduled to be played
   LIVE // accepting answers
   CLOSED // finished, scores frozen
+  CANCELED // game has been canceled
 }
 
 model GameState {
@@ -165,11 +158,12 @@ enum QuestionType {
 model Team {
   id        String   @id @default(uuid())
   name      String
-  pin       String // 4–6 digit user-entered or generated PIN
+  pin       String? // 4–6 digit user-entered or generated PIN
   createdAt DateTime @default(now())
 
   teamEvents TeamEvent[]
   teamGames  TeamGame[]
+  sessions   TeamGameSession[]
 
   @@unique([name, pin]) // this pair defines a reusable identity
 }
@@ -279,4 +273,34 @@ model AnswerItem {
   isCorrect Boolean? // null until host scores
   awarded   Int // awardedPoints for this item (round.pointValue or 0)
   answer    Answer   @relation(fields: [answerId], references: [id])
+}
+
+enum TeamGameSessionStatus {
+  ACTIVE
+  RECONNECTING
+  OFFLINE
+  CLOSED
+}
+
+model TeamGameSession {
+  id             String                @id @default(cuid())
+  gameId         String
+  teamId         String
+  sessionToken   String                @unique
+  deviceId       String
+  status         TeamGameSessionStatus @default(ACTIVE)
+  socketId       String?
+  joinedAt       DateTime              @default(now())
+  lastSeenAt     DateTime              @default(now())
+  disconnectedAt DateTime?
+  expiresAt      DateTime
+
+  game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([gameId])
+  @@index([teamId])
+  @@index([status])
+  @@index([expiresAt])
+  @@index([gameId, teamId])
 }

@@ -1,87 +1,322 @@
 // File: /app/api/games/[gameId]/join/route.ts
 
+import { randomUUID } from 'crypto';
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import {
+  PrismaClient,
+  Team,
+  TeamGameSessionStatus,
+} from '@prisma/client';
 
 const prisma = new PrismaClient();
+
+const JOINABLE_STATUSES = new Set(['SCHEDULED', 'LIVE']);
+const SESSION_DURATION_HOURS = 12;
+
+function normalizeTeamName(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function normalizePin(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+function normalizeDeviceId(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+function isValidPin(pin: string | null): boolean {
+  if (pin === null) return true;
+  return /^\d{4}$/.test(pin);
+}
+
+function buildSessionExpiry(from: Date): Date {
+  const expiresAt = new Date(from);
+  expiresAt.setHours(expiresAt.getHours() + SESSION_DURATION_HOURS);
+  return expiresAt;
+}
 
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ gameId: string }> }
 ) {
-  const { gameId } = await params;
-  const { teamName, pin } = await req.json();
+  try {
+    const { gameId } = await params;
+    const body = await req.json();
 
-  if (!teamName || !pin) {
-    return NextResponse.json({ error: 'Team name and PIN are required' }, { status: 400 });
-  }
+    const requestedTeamId =
+      typeof body.teamId === 'string' && body.teamId.trim()
+        ? body.teamId.trim()
+        : null;
 
-  // Fetch game with event and site info
-  const game = await prisma.game.findUnique({
-    where: { id: gameId },
-    include: { event: { select: { siteId: true } } },
-  });
+    const teamName = normalizeTeamName(body.teamName);
+    const pin = normalizePin(body.pin);
+    const providedDeviceId = normalizeDeviceId(body.deviceId);
+    const deviceId = providedDeviceId ?? randomUUID();
 
-  if (!game) {
-    return NextResponse.json({ error: 'Game not found' }, { status: 404 });
-  }
+    if (!teamName) {
+      return NextResponse.json(
+        { error: 'Team name is required.' },
+        { status: 400 }
+      );
+    }
 
-  const eventId = game.eventId;
-  const siteId = game.siteId ?? game.event?.siteId;
+    if (!isValidPin(pin)) {
+      return NextResponse.json(
+        { error: 'PIN must be exactly 4 digits when provided.' },
+        { status: 400 }
+      );
+    }
 
-  if (!siteId) {
-    return NextResponse.json({ error: 'Game is missing siteId, and event has no siteId either.' }, { status: 400 });
-  }
-
-  // Find or create team
-  let team = await prisma.team.findFirst({
-    where: { name: teamName, pin },
-  });
-
-  if (!team) {
-    team = await prisma.team.create({
-      data: { name: teamName, pin },
+    const game = await prisma.game.findUnique({
+      where: { id: gameId },
     });
-  }
 
-  // Ensure TeamEvent exists
-  await prisma.teamEvent.upsert({
-    where: {
-      eventId_teamId: {
-        eventId,
-        teamId: team.id,
-      },
-    },
-    update: {},
-    create: {
-      teamId: team.id,
-      eventId,
-      teamName: team.name,
-    },
-  });
+    if (!game) {
+      return NextResponse.json({ error: 'Game not found.' }, { status: 404 });
+    }
 
-  // Ensure TeamGame exists
-  await prisma.teamGame.upsert({
-    where: {
-      teamId_gameId: {
-        teamId: team.id,
-        gameId,
-      },
-    },
-    update: {},
-    create: {
-      teamId: team.id,
+    if (!JOINABLE_STATUSES.has(game.status)) {
+      return NextResponse.json(
+        { error: 'This game is not open for joining.' },
+        { status: 400 }
+      );
+    }
+
+    const siteId = game.siteId;
+
+    if (!siteId) {
+      return NextResponse.json(
+        { error: 'Game is missing site information.' },
+        { status: 400 }
+      );
+    }
+
+    const now = new Date();
+    const expiresAt = buildSessionExpiry(now);
+
+    const result = await prisma.$transaction(async (tx) => {
+      let team: Team | null = null;
+
+      if (requestedTeamId) {
+        const teamById = await tx.team.findUnique({
+          where: { id: requestedTeamId },
+        });
+
+        if (teamById) {
+          const sameName =
+            teamById.name.trim().toLowerCase() === teamName.toLowerCase();
+
+          if (!sameName) {
+            return {
+              error: 'Selected team does not match the entered team name.',
+              status: 400,
+            } as const;
+          }
+
+          if (teamById.pin && teamById.pin !== pin) {
+            return {
+              error: 'This team name is protected. Enter the correct PIN.',
+              status: 400,
+            } as const;
+          }
+
+          if (!teamById.pin && pin) {
+            team = await tx.team.update({
+              where: { id: teamById.id },
+              data: { pin },
+            });
+          } else {
+            team = teamById;
+          }
+        }
+      }
+
+      if (!team) {
+        const existingTeams = await tx.team.findMany({
+          where: {
+            name: {
+              equals: teamName,
+              mode: 'insensitive',
+            },
+          },
+        });
+
+        const exactPinMatch =
+          pin !== null
+            ? existingTeams.find((existingTeam) => existingTeam.pin === pin) ??
+              null
+            : null;
+
+        const unprotectedTeam =
+          existingTeams.find((existingTeam) => !existingTeam.pin) ?? null;
+
+        const hasProtectedVersion = existingTeams.some(
+          (existingTeam) => !!existingTeam.pin
+        );
+
+        if (exactPinMatch) {
+          team = exactPinMatch;
+        } else if (hasProtectedVersion) {
+          return {
+            error: 'This team name is protected. Enter the correct PIN.',
+            status: 400,
+          } as const;
+        } else if (unprotectedTeam) {
+          if (pin) {
+            team = await tx.team.update({
+              where: { id: unprotectedTeam.id },
+              data: { pin },
+            });
+          } else {
+            team = unprotectedTeam;
+          }
+        } else {
+          team = await tx.team.create({
+            data: pin
+              ? {
+                  name: teamName,
+                  pin,
+                }
+              : {
+                  name: teamName,
+                },
+          });
+        }
+      }
+
+      await tx.teamGame.upsert({
+        where: {
+          teamId_gameId: {
+            teamId: team.id,
+            gameId,
+          },
+        },
+        update: {},
+        create: {
+          teamId: team.id,
+          gameId,
+          siteId,
+        },
+      });
+
+      await tx.teamGameSession.updateMany({
+        where: {
+          gameId,
+          teamId: team.id,
+          status: {
+            not: TeamGameSessionStatus.CLOSED,
+          },
+          expiresAt: {
+            lte: now,
+          },
+        },
+        data: {
+          status: TeamGameSessionStatus.CLOSED,
+          socketId: null,
+        },
+      });
+
+      const existingSession = await tx.teamGameSession.findFirst({
+        where: {
+          gameId,
+          teamId: team.id,
+          status: {
+            in: [
+              TeamGameSessionStatus.ACTIVE,
+              TeamGameSessionStatus.RECONNECTING,
+              TeamGameSessionStatus.OFFLINE,
+            ],
+          },
+          expiresAt: {
+            gt: now,
+          },
+        },
+        orderBy: {
+          joinedAt: 'desc',
+        },
+      });
+
+      if (existingSession && existingSession.deviceId !== deviceId) {
+        return {
+          error:
+            'This team is already claimed on another device for this game.',
+          status: 409,
+        } as const;
+      }
+
+      const sessionToken = randomUUID();
+
+      const session = existingSession
+        ? await tx.teamGameSession.update({
+            where: { id: existingSession.id },
+            data: {
+              sessionToken,
+              status: TeamGameSessionStatus.ACTIVE,
+              socketId: null,
+              lastSeenAt: now,
+              disconnectedAt: null,
+              expiresAt,
+            },
+          })
+        : await tx.teamGameSession.create({
+            data: {
+              gameId,
+              teamId: team.id,
+              sessionToken,
+              deviceId,
+              status: TeamGameSessionStatus.ACTIVE,
+              socketId: null,
+              lastSeenAt: now,
+              disconnectedAt: null,
+              expiresAt,
+            },
+          });
+
+      return { team, session } as const;
+    });
+
+    if ('error' in result) {
+      return NextResponse.json(
+        { error: result.error },
+        { status: result.status }
+      );
+    }
+
+    const route =
+      game.status === 'LIVE'
+        ? `/games/${gameId}/play`
+        : `/games/${gameId}/lobby`;
+
+    return NextResponse.json({
+      ok: true,
+      teamId: result.team.id,
+      teamName: result.team.name,
       gameId,
-      siteId,
-    },
-  });
+      gameStatus: game.status,
+      route,
+      redirectTo: route,
+      session: {
+        sessionToken: result.session.sessionToken,
+        deviceId: result.session.deviceId,
+        status: result.session.status,
+        joinedAt: result.session.joinedAt.toISOString(),
+        lastSeenAt: result.session.lastSeenAt.toISOString(),
+        expiresAt: result.session.expiresAt.toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error('Error joining game:', error);
 
-  return NextResponse.json({
-    teamId: team.id,
-    gameId,
-    gameStatus: game.status, // ✅ This is what the client logic checks
-    redirectTo: game.status === 'LIVE'
-  ? `/game/${gameId}`
-  : `/games/${gameId}/lobby`,
-  });
+    return NextResponse.json(
+      { error: 'Failed to join game.' },
+      { status: 500 }
+    );
+  }
 }

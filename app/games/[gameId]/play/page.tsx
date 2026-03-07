@@ -1,14 +1,80 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
-import React, { JSX, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  JSX,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { GameStatus } from '@prisma/client';
 import { useSocket } from '@/components/SocketProvider';
 import { useTeamSocket } from '@/app/hooks/useTeamSocket';
 import OrderedQuestion from './components/SortableList';
 import { useReliableEmit } from '@/lib/reliable-handshake';
 
-type QuestionType = 'SINGLE' | 'MULTIPLE_CHOICE' | 'ORDERED' | 'WAGER' | 'LIST';
+type QuestionType =
+  | 'SINGLE'
+  | 'MULTIPLE_CHOICE'
+  | 'ORDERED'
+  | 'WAGER'
+  | 'LIST';
+
+interface GameInfo {
+  id: string;
+  title: string;
+  joinCode: string;
+  status: GameStatus;
+  scheduledFor: string | null;
+  site?: {
+    id: string;
+    name: string;
+    address?: string | null;
+  } | null;
+}
+
+interface ResumeSessionPayload {
+  sessionToken: string;
+  deviceId: string;
+  status: string;
+  joinedAt: string;
+  lastSeenAt: string;
+  expiresAt: string;
+}
+
+interface ResumeApiResponse {
+  ok?: boolean;
+  teamId?: string;
+  teamName?: string;
+  gameId?: string;
+  gameStatus?: string;
+  route?: string;
+  redirectTo?: string;
+  session?: ResumeSessionPayload;
+  error?: string;
+  code?: string;
+  clearStoredSession?: boolean;
+}
+
+interface StoredTeamSession {
+  gameId: string;
+  teamId: string;
+  teamName: string;
+  sessionToken: string;
+  deviceId: string;
+  lastKnownStatus: string;
+  lastKnownScreen: 'lobby' | 'play';
+  joinedAt: string;
+  lastSeenAt: string;
+}
+
+interface StoredDeviceIdentity {
+  deviceId: string;
+  createdAt: string;
+}
 
 interface GameState {
   game: { id: string; status: string };
@@ -41,174 +107,432 @@ export interface TriviaOption {
   text: string;
 }
 
-export default function PlayGamePage(): JSX.Element {
-  /* ── params & ids ─────────────────────────────────────────────── */
-  const { gameId } = useParams<{ gameId: string }>();
-  const teamId = typeof window !== 'undefined' ? localStorage.getItem('teamId') : null;
-  const teamName = typeof window !== 'undefined' ? localStorage.getItem('teamName') : null;
-  const router = useRouter();
+const STORAGE_PREFIX = 'trivia';
 
-  // Save session
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(
-        'teamSession',
-        JSON.stringify({ gameId, teamId, teamName })
-      );
+function getStoredGameSession(gameId: string): StoredTeamSession | null {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const raw = localStorage.getItem(`${STORAGE_PREFIX}:${gameId}:session`);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw) as Partial<StoredTeamSession>;
+
+    if (
+      typeof parsed.gameId !== 'string' ||
+      typeof parsed.teamId !== 'string' ||
+      typeof parsed.teamName !== 'string' ||
+      typeof parsed.sessionToken !== 'string' ||
+      typeof parsed.deviceId !== 'string' ||
+      typeof parsed.lastKnownStatus !== 'string' ||
+      (parsed.lastKnownScreen !== 'lobby' &&
+        parsed.lastKnownScreen !== 'play') ||
+      typeof parsed.joinedAt !== 'string' ||
+      typeof parsed.lastSeenAt !== 'string'
+    ) {
+      return null;
     }
-  }, [gameId, teamId, teamName]);
 
+    return {
+      gameId: parsed.gameId,
+      teamId: parsed.teamId,
+      teamName: parsed.teamName,
+      sessionToken: parsed.sessionToken,
+      deviceId: parsed.deviceId,
+      lastKnownStatus: parsed.lastKnownStatus,
+      lastKnownScreen: parsed.lastKnownScreen,
+      joinedAt: parsed.joinedAt,
+      lastSeenAt: parsed.lastSeenAt,
+    };
+  } catch {
+    return null;
+  }
+}
 
-  
-  /* ── socket hookup (keeps connection alive & in the room) ─────── */
-  useTeamSocket(true, gameId ?? null, teamId, teamName);
+function getStoredDeviceIdentity(): StoredDeviceIdentity | null {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const raw = localStorage.getItem(`${STORAGE_PREFIX}:device`);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw) as Partial<StoredDeviceIdentity>;
+
+    if (!parsed.deviceId || typeof parsed.deviceId !== 'string') {
+      return null;
+    }
+
+    return {
+      deviceId: parsed.deviceId,
+      createdAt:
+        typeof parsed.createdAt === 'string'
+          ? parsed.createdAt
+          : new Date().toISOString(),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function clearStoredGameSession(gameId: string): void {
+  if (typeof window === 'undefined') return;
+
+  localStorage.removeItem(`${STORAGE_PREFIX}:${gameId}:session`);
+  localStorage.removeItem(`${STORAGE_PREFIX}:${gameId}:teamId`);
+  localStorage.removeItem(`${STORAGE_PREFIX}:${gameId}:teamName`);
+  localStorage.removeItem(`${STORAGE_PREFIX}:${gameId}:gameId`);
+  localStorage.removeItem(`${STORAGE_PREFIX}:${gameId}:joinCode`);
+
+  try {
+    const lastSessionRaw = localStorage.getItem(`${STORAGE_PREFIX}:lastSession`);
+    if (lastSessionRaw) {
+      const parsed = JSON.parse(lastSessionRaw) as { gameId?: string };
+      if (parsed.gameId === gameId) {
+        localStorage.removeItem(`${STORAGE_PREFIX}:lastSession`);
+      }
+    }
+  } catch {
+    localStorage.removeItem(`${STORAGE_PREFIX}:lastSession`);
+  }
+
+  if (localStorage.getItem('gameId') === gameId) {
+    localStorage.removeItem('teamId');
+    localStorage.removeItem('teamName');
+    localStorage.removeItem('gameId');
+    localStorage.removeItem('teamSession');
+  }
+}
+
+function persistSession(
+  gameId: string,
+  joinCode: string,
+  storedSession: StoredTeamSession,
+  deviceCreatedAt?: string
+): void {
+  if (typeof window === 'undefined') return;
+
+  const createdAt = deviceCreatedAt ?? new Date().toISOString();
+
+  localStorage.setItem(
+    `${STORAGE_PREFIX}:${gameId}:session`,
+    JSON.stringify(storedSession)
+  );
+
+  localStorage.setItem(
+    `${STORAGE_PREFIX}:device`,
+    JSON.stringify({
+      deviceId: storedSession.deviceId,
+      createdAt,
+    } as StoredDeviceIdentity)
+  );
+
+  localStorage.setItem(
+    `${STORAGE_PREFIX}:lastSession`,
+    JSON.stringify({
+      gameId,
+      updatedAt: new Date().toISOString(),
+    })
+  );
+
+  localStorage.setItem(`${STORAGE_PREFIX}:${gameId}:teamId`, storedSession.teamId);
+  localStorage.setItem(
+    `${STORAGE_PREFIX}:${gameId}:teamName`,
+    storedSession.teamName
+  );
+  localStorage.setItem(`${STORAGE_PREFIX}:${gameId}:gameId`, gameId);
+  localStorage.setItem(`${STORAGE_PREFIX}:${gameId}:joinCode`, joinCode);
+
+  localStorage.setItem('teamId', storedSession.teamId);
+  localStorage.setItem('teamName', storedSession.teamName);
+  localStorage.setItem('gameId', gameId);
+  localStorage.setItem(
+    'teamSession',
+    JSON.stringify({
+      gameId,
+      teamId: storedSession.teamId,
+      teamName: storedSession.teamName,
+    })
+  );
+}
+
+export default function PlayGamePage(): JSX.Element {
+  const { gameId } = useParams<{ gameId: string }>();
+  const router = useRouter();
   const socket = useSocket();
-  const reliableEmit = useReliableEmit(socket!, { timeoutMs: 3000, maxRetries: 3 });
+  const reliableEmit = useReliableEmit(socket!, {
+    timeoutMs: 3000,
+    maxRetries: 3,
+  });
 
-  /* ── local state ──────────────────────────────────────────────── */
+  const [teamId, setTeamId] = useState<string | null>(null);
+  const [teamName, setTeamName] = useState<string | null>(null);
+  const [gameInfo, setGameInfo] = useState<GameInfo | null>(null);
+
   const [state, setState] = useState<GameState | null>(null);
   const [answer, setAnswer] = useState<string | string[]>('');
   const [submitted, setSubmitted] = useState<boolean>(false);
   const [selectedPoints, setSelectedPoints] = useState<number | null>(null);
   const [connectionStatus, setConnectionStatus] = useState('connected');
+  const [loading, setLoading] = useState(true);
+  const [isRestoringSession, setIsRestoringSession] = useState(true);
+  const [loadError, setLoadError] = useState<string>('');
 
-  // 1️⃣ keep track of the last score
-  const prevScoreRef = useRef<number | null>(null)
-  const [highlightScore, setHighlightScore] = useState(false)
+  const prevScoreRef = useRef<number | null>(null);
+  const [highlightScore, setHighlightScore] = useState(false);
 
-  
+  const fetchGameState = useCallback(
+    async (resolvedTeamId: string) => {
+      const res = await fetch(`/api/games/${gameId}/state?teamId=${resolvedTeamId}`, {
+        credentials: 'include',
+        cache: 'no-store',
+      });
 
-  /* ── fetch initial/playback state ─────────────────────────────── */
-  useEffect(() => {
-    if (!gameId || !teamId) return;
-
-    void (async () => {
-      try {
-        const res = await fetch(
-          `/api/games/${gameId}/state?teamId=${teamId}`,
-          { credentials: 'include', cache: 'no-store' }
-        );
-        if (res.ok) setState((await res.json()) as GameState);
-      } catch (err) {
-
-        console.error('Failed to fetch game state:', err);
+      if (!res.ok) {
+        throw new Error('Failed to load game state.');
       }
-    })();
-  }, [gameId, teamId]);
 
-  // 2️⃣ effect to detect score changes
-  useEffect(() => {
-    if (state?.team.score == null) return
+      const gameState = (await res.json()) as GameState;
+      setState(gameState);
 
-    const prev = prevScoreRef.current
-    const next = state.team.score
+      if (gameState.team.submittedAnswer) {
+        setSubmitted(true);
+        setAnswer(gameState.team.submittedAnswer.answer ?? '');
+        setSelectedPoints(
+          gameState.team.submittedAnswer.pointsUsed?.[0] ?? null
+        );
+      } else {
+        setSubmitted(false);
+        setAnswer('');
+        setSelectedPoints(null);
+      }
+    },
+    [gameId]
+  );
 
-    // only if it's actually changed (not first render)
-    if (prev !== null && prev !== next) {
-      setHighlightScore(true)
-      // turn it off after 1.5s
-      setTimeout(() => setHighlightScore(false), 1500)
+  const initializePage = useCallback(async () => {
+    if (!gameId) return;
+
+    setLoading(true);
+    setIsRestoringSession(true);
+    setLoadError('');
+
+    try {
+      const gameRes = await fetch(`/api/games/${gameId}`, { cache: 'no-store' });
+      const gameData = await gameRes.json();
+
+      if (!gameRes.ok) {
+        setLoadError(gameData?.error || 'Failed to load game.');
+        return;
+      }
+
+      const resolvedGame: GameInfo | null = gameData?.game ?? gameData ?? null;
+
+      if (!resolvedGame) {
+        setLoadError('Game payload was empty.');
+        return;
+      }
+
+      setGameInfo(resolvedGame);
+
+      if (typeof window === 'undefined') {
+        return;
+      }
+
+      const storedSession = getStoredGameSession(gameId);
+
+      if (!storedSession) {
+        setLoadError('No saved team session was found for this game.');
+        router.replace(`/join/${resolvedGame.joinCode}`);
+        return;
+      }
+
+      const resumeRes = await fetch(`/api/games/${gameId}/resume`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          gameId,
+          teamId: storedSession.teamId,
+          sessionToken: storedSession.sessionToken,
+          deviceId: storedSession.deviceId,
+        }),
+      });
+
+      const resumeData = (await resumeRes.json()) as ResumeApiResponse;
+
+      if (
+        !resumeRes.ok ||
+        !resumeData.teamId ||
+        !resumeData.session?.sessionToken ||
+        !resumeData.session.deviceId
+      ) {
+        if (resumeData.clearStoredSession) {
+          clearStoredGameSession(gameId);
+        }
+
+        setLoadError(
+          resumeData.error || 'We could not restore your team session.'
+        );
+        router.replace(`/join/${resolvedGame.joinCode}`);
+        return;
+      }
+
+      const resumedStatus = resumeData.gameStatus ?? resolvedGame.status;
+      const resumedTeamName = resumeData.teamName ?? storedSession.teamName;
+
+      const refreshedSession: StoredTeamSession = {
+        gameId,
+        teamId: resumeData.teamId,
+        teamName: resumedTeamName,
+        sessionToken: resumeData.session.sessionToken,
+        deviceId: resumeData.session.deviceId,
+        lastKnownStatus: resumedStatus,
+        lastKnownScreen: resumedStatus === 'LIVE' ? 'play' : 'lobby',
+        joinedAt: resumeData.session.joinedAt,
+        lastSeenAt: resumeData.session.lastSeenAt,
+      };
+
+      persistSession(
+        gameId,
+        resolvedGame.joinCode,
+        refreshedSession,
+        getStoredDeviceIdentity()?.createdAt
+      );
+
+      setTeamId(refreshedSession.teamId);
+      setTeamName(refreshedSession.teamName);
+
+      if (resumedStatus !== 'LIVE') {
+        router.replace(`/games/${gameId}/lobby`);
+        return;
+      }
+
+      await fetchGameState(refreshedSession.teamId);
+    } catch (error) {
+      console.error('Failed to initialize play page:', error);
+      setLoadError('Failed to restore game session.');
+    } finally {
+      setIsRestoringSession(false);
+      setLoading(false);
     }
-    prevScoreRef.current = next
-  }, [state?.team.score])
+  }, [fetchGameState, gameId, router]);
 
-
-
-  /* ── live socket updates (score & next/prev question) ───────────── */
   useEffect(() => {
-    if (!socket || !socket.connected || !gameId || !teamId) return;
+    void initializePage();
+  }, [initializePage]);
 
-    /* score updates pushed by server */
+  useEffect(() => {
+    if (state?.team.score == null) return;
+
+    const prev = prevScoreRef.current;
+    const next = state.team.score;
+
+    if (prev !== null && prev !== next) {
+      setHighlightScore(true);
+      const timeout = window.setTimeout(() => setHighlightScore(false), 1500);
+      prevScoreRef.current = next;
+      return () => window.clearTimeout(timeout);
+    }
+
+    prevScoreRef.current = next;
+  }, [state?.team.score]);
+
+  useTeamSocket({
+  enabled: Boolean(gameId && teamId && teamName),
+  session:
+    gameId && teamId && teamName
+      ? {
+          gameId,
+          teamId,
+          teamName,
+          sessionToken: getStoredGameSession(gameId)?.sessionToken ?? null,
+          deviceId: getStoredGameSession(gameId)?.deviceId ?? null,
+        }
+      : null,
+});
+
+  useEffect(() => {
+    if (!socket || !gameId || !teamId || !teamName) return;
+
+    const handleDisconnect = () => {
+      setConnectionStatus('disconnected');
+    };
+
+    const handleConnect = () => {
+      setConnectionStatus('connected');
+
+      socket.emit('team:join', {
+        gameId,
+        teamId,
+        teamName,
+      });
+    };
+
     const handleScoreUpdate = ({
-      teamId: tId,
+      teamId: updatedTeamId,
       newScore,
     }: {
       teamId: string;
       newScore: number;
     }) => {
-      if (tId === teamId) {
+      if (updatedTeamId === teamId) {
         setState((prev) =>
           prev ? { ...prev, team: { ...prev.team, score: newScore } } : prev
         );
       }
     };
 
-    /* host advanced to next / previous question */
     const handleQuestionAdvance = async () => {
       try {
-        const res = await fetch(
-          `/api/games/${gameId}/state?teamId=${teamId}`,
-          { cache: 'no-store' }
-        );
-        if (res.ok) {
-          const newState = (await res.json()) as GameState;
-          setState(newState);
-          /* reset per‑question UI */
-          setSubmitted(false);
-          setAnswer('');
-          setSelectedPoints(null);
-        }
+        await fetchGameState(teamId);
       } catch (err) {
-
         console.error('Refetch after question advance failed:', err);
       }
     };
 
-    const handleReconnect = () => {
-      const stored = localStorage.getItem('teamSession');
-      if (stored) {
-        const { gameId: gId, teamId: tId, teamName } = JSON.parse(stored);
-        if (gId && tId && teamName) {
-          socket.emit('team:join', { gameId: gId, teamId: tId, teamName });
-          console.log(`🔄 Rejoined: ${teamName} (${tId}) in game ${gId}`);
-        }
-      }
+    const handleGameCompleted = () => {
+      router.replace(`/games/${gameId}/play/results`);
     };
-    
-    
 
-    socket.on('disconnect', () => setConnectionStatus('disconnected'));
-    socket.on('connect', () => setConnectionStatus('connected'));
-    socket.on('connect', handleReconnect);
+    socket.on('disconnect', handleDisconnect);
+    socket.on('connect', handleConnect);
     socket.on('score:update', handleScoreUpdate);
     socket.on('game:updateQuestion', handleQuestionAdvance);
-    // When the host completes the game…
-    socket.on('game:gameCompleted', () => {
-        router.replace(`/games/${gameId}/play/results`);
-    });
+    socket.on('game:gameCompleted', handleGameCompleted);
+
+    if (socket.connected) {
+      handleConnect();
+    }
 
     return () => {
+      socket.off('disconnect', handleDisconnect);
+      socket.off('connect', handleConnect);
       socket.off('score:update', handleScoreUpdate);
       socket.off('game:updateQuestion', handleQuestionAdvance);
-      socket.off('connect', handleReconnect);
-      socket.off('connect');
-      socket.off('game:gameComplete');
+      socket.off('game:gameCompleted', handleGameCompleted);
     };
-  }, [socket, gameId, teamId, router]);
+  }, [socket, gameId, teamId, teamName, router, fetchGameState]);
 
-  // build a truly-Option[] list:
   const orderedOptions = useMemo(() => {
     if (
       !state?.currentQuestion ||
       state.currentQuestion.type !== 'ORDERED' ||
       !state.currentQuestion.options
-    )
+    ) {
       return [];
+    }
 
     return state.currentQuestion.options.map((opt) =>
       typeof opt === 'string'
         ? { id: opt, text: opt }
         : { id: (opt as any).id, text: (opt as any).text }
     );
-    // 🚨  If you'd rather key off the question itself:
-    // }, [state?.currentQuestion?.id]);
-  }, [state?.currentQuestion?.options]);   
-  
+  }, [state?.currentQuestion?.options, state?.currentQuestion?.type]);
 
-  /* ── helper: submit answer ─────────────────────────────────────── */
-  // Submit answer with handshake
   const submitAnswer = useCallback(async () => {
-    if (!state?.currentQuestion) return;
+    if (!state?.currentQuestion || !teamId) return;
+
     const payload = {
       gameId,
       questionId: state.currentQuestion.id,
@@ -216,75 +540,103 @@ export default function PlayGamePage(): JSX.Element {
       pointsUsed: selectedPoints ? [selectedPoints] : [],
       teamId,
     };
+
     try {
       const res = await fetch('/api/play/answers', {
-        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
       });
+
       if (!res.ok) throw new Error('API save failed');
+
       reliableEmit(
         'team:submitAnswer',
         payload,
         () => setSubmitted(true),
-        err => console.error('Answer delivery failed', err)
+        (err) => console.error('Answer delivery failed', err)
       );
     } catch (err) {
       console.error('Submit answer error:', err);
     }
   }, [state, answer, selectedPoints, gameId, teamId, reliableEmit]);
 
-  
-
-
   const handleOrderChange = useCallback(
-    (newOrder: TriviaOption[]) => setAnswer(newOrder.map(o => o.text)),
+    (newOrder: TriviaOption[]) => setAnswer(newOrder.map((o) => o.text)),
     []
   );
 
-  /* ── early exits ──────────────────────────────────────────────── */
-  if (!state) return <div className="p-6">Loading question…</div>;
+  const isMultiple = state?.currentQuestion?.type === 'MULTIPLE_CHOICE';
+  const isSingle = state?.currentQuestion?.type === 'SINGLE';
+  const isList = state?.currentQuestion?.type === 'LIST';
+  const isOrdered = state?.currentQuestion?.type === 'ORDERED';
+  const isWager = state?.round?.roundType === 'WAGER';
+  const needsPoints =
+    state?.round?.pointSystem === 'POOL' && selectedPoints === null;
+  const maxWager = state?.team.score ?? 0;
 
-  /* ── helpers for UI logic ─────────────────────────────────────── */
-  const isMultiple = state.currentQuestion?.type === 'MULTIPLE_CHOICE';
-  const isSingle = state.currentQuestion?.type === 'SINGLE';
-  const needsPoints = state.round?.pointSystem === 'POOL' && selectedPoints === null;
-  // inside your render:
-  const isList = state.currentQuestion?.type === 'LIST';
-  const isOrdered = state.currentQuestion?.type === 'ORDERED';
-  const isWager = state?.round?.roundType === 'WAGER'
-  const maxWager = state?.team.score ?? 0
+  const hasAnswer =
+    typeof answer === 'string'
+      ? answer.trim().length > 0
+      : Array.isArray(answer)
+        ? answer.some((item) => item.trim().length > 0)
+        : false;
 
-  console.log("QUESTION TYPE: " + state.round?.pointSystem + ":" + state.currentQuestion?.type);
+  if (loading) {
+    return (
+      <div className="p-6">
+        <p className="text-gray-600">
+          {isRestoringSession
+            ? 'Restoring your team session...'
+            : 'Loading question...'}
+        </p>
+      </div>
+    );
+  }
 
-  
-  /* ── render ───────────────────────────────────────────────────── */
+  if (loadError) {
+    return (
+      <div className="p-6">
+        <p className="text-red-600">{loadError}</p>
+      </div>
+    );
+  }
+
+  if (!state) {
+    return <div className="p-6">Loading question…</div>;
+  }
+
   return (
-
     <div className="grid gap-6 p-6 md:grid-cols-12">
-      {/* Sidebar */}
-      <aside className="md:col-span-3 space-y-6">        
-      <div
-          // 3️⃣ apply animate-pulse when highlightScore is true
+      <aside className="space-y-6 md:col-span-3">
+        <div
           className={`rounded-lg bg-white p-6 shadow transition-all ${
-            highlightScore ? 'ring-4 ring-blue-300 animate-pulse' : ''
+            highlightScore ? 'animate-pulse ring-4 ring-blue-300' : ''
           }`}
         >
           <h3 className="mb-4 text-xl font-semibold text-gray-800">
             👤 {state.team.name}
           </h3>
           <div className="flex items-baseline space-x-2">
-            <span className="text-3xl font-bold text-blue-600">{state.team.score}</span>
+            <span className="text-3xl font-bold text-blue-600">
+              {state.team.score}
+            </span>
             <span className="text-sm text-gray-500">pts</span>
           </div>
+          {gameInfo?.title ? (
+            <p className="mt-4 text-sm text-gray-500">{gameInfo.title}</p>
+          ) : null}
         </div>
       </aside>
 
-      {/* Main */}
       {connectionStatus === 'disconnected' && (
-        <div className="text-yellow-500 text-center mt-4">
+        <div className="mt-4 text-center text-yellow-500 md:col-span-12">
           Reconnecting...
         </div>
       )}
-      <section className="md:col-span-9 space-y-6">
+
+      <section className="space-y-6 md:col-span-9">
         <div className="rounded-lg bg-white p-6 shadow">
           <header className="mb-4 border-b pb-2">
             <h2 className="text-lg font-semibold text-gray-700">
@@ -295,7 +647,6 @@ export default function PlayGamePage(): JSX.Element {
             </h3>
           </header>
 
-          {/* SINGLE answer */}
           {isSingle && (
             <input
               type="text"
@@ -307,7 +658,6 @@ export default function PlayGamePage(): JSX.Element {
             />
           )}
 
-          {/* MULTIPLE choice */}
           {isMultiple && (
             <div className="space-y-3">
               {state.currentQuestion?.options?.map((opt) => (
@@ -336,14 +686,13 @@ export default function PlayGamePage(): JSX.Element {
               ))}
             </div>
           )}
-          {/* LIST question: render as many text inputs as there are correct options */}
+
           {isList && state.currentQuestion?.options && (
             <div className="space-y-2">
               <p className="mb-2 font-semibold">
                 Name all {state.currentQuestion.options.length} items:
               </p>
-              {/* answer is managed as string[] */}
-              {(state.currentQuestion.options.map((_, idx) => (
+              {state.currentQuestion.options.map((_, idx) => (
                 <input
                   key={idx}
                   type="text"
@@ -352,7 +701,11 @@ export default function PlayGamePage(): JSX.Element {
                   onChange={(e) => {
                     const val = e.target.value;
                     setAnswer((prev) => {
-                      const arr = Array.isArray(prev) ? [...prev] : Array(state.currentQuestion!.options?.length).fill('');
+                      const arr = Array.isArray(prev)
+                        ? [...prev]
+                        : Array(
+                            state.currentQuestion?.options?.length ?? 0
+                          ).fill('');
                       arr[idx] = val;
                       return arr;
                     });
@@ -360,11 +713,10 @@ export default function PlayGamePage(): JSX.Element {
                   disabled={submitted}
                   placeholder={`Item ${idx + 1}`}
                 />
-              )))}
+              ))}
             </div>
           )}
 
-          {/* POOL point selector */}
           {state.round?.pointSystem === 'POOL' && (
             <div className="mt-4">
               <h4 className="mb-2 text-sm font-medium text-gray-600">
@@ -377,10 +729,11 @@ export default function PlayGamePage(): JSX.Element {
                     type="button"
                     onClick={() => setSelectedPoints(pt)}
                     disabled={submitted}
-                    className={`flex items-center justify-center rounded-full px-4 py-2 text-sm font-medium transition ${selectedPoints === pt
+                    className={`flex items-center justify-center rounded-full px-4 py-2 text-sm font-medium transition ${
+                      selectedPoints === pt
                         ? 'bg-blue-600 text-white'
                         : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-                      }`}
+                    }`}
                   >
                     {pt}
                   </button>
@@ -389,13 +742,11 @@ export default function PlayGamePage(): JSX.Element {
             </div>
           )}
 
-         
-
           {isWager && (
             <div className="mb-4">
               <label
                 htmlFor="wager-input"
-                className="block mb-2 text-sm font-medium text-gray-700"
+                className="mb-2 block text-sm font-medium text-gray-700"
               >
                 Place your wager (0‒{maxWager} points)
               </label>
@@ -407,47 +758,54 @@ export default function PlayGamePage(): JSX.Element {
                 step={1}
                 value={selectedPoints ?? ''}
                 onChange={(e) => {
-                  const val = e.target.value
-                  // only accept whole numbers
-                  const num = Number(val)
+                  const val = e.target.value;
+                  const num = Number(val);
+
                   if (/^\d*$/.test(val) && num <= maxWager) {
-                    setSelectedPoints(val === '' ? null : num)
+                    setSelectedPoints(val === '' ? null : num);
                   }
                 }}
                 disabled={submitted}
                 className="w-full rounded-md border-gray-300 bg-gray-50 px-4 py-2 focus:border-blue-500 focus:ring-blue-200"
                 placeholder="Enter your wager…"
               />
-              {!submitted && selectedPoints != null && selectedPoints > maxWager && (
-                <p className="mt-1 text-sm text-red-600">
-                  Wager cannot exceed your current score.
-                </p>
-              )}
+              {!submitted &&
+                selectedPoints != null &&
+                selectedPoints > maxWager && (
+                  <p className="mt-1 text-sm text-red-600">
+                    Wager cannot exceed your current score.
+                  </p>
+                )}
             </div>
           )}
 
-{isOrdered && orderedOptions.length > 0 && (
-  <OrderedQuestion
-    key={state.currentQuestion?.id}      // 🔑 remounts component for a new question
-    options={orderedOptions}             // now a stable reference
-    onChange={handleOrderChange}
-  />
-)}
-
+          {isOrdered && orderedOptions.length > 0 && (
+            <OrderedQuestion
+              key={state.currentQuestion?.id}
+              options={orderedOptions}
+              onChange={handleOrderChange}
+            />
+          )}
 
           <button
             type="button"
             onClick={submitAnswer}
-            disabled={submitted || !answer || needsPoints || (isWager && (selectedPoints === null || selectedPoints < 0))}
-            className={`mt-6 w-full rounded-lg px-5 py-3 text-center font-semibold transition ${submitted
+            disabled={
+              submitted ||
+              !hasAnswer ||
+              needsPoints ||
+              (isWager && (selectedPoints === null || selectedPoints < 0))
+            }
+            className={`mt-6 w-full rounded-lg px-5 py-3 text-center font-semibold transition ${
+              submitted
                 ? 'cursor-not-allowed bg-gray-400 text-gray-700'
                 : 'bg-blue-600 text-white hover:bg-blue-700'
-              }`}
+            }`}
           >
             {submitted ? 'Answer Submitted' : 'Submit Answer'}
           </button>
         </div>
       </section>
     </div>
-  )
+  );
 }

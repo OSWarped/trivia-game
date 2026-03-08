@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import type { HostTeamStatus } from '../types/host-play.types';
+import type { HostTeamStatus, TeamTransferMode } from '../types/host-play.types';
 import TeamSidebarCard from './TeamSidebarCard';
 
 interface TeamSidebarProps {
@@ -9,6 +9,13 @@ interface TeamSidebarProps {
   onRequestLiveTeams: () => void;
   onRevokeSession: (teamId: string) => Promise<void>;
   onUnlockSession: (teamId: string) => Promise<void>;
+  onResetPin: (teamId: string) => Promise<string>;
+  onSetTeamTransferMode: (
+    teamId: string,
+    mode: TeamTransferMode
+  ) => Promise<void>;
+  onApproveJoinRequest: (teamId: string) => Promise<void>;
+  onDenyJoinRequest: (teamId: string) => Promise<void>;
 }
 
 export default function TeamSidebar({
@@ -16,6 +23,10 @@ export default function TeamSidebar({
   onRequestLiveTeams,
   onRevokeSession,
   onUnlockSession,
+  onResetPin,
+  onSetTeamTransferMode,
+  onApproveJoinRequest,
+  onDenyJoinRequest,
 }: TeamSidebarProps) {
   return (
     <aside className="hidden w-[22rem] border-r border-gray-200 bg-gradient-to-b from-gray-50 to-gray-100 p-4 shadow-inner md:block">
@@ -42,6 +53,10 @@ export default function TeamSidebar({
             team={team}
             onRevokeSession={onRevokeSession}
             onUnlockSession={onUnlockSession}
+            onResetPin={onResetPin}
+            onSetTeamTransferMode={onSetTeamTransferMode}
+            onApproveJoinRequest={onApproveJoinRequest}
+            onDenyJoinRequest={onDenyJoinRequest}
           />
         ))}
       </div>

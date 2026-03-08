@@ -27,6 +27,21 @@ export interface Round {
 
 export interface GameStateExpanded extends GameState {
   game: {
+    id: string;
+    title: string;
+    status: string;
+    tag?: string | null;
+    scheduledFor: string | null;
+    season: {
+      id: string;
+      name: string;
+    };
+    site?: {
+      id: string;
+      name: string;
+      address?: string | null;
+    } | null;
+
     rounds: Round[];
     teamGames: {
       team: { id: string; name: string };
@@ -71,3 +86,19 @@ export type ReliableEmit = (
   onAck?: (response?: unknown) => void,
   onError?: (err: unknown) => void
 ) => void;
+
+export interface HostTeamStatus {
+  id: string;
+  name: string;
+  score: number;
+  submitted: boolean;
+
+  connectionState?: TeamConnectionState;
+  transferMode?: TeamTransferMode;
+  hasDispute?: boolean;
+  activeSessionLabel?: string | null;
+  pendingSessionLabel?: string | null;
+
+  pendingApprovalRequestedAt?: string | null;
+  hasPendingApproval?: boolean;
+}

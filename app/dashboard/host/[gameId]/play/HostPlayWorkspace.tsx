@@ -1,4 +1,3 @@
-// File: app/dashboard/host/[gameId]/play/HostPlayWorkspace.tsx
 'use client';
 
 import React, { useEffect } from 'react';
@@ -35,6 +34,10 @@ export default function HostPlayWorkspace({
         connectionStatus,
         revokeTeamSession,
         unlockTeamSession,
+        resetTeamPin,
+        setTeamTransferMode,
+        approveJoinRequest,
+        denyJoinRequest,
     } = useHostTeamSessions({
         gameId,
         socket,
@@ -71,8 +74,6 @@ export default function HostPlayWorkspace({
         gameState,
         setTeamStatus,
     });
-
-
 
     useEffect(() => {
         if (!socket || !gameId) return;
@@ -112,63 +113,115 @@ export default function HostPlayWorkspace({
     ]);
 
     return (
-        <div className="flex min-h-screen bg-gray-50">
-            <div className="hidden md:block">
-                <TeamSidebar
+        <div className="min-h-screen bg-slate-50 text-slate-900">
+            <div className="flex min-h-screen">
+                <div className="hidden md:block">
+                    <TeamSidebar
+                        teamStatus={teamStatus}
+                        onRequestLiveTeams={() =>
+                            socket?.emit('host:requestLiveTeams', { gameId })
+                        }
+                        onRevokeSession={revokeTeamSession}
+                        onUnlockSession={unlockTeamSession}
+                        onResetPin={resetTeamPin}
+                        onSetTeamTransferMode={setTeamTransferMode}
+                        onApproveJoinRequest={approveJoinRequest}
+                        onDenyJoinRequest={denyJoinRequest}
+                    />
+                </div>
+
+                <TeamDrawer
                     teamStatus={teamStatus}
-                    onRequestLiveTeams={() => socket?.emit('host:requestLiveTeams', { gameId })}
+                    onRequestLiveTeams={() =>
+                        socket?.emit('host:requestLiveTeams', { gameId })
+                    }
                     onRevokeSession={revokeTeamSession}
                     onUnlockSession={unlockTeamSession}
+                    onResetPin={resetTeamPin}
+                    onSetTeamTransferMode={setTeamTransferMode}
+                    onApproveJoinRequest={approveJoinRequest}
+                    onDenyJoinRequest={denyJoinRequest}
                 />
+
+                <main className="flex-1 px-4 py-6 md:px-8 md:py-8">
+                    <div className="mx-auto max-w-7xl space-y-6">
+                        <header className="border-b border-slate-200 pb-4">
+                            <div className="space-y-2">
+                                <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
+                                    {gameState?.game.title ?? 'Game'}
+                                </h1>
+
+                                <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600">
+                                    {gameState?.game.scheduledFor ? (
+                                        <span>{new Date(gameState.game.scheduledFor).toLocaleString()}</span>
+                                    ) : null}
+
+                                    {gameState?.game.season?.name ? (
+                                        <span>Season: {gameState.game.season.name}</span>
+                                    ) : null}
+
+                                    {gameState?.game.site?.name ? (
+                                        <span>Site: {gameState.game.site.name}</span>
+                                    ) : null}
+
+                                    {gameState?.game.tag ? (
+                                        <span>Tag: {gameState.game.tag}</span>
+                                    ) : null}
+                                </div>
+                            </div>
+                        </header>
+
+                        {connectionStatus === 'disconnected' && (
+                            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-sm">
+                                Connection to the live game socket was interrupted. Attempting to
+                                reconnect.
+                            </div>
+                        )}
+
+                        {gameState && currentRound && (
+                            <CurrentGamePanel
+                                gameId={gameId}
+                                currentRound={currentRound}
+                                currentQuestionId={gameState.currentQuestionId}
+                                isLastInRound={isLastInRound}
+                                isFinalQuestion={isFinalQuestion}
+                                onPrev={handlePrev}
+                                onNext={handleNext}
+                                onComplete={handleComplete}
+                            />
+                        )}
+
+                        <section className="space-y-3">
+                            <div>
+                                <h2 className="text-lg font-semibold text-slate-900">
+                                    Answer Review
+                                </h2>
+                                <p className="mt-1 text-sm text-slate-600">
+                                    Review submissions, apply scoring, and manage favorites.
+                                </p>
+                            </div>
+
+                            <TeamAnswerGrid
+                                teamAnswers={teamAnswers.map((answer) => ({
+                                    ...answer,
+                                    favorite: favoriteMap[answer.id] ?? false,
+                                }))}
+                                currentRound={currentRound}
+                                handleScore={handleScore}
+                                handleListScore={handleListScore}
+                                handleFavorite={(teamId, questionId, fav) => {
+                                    const answer = teamAnswers.find(
+                                        (a) => a.teamId === teamId && a.questionId === questionId
+                                    );
+
+                                    if (!answer) return;
+                                    handleFavorite(answer.id, fav);
+                                }}
+                            />
+                        </section>
+                    </div>
+                </main>
             </div>
-
-            <TeamDrawer
-                teamStatus={teamStatus}
-                onRequestLiveTeams={() => socket?.emit('host:requestLiveTeams', { gameId })}
-                onRevokeSession={revokeTeamSession}
-                onUnlockSession={unlockTeamSession}
-            />
-
-            <main className="flex-1 p-6 md:p-8">
-                <h1 className="mb-6 border-b pb-2 text-3xl font-bold text-gray-800">
-                    🎯 Host Game Dashboard
-                </h1>
-
-                {gameState && currentRound && (
-                    <CurrentGamePanel
-                        gameId={gameId}
-                        currentRound={currentRound}
-                        currentQuestionId={gameState.currentQuestionId}
-                        isLastInRound={isLastInRound}
-                        isFinalQuestion={isFinalQuestion}
-                        onPrev={handlePrev}
-                        onNext={handleNext}
-                        onComplete={handleComplete}
-                    />
-                )}
-
-                <TeamAnswerGrid
-                    teamAnswers={teamAnswers.map((answer) => ({
-                        ...answer,
-                        favorite: favoriteMap[answer.id] ?? false,
-                    }))}
-                    currentRound={currentRound}
-                    handleScore={handleScore}
-                    handleListScore={handleListScore}
-                    handleFavorite={(teamId, questionId, fav) => {
-                        const answer = teamAnswers.find(
-                            (a) => a.teamId === teamId && a.questionId === questionId
-                        );
-
-                        if (!answer) return;
-                        handleFavorite(answer.id, fav);
-                    }}
-                />
-
-                {connectionStatus === 'disconnected' && (
-                    <div className="mt-4 text-center text-yellow-600">Reconnecting...</div>
-                )}
-            </main>
         </div>
     );
 }

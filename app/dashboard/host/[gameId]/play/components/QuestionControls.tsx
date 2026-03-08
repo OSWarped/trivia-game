@@ -1,14 +1,14 @@
-'use client'
+'use client';
 
-import React from 'react'
+import React from 'react';
 
 interface QuestionControlsProps {
-  onPrev: () => void | Promise<void>
-  onNext: () => void | Promise<void>
-  disablePrev?: boolean
-  disableNext?: boolean
-  isLastInRound: boolean
-  isFinalQuestion: boolean
+  onPrev: () => void | Promise<void>;
+  onNext: () => void | Promise<void>;
+  disablePrev?: boolean;
+  disableNext?: boolean;
+  isLastInRound: boolean;
+  isFinalQuestion: boolean;
 }
 
 export default function QuestionControls({
@@ -19,47 +19,53 @@ export default function QuestionControls({
   isLastInRound,
   isFinalQuestion,
 }: QuestionControlsProps) {
+  const statusMessage = isFinalQuestion
+    ? 'Final question in this game'
+    : isLastInRound
+      ? 'Last question in this round'
+      : null;
+
+  const statusClasses = isFinalQuestion
+    ? 'border-red-200 bg-red-50 text-red-700'
+    : 'border-amber-200 bg-amber-50 text-amber-700';
+
   return (
-    <div className="space-y-4">
-      <div className="flex gap-4">
-        <button
-          type="button"
-          disabled={disablePrev}
-          onClick={onPrev}
-          className={`rounded px-4 py-2 font-semibold hover:bg-gray-400 focus:outline-none focus:ring ${
-            disablePrev
-              ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-              : 'bg-gray-300 text-gray-800'
-          }`}
-        >
-          ⬅ Prev
-        </button>
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            disabled={disablePrev}
+            onClick={onPrev}
+            className={`rounded-lg border px-4 py-2 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-slate-300 ${disablePrev
+                ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
+                : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+              }`}
+          >
+            Previous
+          </button>
 
-        <button
-          type="button"
-          disabled={disableNext}
-          onClick={onNext}
-          className={`rounded px-4 py-2 font-semibold text-white hover:bg-blue-700 focus:outline-none focus:ring ${
-            disableNext
-              ? 'bg-blue-200 text-blue-100 cursor-not-allowed'
-              : 'bg-blue-600'
-          }`}
-        >
-          Next ➡
-        </button>
+          <button
+            type="button"
+            disabled={disableNext}
+            onClick={onNext}
+            className={`rounded-lg border px-4 py-2 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-blue-300 ${disableNext
+                ? 'cursor-not-allowed border-blue-100 bg-blue-100 text-blue-300'
+                : 'border-blue-600 bg-blue-600 text-white hover:bg-blue-700'
+              }`}
+          >
+            Next
+          </button>
+        </div>
+
+        {statusMessage ? (
+          <div
+            className={`rounded-lg border px-3 py-2 text-sm font-medium ${statusClasses}`}
+          >
+            {statusMessage}
+          </div>
+        ) : null}
       </div>
-
-      {isLastInRound && !isFinalQuestion && (
-        <div className="rounded bg-indigo-100 p-3 text-indigo-800 shadow-sm">
-          ⚠️ You’re on the last question of this round.
-        </div>
-      )}
-
-      {isFinalQuestion && (
-        <div className="rounded bg-red-100 p-3 text-red-800 shadow-sm">
-          🚨 This is the <strong>final question</strong> of the game!
-        </div>
-      )}
     </div>
-  )
+  );
 }

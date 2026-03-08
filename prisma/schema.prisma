@@ -189,6 +189,9 @@ model TeamGame {
   totalPts Int    @default(0)
   rank     Int?
 
+  pendingApprovalRequestedAt DateTime?
+  pendingApprovalDeviceId    String?
+
   team Team @relation(fields: [teamId], references: [id]) // now has opposite
   game Game @relation(fields: [gameId], references: [id])
   site Site @relation(fields: [siteId], references: [id])

@@ -213,6 +213,27 @@ export async function POST(
         } as const;
       }
 
+      if (teamGame.sessionControlMode === 'HOST_APPROVAL') {
+        await tx.teamGame.update({
+          where: {
+            teamId_gameId: {
+              teamId: team.id,
+              gameId,
+            },
+          },
+          data: {
+            pendingApprovalRequestedAt: now,
+            pendingApprovalDeviceId: deviceId,
+          },
+        });
+
+        return {
+          error: 'This team requires host approval before joining.',
+          code: 'HOST_APPROVAL_REQUIRED',
+          status: 403,
+        } as const;
+      }
+
       await tx.teamGameSession.updateMany({
         where: {
           gameId,

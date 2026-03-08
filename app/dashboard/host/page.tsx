@@ -36,8 +36,24 @@ export default function HostDashboard() {
     (async () => {
       try {
         const res = await fetch('/api/host/games', { credentials: 'include' });
-        const data = await res.json();
-        setGames(data as Game[]);
+        if (!res.ok) {
+          setGames([]);
+          return;
+        }
+        const data: unknown = await res.json();
+
+        if (Array.isArray(data)) {
+          setGames(data as Game[]);
+        } else if (
+          data &&
+          typeof data === 'object' &&
+          'games' in data &&
+          Array.isArray((data as { games?: unknown }).games)
+        ) {
+          setGames((data as { games: Game[] }).games);
+        } else {
+          setGames([]);
+        }
       } catch (err) {
         console.error('Error fetching host games:', err);
       } finally {

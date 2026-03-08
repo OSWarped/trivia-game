@@ -57,7 +57,6 @@ await prisma.season.create({
   data: {
     eventId:  event.id,
     name:     'Ongoing Trivia',
-    recurring:true,
   },
 });
 

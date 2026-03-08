@@ -33,6 +33,8 @@ export async function GET(
       select: {
         id: true,
         sessionControlMode: true,
+        pendingApprovalRequestedAt: true,
+        pendingApprovalDeviceId: true,
         team: {
           select: {
             id: true,
@@ -101,7 +103,11 @@ export async function GET(
       transferMode: teamGame.sessionControlMode,
       hasDispute: false,
       activeSessionLabel: latestSession?.deviceId ?? null,
-      pendingSessionLabel: null,
+      pendingSessionLabel: teamGame.pendingApprovalDeviceId ?? null,
+      pendingApprovalRequestedAt: teamGame.pendingApprovalRequestedAt
+        ? teamGame.pendingApprovalRequestedAt.toISOString()
+        : null,
+      hasPendingApproval: !!teamGame.pendingApprovalRequestedAt,
     };
   });
 

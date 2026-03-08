@@ -77,6 +77,12 @@ export default function TeamStatusBadges({ team }: TeamStatusBadgesProps) {
         </span>
       ) : null}
 
+      {team.hasPendingApproval ? (
+        <span className={badgeBase('bg-amber-100 text-amber-800')}>
+          Pending Approval
+        </span>
+      ) : null}
+
       {team.hasDispute ? (
         <span className={badgeBase('bg-rose-100 text-rose-800')}>
           Dispute

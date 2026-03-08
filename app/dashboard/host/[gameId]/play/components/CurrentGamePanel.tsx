@@ -1,35 +1,41 @@
-'use client'
+'use client';
 
-import React from 'react'
-import RevealAnswer from './RevealAnswer'
-import QuestionControls from './QuestionControls'
+import React from 'react';
+import RevealAnswer from './RevealAnswer';
+import QuestionControls from './QuestionControls';
 
-export interface QuestionOption { id: string; text: string; isCorrect: boolean }
-export interface Question {
-  id: string
-  text: string
-  options?: QuestionOption[]
+export interface QuestionOption {
+  id: string;
+  text: string;
+  isCorrect: boolean;
 }
+
+export interface Question {
+  id: string;
+  text: string;
+  options?: QuestionOption[];
+}
+
 export interface Round {
-  id: string
-  name: string
-  questions: Question[]
+  id: string;
+  name: string;
+  questions: Question[];
 }
 
 interface CurrentGamePanelProps {
-  gameId: string
-  currentRound: Round | null
-  currentQuestionId: string | null
-  isLastInRound: boolean
-  isFinalQuestion: boolean
-  disablePrev?: boolean
-  disableNext?: boolean
-  onPrev: () => void
-  onNext: () => void
-  onComplete: () => void
+  gameId: string;
+  currentRound: Round | null;
+  currentQuestionId: string | null;
+  isLastInRound: boolean;
+  isFinalQuestion: boolean;
+  disablePrev?: boolean;
+  disableNext?: boolean;
+  onPrev: () => void;
+  onNext: () => void;
+  onComplete: () => void;
 }
 
-export default function CurrentGamePanel({  
+export default function CurrentGamePanel({
   currentRound,
   currentQuestionId,
   isLastInRound,
@@ -40,56 +46,59 @@ export default function CurrentGamePanel({
   onNext,
   onComplete,
 }: CurrentGamePanelProps) {
-  const question = currentRound?.questions.find(q => q.id === currentQuestionId) || null
+  const question =
+    currentRound?.questions.find((q) => q.id === currentQuestionId) || null;
+
+  const questionIndex = currentRound?.questions.findIndex(
+    (q) => q.id === currentQuestionId
+  );
+
+  const questionNumber =
+    questionIndex !== undefined && questionIndex !== null && questionIndex >= 0
+      ? questionIndex + 1
+      : null;
 
   return (
-    <section className="space-y-6 rounded-lg bg-white p-3 shadow-md">
-      <h2 className="flex items-center gap-2 text-2xl font-semibold text-blue-800">
-        📊 Current Game Progress
-      </h2>
+    <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="border-b border-slate-200 px-5 py-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="min-w-0">
+            <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+              {currentRound?.name ?? 'No active round'}
+              {questionNumber ? ` · Question ${questionNumber}` : ''}
+            </div>
 
-      <QuestionControls
-        onPrev={onPrev}
-        onNext={onNext}
-        disablePrev={disablePrev}
-        disableNext={disableNext}
-        isLastInRound={isLastInRound}
-        isFinalQuestion={isFinalQuestion}
-      />
+            <div className="mt-2 text-xl font-semibold leading-7 text-slate-900">
+              {question?.text ?? 'No active question'}
+            </div>
+          </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <div className="rounded-md border border-blue-200 bg-blue-50 p-2 shadow-sm">
-          <p className="mt-0 mb-0 text-sm font-semibold uppercase tracking-wide text-blue-700">
-            Current Round
-          </p>
-          <p className="mt-1 text-lg font-bold text-blue-900">
-            {currentRound?.name}
-          </p>
-        </div>
-
-        <div className="rounded-md border border-green-200 bg-green-50 p-2 shadow-sm">
-          <p className="mt-0 mb-0 text-sm font-semibold uppercase tracking-wide text-green-700">
-            Current Question
-          </p>
-          <p className="mt-1 text-lg font-medium text-green-900">
-            {question?.text ?? 'No active question'}
-          </p>
+          {isFinalQuestion ? (
+            <button
+              type="button"
+              onClick={onComplete}
+              className="shrink-0 rounded-lg border border-red-200 bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700"
+            >
+              Complete Game
+            </button>
+          ) : null}
         </div>
       </div>
 
-      <RevealAnswer question={question} />
+      <div className="px-5 py-4">
+        <QuestionControls
+          onPrev={onPrev}
+          onNext={onNext}
+          disablePrev={disablePrev}
+          disableNext={disableNext}
+          isLastInRound={isLastInRound}
+          isFinalQuestion={isFinalQuestion}
+        />
+      </div>
 
-      {isFinalQuestion && (
-        <div>
-          <button
-            type="button"
-            onClick={onComplete}
-            className="mt-6 rounded bg-red-600 px-6 py-3 font-semibold text-white shadow hover:bg-red-700"
-          >
-            ✅ Complete Game
-          </button>
-        </div>
-      )}
+      <div className="border-t border-slate-200 px-5 py-4">
+        <RevealAnswer question={question} />
+      </div>
     </section>
-  )
+  );
 }

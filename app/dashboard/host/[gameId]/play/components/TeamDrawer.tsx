@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import type { HostTeamStatus } from '../types/host-play.types';
+import type { HostTeamStatus, TeamTransferMode } from '../types/host-play.types';
 import TeamSidebarCard from './TeamSidebarCard';
 
 interface TeamDrawerProps {
@@ -9,6 +9,13 @@ interface TeamDrawerProps {
   onRequestLiveTeams: () => void;
   onRevokeSession: (teamId: string) => Promise<void>;
   onUnlockSession: (teamId: string) => Promise<void>;
+  onResetPin: (teamId: string) => Promise<string>;
+  onSetTeamTransferMode: (
+    teamId: string,
+    mode: TeamTransferMode
+  ) => Promise<void>;
+  onApproveJoinRequest: (teamId: string) => Promise<void>;
+  onDenyJoinRequest: (teamId: string) => Promise<void>;
 }
 
 export default function TeamDrawer({
@@ -16,6 +23,10 @@ export default function TeamDrawer({
   onRequestLiveTeams,
   onRevokeSession,
   onUnlockSession,
+  onResetPin,
+  onSetTeamTransferMode,
+  onApproveJoinRequest,
+  onDenyJoinRequest,
 }: TeamDrawerProps) {
   const [open, setOpen] = useState(false);
 
@@ -130,6 +141,10 @@ export default function TeamDrawer({
                     team={team}
                     onRevokeSession={onRevokeSession}
                     onUnlockSession={onUnlockSession}
+                    onResetPin={onResetPin}
+                    onSetTeamTransferMode={onSetTeamTransferMode}
+                    onApproveJoinRequest={onApproveJoinRequest}
+                    onDenyJoinRequest={onDenyJoinRequest}
                   />
                 ))}
               </div>

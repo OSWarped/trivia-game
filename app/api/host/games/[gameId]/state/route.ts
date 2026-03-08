@@ -17,6 +17,19 @@ export async function GET(
       include: {
         game: {
           include: {
+            season: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+            site: {
+              select: {
+                id: true,
+                name: true,
+                address: true,
+              },
+            },
             rounds: {
               orderBy: { sortOrder: 'asc' },
               include: {
@@ -116,7 +129,23 @@ export async function GET(
 
       game: {
         id: gs.game.id,
+        title: gs.game.title,
         status: gs.game.status,
+        tag: gs.game.tag ?? null,
+        scheduledFor: gs.game.scheduledFor?.toISOString() ?? null,
+
+        season: {
+          id: gs.game.season.id,
+          name: gs.game.season.name,
+        },
+
+        site: gs.game.site
+          ? {
+              id: gs.game.site.id,
+              name: gs.game.site.name,
+              address: gs.game.site.address,
+            }
+          : null,
 
         rounds: gs.game.rounds.map((r) => ({
           id: r.id,

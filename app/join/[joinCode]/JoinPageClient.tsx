@@ -233,6 +233,8 @@ export default function JoinPageClient({ joinCode }: { joinCode: string }) {
 
   const [loadError, setLoadError] = useState('');
   const [submitError, setSubmitError] = useState('');
+  const [approvalPending, setApprovalPending] = useState(false);
+  const [approvalMessage, setApprovalMessage] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -241,6 +243,8 @@ export default function JoinPageClient({ joinCode }: { joinCode: string }) {
       setIsLoading(true);
       setLoadError('');
       setSubmitError('');
+      setApprovalPending(false);
+      setApprovalMessage('');
 
       try {
         const res = await fetch(`/api/games/join-code/${joinCode}`, {
@@ -339,7 +343,12 @@ export default function JoinPageClient({ joinCode }: { joinCode: string }) {
                 clearStoredGameSession(normalizedGame.id);
               }
 
-              if (!cancelled && resumeData.error) {
+              if (!cancelled && resumeData.code === 'TEAM_LOCKED') {
+                setSubmitError(
+                  resumeData.error ||
+                    'Your team has been locked by the host for this game.'
+                );
+              } else if (!cancelled && resumeData.error) {
                 setSubmitError(resumeData.error);
               }
             } catch {
@@ -420,6 +429,8 @@ export default function JoinPageClient({ joinCode }: { joinCode: string }) {
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSubmitError('');
+    setApprovalPending(false);
+    setApprovalMessage('');
 
     if (!game) {
       setSubmitError('Game information is not loaded yet.');
@@ -458,6 +469,15 @@ export default function JoinPageClient({ joinCode }: { joinCode: string }) {
       const data = (await res.json()) as SessionApiResponse;
 
       if (!res.ok) {
+        if (data.code === 'HOST_APPROVAL_REQUIRED') {
+          setApprovalPending(true);
+          setApprovalMessage(
+            data.error ||
+              'This team requires host approval before joining.'
+          );
+          return;
+        }
+
         setSubmitError(data.error || 'Failed to join game.');
         return;
       }
@@ -581,6 +601,9 @@ export default function JoinPageClient({ joinCode }: { joinCode: string }) {
                 onChange={(e) => {
                   setTeamQuery(e.target.value);
                   setShowSuggestions(true);
+                  setSubmitError('');
+                  setApprovalPending(false);
+                  setApprovalMessage('');
                 }}
                 onFocus={() => setShowSuggestions(true)}
                 onBlur={() => {
@@ -600,6 +623,9 @@ export default function JoinPageClient({ joinCode }: { joinCode: string }) {
                       onMouseDown={() => {
                         setTeamQuery(team.name);
                         setShowSuggestions(false);
+                        setSubmitError('');
+                        setApprovalPending(false);
+                        setApprovalMessage('');
                       }}
                     >
                       {team.name}
@@ -622,6 +648,9 @@ export default function JoinPageClient({ joinCode }: { joinCode: string }) {
                 onChange={(e) => {
                   const digitsOnly = e.target.value.replace(/\D/g, '').slice(0, 4);
                   setPin(digitsOnly);
+                  setSubmitError('');
+                  setApprovalPending(false);
+                  setApprovalMessage('');
                 }}
                 placeholder="Optional 4-digit PIN"
                 className="w-full rounded border p-2"
@@ -630,6 +659,16 @@ export default function JoinPageClient({ joinCode }: { joinCode: string }) {
                 Use a PIN if you want to protect this team name for future games.
               </p>
             </div>
+
+            {approvalPending ? (
+              <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+                <p className="font-semibold">Host approval required</p>
+                <p className="mt-1">
+                  {approvalMessage ||
+                    'Your request has been sent to the host. Please wait for approval, then try joining again.'}
+                </p>
+              </div>
+            ) : null}
 
             {game.teams.length === 0 ? (
               <p className="text-sm text-gray-500">
@@ -647,7 +686,11 @@ export default function JoinPageClient({ joinCode }: { joinCode: string }) {
               disabled={isSubmitting || !trimmedTeamName}
               className="w-full rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {isSubmitting ? 'Joining...' : 'Join Game'}
+              {isSubmitting
+                ? 'Joining...'
+                : approvalPending
+                ? 'Retry Join'
+                : 'Join Game'}
             </button>
           </form>
         ) : null}

@@ -130,6 +130,7 @@ export async function GET(
       game: {
         id: gs.game.id,
         title: gs.game.title,
+        joinCode: gs.game.joinCode,
         status: gs.game.status,
         tag: gs.game.tag ?? null,
         scheduledFor: gs.game.scheduledFor?.toISOString() ?? null,

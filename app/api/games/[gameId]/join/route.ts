@@ -339,8 +339,16 @@ export async function POST(
         expiresAt: result.session.expiresAt.toISOString(),
       },
     });
-  } catch (error) {
-    console.error('Error joining game:', error);
+  } catch (error: unknown) {
+    const message =
+      error instanceof Error ? error.message : String(error);
+
+    const stack = error instanceof Error ? error.stack : undefined;
+
+    console.error('Error joining game', {
+      message,
+      stack,
+    });
 
     return NextResponse.json(
       { error: 'Failed to join game.' },

@@ -44,13 +44,13 @@ function getCardAccentClasses(team: HostTeamStatus): string {
     case 'ACTIVE':
       return 'border-green-200 bg-white';
     case 'RECONNECTING':
-      return 'border-yellow-200 bg-yellow-50/40';
+      return 'border-amber-200 bg-amber-50/40';
     case 'OFFLINE':
-      return 'border-gray-200 bg-white';
+      return 'border-slate-200 bg-white';
     case 'PENDING_TRANSFER':
       return 'border-orange-200 bg-orange-50/40';
     default:
-      return 'border-gray-200 bg-white';
+      return 'border-slate-200 bg-white';
   }
 }
 
@@ -85,6 +85,9 @@ export default function TeamSidebarCard({
   const [revealedPin, setRevealedPin] = React.useState<string | null>(null);
   const [pinVisible, setPinVisible] = React.useState(false);
   const [pendingAction, setPendingAction] = React.useState<PendingAction>(null);
+  const [menuOpen, setMenuOpen] = React.useState(false);
+
+  const menuRef = React.useRef<HTMLDivElement | null>(null);
 
   const isBusy =
     isResettingPin ||
@@ -94,9 +97,29 @@ export default function TeamSidebarCard({
     isApproving ||
     isDenying;
 
+  React.useEffect(() => {
+    if (!menuOpen) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!menuRef.current) return;
+      if (menuRef.current.contains(event.target as Node)) return;
+      setMenuOpen(false);
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [menuOpen]);
+
   const closeModal = () => {
     if (isBusy) return;
     setPendingAction(null);
+  };
+
+  const openAction = (action: PendingAction) => {
+    setMenuOpen(false);
+    setPendingAction(action);
   };
 
   const handleConfirmedResetPin = async () => {
@@ -208,14 +231,16 @@ export default function TeamSidebarCard({
           team
         )}`}
       >
-        <div className="flex h-full flex-col gap-4">
+        <div className="flex h-full flex-col gap-3">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
-              <div className="line-clamp-2 break-words text-[15px] font-semibold leading-5 text-gray-900">
+              <div className="line-clamp-2 break-words text-[15px] font-semibold leading-5 text-slate-900">
                 {team.name}
               </div>
 
-              <div className="mt-1 text-xs text-gray-500">Team</div>
+              <div className="mt-2">
+                <TeamStatusBadges team={team} />
+              </div>
             </div>
 
             <div
@@ -226,11 +251,7 @@ export default function TeamSidebarCard({
               {team.score ?? 0} pts
             </div>
           </div>
-
-          <div className="rounded-xl bg-white/70 p-2">
-            <TeamStatusBadges team={team} />
-          </div>
-
+          
           {pinVisible && revealedPin ? (
             <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-3">
               <div className="flex items-center justify-between gap-3">
@@ -253,17 +274,9 @@ export default function TeamSidebarCard({
             </div>
           ) : null}
 
-          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-black/5 pt-3">
-            {team.hasPendingApproval ? (
-              <>
-                <button
-                  onClick={() => setPendingAction('denyRequest')}
-                  disabled={isBusy}
-                  className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isDenying ? 'Denying...' : 'Deny Request'}
-                </button>
-
+          <div className="flex items-center justify-between gap-3 border-t border-black/5 pt-3">
+            <div>
+              {team.hasPendingApproval ? (
                 <button
                   onClick={() => setPendingAction('approveRequest')}
                   disabled={isBusy}
@@ -271,52 +284,80 @@ export default function TeamSidebarCard({
                 >
                   {isApproving ? 'Approving...' : 'Approve Request'}
                 </button>
-              </>
-            ) : null}
+              ) : team.transferMode === 'LOCKED' ? (
+                <button
+                  onClick={() => setPendingAction('unlock')}
+                  disabled={isBusy}
+                  className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isUnlocking ? 'Unlocking...' : 'Unlock Team'}
+                </button>
+              ) : null}
+            </div>
 
-            <button
-              onClick={() => setPendingAction('resetPin')}
-              disabled={isBusy}
-              className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isResettingPin ? 'Resetting...' : 'Reset PIN'}
-            </button>
+            <div className="relative" ref={menuRef}>
+              <button
+                type="button"
+                onClick={() => setMenuOpen((prev) => !prev)}
+                disabled={isBusy}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Actions
+              </button>
 
-            {team.transferMode === 'LOCKED' ? (
-              <button
-                onClick={() => setPendingAction('unlock')}
-                disabled={isBusy}
-                className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isUnlocking ? 'Unlocking...' : 'Unlock Team'}
-              </button>
-            ) : (
-              <button
-                onClick={() => setPendingAction('revokeLock')}
-                disabled={isBusy}
-                className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isRevoking ? 'Revoking...' : 'Revoke + Lock'}
-              </button>
-            )}
+              {menuOpen ? (
+                <div className="absolute right-0 top-full z-20 mt-2 w-48 rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+                  <button
+                    type="button"
+                    onClick={() => openAction('resetPin')}
+                    className="w-full rounded-lg px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50"
+                  >
+                    Reset PIN
+                  </button>
 
-            {team.transferMode === 'HOST_APPROVAL' ? (
-              <button
-                onClick={() => setPendingAction('setNormal')}
-                disabled={isBusy}
-                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isSettingMode ? 'Updating...' : 'Set Normal'}
-              </button>
-            ) : team.transferMode !== 'LOCKED' ? (
-              <button
-                onClick={() => setPendingAction('requireApproval')}
-                disabled={isBusy}
-                className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isSettingMode ? 'Updating...' : 'Require Approval'}
-              </button>
-            ) : null}
+                  {team.transferMode !== 'LOCKED' &&
+                    team.transferMode !== 'HOST_APPROVAL' ? (
+                    <button
+                      type="button"
+                      onClick={() => openAction('requireApproval')}
+                      className="w-full rounded-lg px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50"
+                    >
+                      Require Approval
+                    </button>
+                  ) : null}
+
+                  {team.transferMode === 'HOST_APPROVAL' ? (
+                    <button
+                      type="button"
+                      onClick={() => openAction('setNormal')}
+                      className="w-full rounded-lg px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50"
+                    >
+                      Set Normal
+                    </button>
+                  ) : null}
+
+                  {team.hasPendingApproval ? (
+                    <button
+                      type="button"
+                      onClick={() => openAction('denyRequest')}
+                      className="w-full rounded-lg px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50"
+                    >
+                      Deny Request
+                    </button>
+                  ) : null}
+
+                  {team.transferMode !== 'LOCKED' ? (
+                    <button
+                      type="button"
+                      onClick={() => openAction('revokeLock')}
+                      className="w-full rounded-lg px-3 py-2 text-left text-sm text-red-700 transition hover:bg-red-50"
+                    >
+                      Revoke + Lock
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
       </div>

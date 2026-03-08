@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { ChevronLeft } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import GameJsonImportPanel from './components/GameJsonImportPanel';
 
 interface User {
   id: string;
@@ -296,6 +297,10 @@ export default function EditGamePage() {
             {saving ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
+      </div>
+
+      <div className="mt-6">
+        <GameJsonImportPanel gameId={gameId} />
       </div>
     </div>
   );

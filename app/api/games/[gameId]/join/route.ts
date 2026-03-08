@@ -151,7 +151,7 @@ export async function POST(
         const exactPinMatch =
           pin !== null
             ? existingTeams.find((existingTeam) => existingTeam.pin === pin) ??
-              null
+            null
             : null;
 
         const unprotectedTeam =
@@ -181,17 +181,17 @@ export async function POST(
           team = await tx.team.create({
             data: pin
               ? {
-                  name: teamName,
-                  pin,
-                }
+                name: teamName,
+                pin,
+              }
               : {
-                  name: teamName,
-                },
+                name: teamName,
+              },
           });
         }
       }
 
-      await tx.teamGame.upsert({
+      const teamGame = await tx.teamGame.upsert({
         where: {
           teamId_gameId: {
             teamId: team.id,
@@ -205,6 +205,13 @@ export async function POST(
           siteId,
         },
       });
+
+      if (teamGame.sessionControlMode === 'LOCKED') {
+        return {
+          error: 'This team has been locked by the host for this game.',
+          status: 423,
+        } as const;
+      }
 
       await tx.teamGameSession.updateMany({
         where: {
@@ -255,29 +262,29 @@ export async function POST(
 
       const session = existingSession
         ? await tx.teamGameSession.update({
-            where: { id: existingSession.id },
-            data: {
-              sessionToken,
-              status: TeamGameSessionStatus.ACTIVE,
-              socketId: null,
-              lastSeenAt: now,
-              disconnectedAt: null,
-              expiresAt,
-            },
-          })
+          where: { id: existingSession.id },
+          data: {
+            sessionToken,
+            status: TeamGameSessionStatus.ACTIVE,
+            socketId: null,
+            lastSeenAt: now,
+            disconnectedAt: null,
+            expiresAt,
+          },
+        })
         : await tx.teamGameSession.create({
-            data: {
-              gameId,
-              teamId: team.id,
-              sessionToken,
-              deviceId,
-              status: TeamGameSessionStatus.ACTIVE,
-              socketId: null,
-              lastSeenAt: now,
-              disconnectedAt: null,
-              expiresAt,
-            },
-          });
+          data: {
+            gameId,
+            teamId: team.id,
+            sessionToken,
+            deviceId,
+            status: TeamGameSessionStatus.ACTIVE,
+            socketId: null,
+            lastSeenAt: now,
+            disconnectedAt: null,
+            expiresAt,
+          },
+        });
 
       return { team, session } as const;
     });

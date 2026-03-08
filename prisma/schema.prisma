@@ -194,6 +194,7 @@ model TeamGame {
   site Site @relation(fields: [siteId], references: [id])
 
   answers Answer[]
+  sessionControlMode TeamGameSessionControlMode @default(NORMAL)
 
   @@unique([teamId, gameId])
 }
@@ -304,3 +305,11 @@ model TeamGameSession {
   @@index([expiresAt])
   @@index([gameId, teamId])
 }
+
+enum TeamGameSessionControlMode {
+  NORMAL
+  HOST_APPROVAL
+  LOCKED
+}
+
+

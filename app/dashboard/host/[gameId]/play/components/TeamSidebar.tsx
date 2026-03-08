@@ -1,50 +1,50 @@
-'use client'
+'use client';
 
-import React from 'react'
-
-export interface TeamStatus {
-  id: string
-  name: string
-  score?: number
-  submitted: boolean
-}
+import React from 'react';
+import type { HostTeamStatus } from '../types/host-play.types';
+import TeamSidebarCard from './TeamSidebarCard';
 
 interface TeamSidebarProps {
-  teamStatus: TeamStatus[]
-  onRequestLiveTeams: () => void
+  teamStatus: HostTeamStatus[];
+  onRequestLiveTeams: () => void;
+  onRevokeSession: (teamId: string) => Promise<void>;
+  onUnlockSession: (teamId: string) => Promise<void>;
 }
 
-export default function TeamSidebar({ teamStatus }: TeamSidebarProps) {
-  
-
+export default function TeamSidebar({
+  teamStatus,
+  onRequestLiveTeams,
+  onRevokeSession,
+  onUnlockSession,
+}: TeamSidebarProps) {
   return (
-    <>
-      {/* Desktop Sidebar */}
-      <aside className="hidden md:block w-64 border-r bg-gray-100 p-4 shadow-inner">
-        <h2 className="mb-4 text-lg font-semibold text-gray-700">👥 Teams</h2>
-        <div className="space-y-3 overflow-y-auto max-h-[calc(100vh-4rem)]">
-          {teamStatus.map(team => (
-            <div
-              key={team.id}
-              className={`flex items-center justify-between rounded-lg border bg-white p-3 shadow-sm ${
-                team.submitted
-                  ? 'border-green-400 ring-2 ring-green-300'
-                  : ''
-              }`}
-            >
-              <span className="font-medium text-gray-800">
-                {team.name}
-                {team.submitted && (
-                  <span className="ml-2 rounded bg-green-200 px-2 text-xs font-semibold text-green-800">
-                    Submitted
-                  </span>
-                )}
-              </span>
-              <span className="text-sm font-bold text-blue-600">{team.score ?? 0} pts</span>
-            </div>
-          ))}
+    <aside className="hidden w-[22rem] border-r border-gray-200 bg-gradient-to-b from-gray-50 to-gray-100 p-4 shadow-inner md:block">
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-gray-800">👥 Teams</h2>
+          <p className="mt-1 text-xs text-gray-500">
+            Live team control and status
+          </p>
         </div>
-      </aside>      
-    </>
-  )
+
+        <button
+          onClick={onRequestLiveTeams}
+          className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
+        >
+          Refresh
+        </button>
+      </div>
+
+      <div className="max-h-[calc(100vh-7rem)] space-y-3 overflow-y-auto pr-1">
+        {teamStatus.map((team) => (
+          <TeamSidebarCard
+            key={team.id}
+            team={team}
+            onRevokeSession={onRevokeSession}
+            onUnlockSession={onUnlockSession}
+          />
+        ))}
+      </div>
+    </aside>
+  );
 }

@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 import {
   PrismaClient,
   TeamGameSessionStatus,
+  TeamGameSessionControlMode,
 } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -84,6 +85,30 @@ export async function POST(
           redirectTo: `/join/${game.joinCode}`,
         },
         { status: 400 }
+      );
+    }
+
+    const teamGame = await prisma.teamGame.findUnique({
+      where: {
+        teamId_gameId: {
+          teamId,
+          gameId,
+        },
+      },
+      select: {
+        sessionControlMode: true,
+      },
+    });
+
+    if (teamGame?.sessionControlMode === TeamGameSessionControlMode.LOCKED) {
+      return NextResponse.json(
+        {
+          ok: false,
+          code: 'TEAM_LOCKED',
+          error: 'This team has been locked by the host for this game.',
+          clearStoredSession: false,
+        },
+        { status: 423 }
       );
     }
 

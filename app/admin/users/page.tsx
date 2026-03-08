@@ -1,8 +1,8 @@
-"use client"
+"use client";
 
-import { ChevronLeft } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { ChevronLeft, Plus } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
 
 interface User {
   id: string;
@@ -11,26 +11,33 @@ interface User {
   role: string;
 }
 
+type ModalMode = "add" | "edit" | null;
+
 export default function ManageUsers() {
   const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
+
+  const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [editUserModal, setEditUserModal] = useState<User | null>(null);
-  const [editedName, setEditedName] = useState('');
-  const [editedEmail, setEditedEmail] = useState('');
-  const [editedRole, setEditedRole] = useState<string>('HOST');
+
+  const [editedName, setEditedName] = useState("");
+  const [editedEmail, setEditedEmail] = useState("");
+  const [editedRole, setEditedRole] = useState<string>("HOST");
+  const [saving, setSaving] = useState(false);
+  const [editedPassword, setEditedPassword] = useState('');
 
   useEffect(() => {
     async function fetchUsers() {
       try {
-        const res = await fetch('/api/admin/users');
-        if (!res.ok) throw new Error('Failed to fetch users');
+        const res = await fetch("/api/admin/users");
+        if (!res.ok) throw new Error("Failed to fetch users");
         const data = await res.json();
         setUsers(data);
       } catch (err) {
         console.error(err);
-        setError('Failed to load users.');
+        setError("Failed to load users.");
       } finally {
         setLoading(false);
       }
@@ -39,45 +46,96 @@ export default function ManageUsers() {
     fetchUsers();
   }, []);
 
-  function openEditModal(user: User) {
-    setEditUserModal(user);
-    setEditedName(user.name || '');
-    setEditedEmail(user.email);
-    setEditedRole(user.role);
+  function resetForm() {
+    setEditedName('');
+    setEditedEmail('');
+    setEditedRole('HOST');
+    setEditedPassword('');
+    setEditUserModal(null);
   }
 
-  async function handleSaveChanges(e: React.FormEvent) {
+  function closeModal() {
+    setModalMode(null);
+    setEditUserModal(null);
+    resetForm();
+  }
+
+  function openAddModal() {
+    resetForm();
+    setModalMode("add");
+  }
+
+  function openEditModal(user: User) {
+    setEditUserModal(user);
+    setEditedName(user.name || "");
+    setEditedEmail(user.email);
+    setEditedRole(user.role || "HOST");
+    setModalMode("edit");
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!editUserModal) return;
+    setError("");
+    setSaving(true);
 
     try {
-      setError('');
+      const payload =
+        modalMode === 'add'
+          ? {
+            name: editedName.trim(),
+            email: editedEmail.trim(),
+            role: editedRole,
+            password: editedPassword,
+          }
+          : {
+            name: editedName.trim(),
+            email: editedEmail.trim(),
+            role: editedRole,
+          };
 
-      const res = await fetch(`/api/admin/users/${editUserModal.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: editedName,
-          email: editedEmail,
-          roles: editedRole,
-        }),
-      });
+      if (modalMode === "add") {
+        const res = await fetch("/api/admin/users", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
 
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => null);
-        throw new Error(errorData?.error || 'Failed to update user');
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => null);
+          throw new Error(errorData?.error || "Failed to create user");
+        }
+
+        const newUser = await res.json();
+        setUsers((prev) => [...prev, newUser]);
+        closeModal();
+        return;
       }
 
-      const updatedUser = await res.json();
+      if (modalMode === "edit" && editUserModal) {
+        const res = await fetch(`/api/admin/users/${editUserModal.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
 
-      setUsers((prev) =>
-        prev.map((user) => (user.id === updatedUser.id ? updatedUser : user))
-      );
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => null);
+          throw new Error(errorData?.error || "Failed to update user");
+        }
 
-      setEditUserModal(null);
+        const updatedUser = await res.json();
+
+        setUsers((prev) =>
+          prev.map((user) => (user.id === updatedUser.id ? updatedUser : user))
+        );
+
+        closeModal();
+      }
     } catch (err) {
       console.error(err);
-      setError(err instanceof Error ? err.message : 'Failed to save changes.');
+      setError(err instanceof Error ? err.message : "Failed to save user.");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -89,42 +147,53 @@ export default function ManageUsers() {
     if (!confirmed) return;
 
     try {
-      setError('');
+      setError("");
 
       const res = await fetch(`/api/admin/users/${user.id}`, {
-        method: 'DELETE',
+        method: "DELETE",
       });
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => null);
-        throw new Error(errorData?.error || 'Failed to delete user');
+        throw new Error(errorData?.error || "Failed to delete user");
       }
 
       setUsers((prev) => prev.filter((u) => u.id !== user.id));
 
       if (editUserModal?.id === user.id) {
-        setEditUserModal(null);
+        closeModal();
       }
     } catch (err) {
       console.error(err);
-      setError(err instanceof Error ? err.message : 'Failed to delete user.');
+      setError(err instanceof Error ? err.message : "Failed to delete user.");
     }
   }
 
   if (loading) return <div>Loading users...</div>;
-  if (error) return <div className="text-red-500">{error}</div>;
 
   return (
     <div>
       <button
-        onClick={() => router.push('/admin/dashboard')}
+        onClick={() => router.push("/admin/dashboard")}
         className="mb-4 flex items-center text-blue-600 hover:underline"
       >
         <ChevronLeft className="mr-1" size={18} />
         Back to Admin Panel
       </button>
 
-      <h1 className="text-2xl font-bold mb-4">Manage Users</h1>
+      <div className="mb-4 flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Manage Users</h1>
+
+        <button
+          onClick={openAddModal}
+          className="flex items-center gap-2 rounded bg-green-600 px-4 py-2 text-white hover:bg-green-700"
+        >
+          <Plus size={18} />
+          Add User
+        </button>
+      </div>
+
+      {error && <div className="mb-4 text-red-500">{error}</div>}
 
       <table className="w-full border-collapse border border-gray-300">
         <thead>
@@ -138,22 +207,22 @@ export default function ManageUsers() {
         <tbody>
           {users.map((user) => (
             <tr key={user.id} className="hover:bg-gray-50">
-              <td className="border border-gray-300 px-4 py-2">{user.name || 'N/A'}</td>
+              <td className="border border-gray-300 px-4 py-2">{user.name || "N/A"}</td>
               <td className="border border-gray-300 px-4 py-2">{user.email}</td>
               <td className="border border-gray-300 px-4 py-2">
-                {user.role ?? 'No role'}
+                {user.role ?? "No role"}
               </td>
               <td className="border border-gray-300 px-4 py-2">
                 <div className="flex gap-2">
                   <button
                     onClick={() => openEditModal(user)}
-                    className="bg-blue-500 text-white px-3 py-1 rounded"
+                    className="rounded bg-blue-500 px-3 py-1 text-white hover:bg-blue-600"
                   >
                     Edit
                   </button>
                   <button
                     onClick={() => handleDeleteUser(user)}
-                    className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700"
+                    className="rounded bg-red-600 px-3 py-1 text-white hover:bg-red-700"
                   >
                     Delete
                   </button>
@@ -164,47 +233,78 @@ export default function ManageUsers() {
         </tbody>
       </table>
 
-      {editUserModal && (
+      {modalMode && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white p-6 rounded shadow-lg">
-            <h2 className="text-xl font-bold mb-4">Edit User</h2>
-            <form onSubmit={handleSaveChanges}>
+          <div className="w-full max-w-md rounded bg-white p-6 shadow-lg">
+            <h2 className="mb-4 text-xl font-bold">
+              {modalMode === "add" ? "Add User" : "Edit User"}
+            </h2>
+
+            <form onSubmit={handleSubmit}>
               <input
                 type="text"
                 placeholder="Name"
                 value={editedName}
                 onChange={(e) => setEditedName(e.target.value)}
-                className="border p-2 w-full mb-4"
+                className="mb-4 w-full border p-2"
+                required
               />
+
               <input
                 type="email"
                 placeholder="Email"
                 value={editedEmail}
                 onChange={(e) => setEditedEmail(e.target.value)}
-                className="border p-2 w-full mb-4"
+                className="mb-4 w-full border p-2"
+                required
               />
+
+              {modalMode === "add" && (
+                <input
+                  type="password"
+                  placeholder="Temporary Password"
+                  value={editedPassword}
+                  onChange={(e) => setEditedPassword(e.target.value)}
+                  className="mb-4 w-full border p-2"
+                  required
+                  minLength={8}
+                />
+              )}
+
               <div className="mb-4">
-                <label className="block font-medium mb-2">Roles</label>
+                <label className="mb-2 block font-medium">Role</label>
                 <select
                   value={editedRole}
                   onChange={(e) => setEditedRole(e.target.value)}
-                  className="border p-2 w-full"
+                  className="w-full border p-2"
                 >
                   <option value="ADMIN">Admin</option>
                   <option value="HOST">Host</option>
                   <option value="PLAYER">Player</option>
                 </select>
               </div>
+
               <div className="flex justify-end space-x-2">
                 <button
                   type="button"
-                  onClick={() => setEditUserModal(null)}
-                  className="bg-gray-500 text-white px-4 py-2 rounded"
+                  onClick={closeModal}
+                  className="rounded bg-gray-500 px-4 py-2 text-white"
+                  disabled={saving}
                 >
                   Cancel
                 </button>
-                <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded">
-                  Save Changes
+                <button
+                  type="submit"
+                  className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600 disabled:opacity-50"
+                  disabled={saving}
+                >
+                  {saving
+                    ? modalMode === "add"
+                      ? "Creating..."
+                      : "Saving..."
+                    : modalMode === "add"
+                      ? "Create User"
+                      : "Save Changes"}
                 </button>
               </div>
             </form>

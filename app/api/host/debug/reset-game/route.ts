@@ -43,10 +43,10 @@ export async function POST(req: Request) {
         data: { totalPts: 0 },
       })
 
-      // 5) Finally, put the Game itself back into DRAFT
+      // 5) Finally, put the Game itself back into SCHEDULED
       await tx.game.update({
         where: { id: gameId },
-        data: { status: "DRAFT" },
+        data: { status: "SCHEDULED" },
       })
     })
 

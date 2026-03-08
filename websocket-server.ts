@@ -906,11 +906,10 @@ try {
     );
   });
 
-  server.listen(PORT, () => {
+  server.listen(PORT, '127.0.0.1', () => {
     console.log(`WebSocket server running on ${protocol} port ${PORT}`);
     console.log(
-      `CORS origin: ${Array.isArray(corsOrigin) ? corsOrigin.join(', ') : corsOrigin
-      }`
+      `CORS origin: ${Array.isArray(corsOrigin) ? corsOrigin.join(', ') : corsOrigin}`
     );
   });
 } catch (err) {

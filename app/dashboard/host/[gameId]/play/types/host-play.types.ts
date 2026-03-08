@@ -28,6 +28,7 @@ export interface Round {
 export interface GameStateExpanded extends GameState {
   game: {
     id: string;
+    joinCode: string;
     title: string;
     status: string;
     tag?: string | null;

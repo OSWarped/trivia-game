@@ -16,7 +16,12 @@ interface UseHostTeamSessionsArgs {
 
 interface LiveTeamsPayload {
   gameId: string;
-  teams: { id: string; name: string }[];
+  teams: {
+    id: string;
+    name: string;
+    status: 'ACTIVE' | 'RECONNECTING' | 'OFFLINE';
+    lastSeenAt: string;
+  }[];
 }
 
 interface ScoreUpdatePayload {
@@ -229,6 +234,31 @@ export function useHostTeamSessions({
     [gameId, refreshTeamStatus]
   );
 
+  const bootTeamSession = useCallback(
+    async (teamId: string) => {
+      if (!socket) {
+        throw new Error('Socket unavailable.');
+      }
+
+      await new Promise<void>((resolve, reject) => {
+        socket.emit(
+          'host:bootTeamSession',
+          { gameId, teamId },
+          (response?: { ok?: boolean; error?: string }) => {
+            if (!response?.ok) {
+              reject(new Error(response?.error ?? 'Failed to boot team.'));
+              return;
+            }
+            resolve();
+          }
+        );
+      });
+
+      await refreshTeamStatus();
+    },
+    [socket, gameId, refreshTeamStatus]
+  );
+
   useEffect(() => {
     if (!socket || !gameId) return;
 
@@ -276,12 +306,12 @@ export function useHostTeamSessions({
     teamStatus,
     setTeamStatus,
     connectionStatus,
-    refreshTeamStatus,
     revokeTeamSession,
     unlockTeamSession,
     resetTeamPin,
     setTeamTransferMode,
     approveJoinRequest,
     denyJoinRequest,
+    bootTeamSession,
   };
 }

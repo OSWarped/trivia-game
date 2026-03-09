@@ -19,6 +19,7 @@ interface TeamSidebarCardProps {
   ) => Promise<void>;
   onApproveJoinRequest: (teamId: string) => Promise<void>;
   onDenyJoinRequest: (teamId: string) => Promise<void>;
+  onBootTeam: (teamId: string) => Promise<void>;
 }
 
 type PendingAction =
@@ -29,6 +30,7 @@ type PendingAction =
   | 'setNormal'
   | 'approveRequest'
   | 'denyRequest'
+  | 'bootTeam'
   | null;
 
 function getCardAccentClasses(team: HostTeamStatus): string {
@@ -74,6 +76,7 @@ export default function TeamSidebarCard({
   onSetTeamTransferMode,
   onApproveJoinRequest,
   onDenyJoinRequest,
+  onBootTeam,
 }: TeamSidebarCardProps) {
   const [isResettingPin, setIsResettingPin] = React.useState(false);
   const [isRevoking, setIsRevoking] = React.useState(false);
@@ -81,6 +84,7 @@ export default function TeamSidebarCard({
   const [isSettingMode, setIsSettingMode] = React.useState(false);
   const [isApproving, setIsApproving] = React.useState(false);
   const [isDenying, setIsDenying] = React.useState(false);
+  const [isBooting, setIsBooting] = React.useState(false);
 
   const [revealedPin, setRevealedPin] = React.useState<string | null>(null);
   const [pinVisible, setPinVisible] = React.useState(false);
@@ -95,7 +99,12 @@ export default function TeamSidebarCard({
     isUnlocking ||
     isSettingMode ||
     isApproving ||
-    isDenying;
+    isDenying ||
+    isBooting;
+
+  const canBootTeam =
+    team.connectionState === 'OFFLINE' ||
+    team.connectionState === 'RECONNECTING';
 
   React.useEffect(() => {
     if (!menuOpen) return;
@@ -224,6 +233,20 @@ export default function TeamSidebarCard({
     }
   };
 
+  const handleConfirmedBootTeam = async () => {
+    try {
+      setIsBooting(true);
+      await onBootTeam(team.id);
+      setPendingAction(null);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to boot team.';
+      window.alert(message);
+    } finally {
+      setIsBooting(false);
+    }
+  };
+
   return (
     <>
       <div
@@ -251,7 +274,7 @@ export default function TeamSidebarCard({
               {team.score ?? 0} pts
             </div>
           </div>
-          
+
           {pinVisible && revealedPin ? (
             <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-3">
               <div className="flex items-center justify-between gap-3">
@@ -316,7 +339,7 @@ export default function TeamSidebarCard({
                   </button>
 
                   {team.transferMode !== 'LOCKED' &&
-                    team.transferMode !== 'HOST_APPROVAL' ? (
+                  team.transferMode !== 'HOST_APPROVAL' ? (
                     <button
                       type="button"
                       onClick={() => openAction('requireApproval')}
@@ -343,6 +366,16 @@ export default function TeamSidebarCard({
                       className="w-full rounded-lg px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50"
                     >
                       Deny Request
+                    </button>
+                  ) : null}
+
+                  {canBootTeam ? (
+                    <button
+                      type="button"
+                      onClick={() => openAction('bootTeam')}
+                      className="w-full rounded-lg px-3 py-2 text-left text-sm text-amber-700 transition hover:bg-amber-50"
+                    >
+                      Boot Team
                     </button>
                   ) : null}
 
@@ -436,6 +469,17 @@ export default function TeamSidebarCard({
         tone="danger"
         isLoading={isDenying}
         onConfirm={() => void handleConfirmedDenyRequest()}
+        onCancel={closeModal}
+      />
+
+      <ConfirmActionModal
+        open={pendingAction === 'bootTeam'}
+        title="Boot stale team session?"
+        message={`This will remove the current stale session for ${team.name} from the host view. The team is not locked and can still rejoin later as a fresh session.`}
+        confirmLabel="Boot Team"
+        tone="danger"
+        isLoading={isBooting}
+        onConfirm={() => void handleConfirmedBootTeam()}
         onCancel={closeModal}
       />
     </>

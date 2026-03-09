@@ -904,7 +904,111 @@ try {
         });
       }
     );
+
+
+    socket.on(
+      'host:bootTeamSession',
+      async (
+        {
+          gameId,
+          teamId,
+        }: {
+          gameId?: string;
+          teamId?: string;
+        },
+        ack?: (response: { ok: boolean; error?: string }) => void
+      ) => {
+        const resolvedGameId = normalizeString(gameId);
+        const resolvedTeamId = normalizeString(teamId);
+
+        if (!resolvedGameId || !resolvedTeamId) {
+          ack?.({ ok: false, error: 'Missing gameId or teamId.' });
+          return;
+        }
+
+        try {
+          const existingPresence =
+            activeTeamsByGame.get(resolvedGameId)?.get(resolvedTeamId);
+
+          const openSessions = await prisma.teamGameSession.findMany({
+            where: {
+              gameId: resolvedGameId,
+              teamId: resolvedTeamId,
+              status: {
+                not: TeamGameSessionStatus.CLOSED,
+              },
+            },
+            select: {
+              id: true,
+              socketId: true,
+            },
+            orderBy: {
+              joinedAt: 'desc',
+            },
+          });
+
+          const socketIdsToDisconnect = new Set<string>();
+
+          if (existingPresence?.socketId) {
+            socketIdsToDisconnect.add(existingPresence.socketId);
+          }
+
+          if (existingPresence?.sessionId) {
+            clearReconnectTimer(existingPresence.sessionId);
+          }
+
+          for (const session of openSessions) {
+            clearReconnectTimer(session.id);
+
+            if (session.socketId) {
+              socketIdsToDisconnect.add(session.socketId);
+            }
+          }
+
+          for (const socketId of socketIdsToDisconnect) {
+            socketBindings.delete(socketId);
+          }
+
+          if (openSessions.length > 0) {
+            await prisma.teamGameSession.updateMany({
+              where: {
+                id: {
+                  in: openSessions.map((session) => session.id),
+                },
+              },
+              data: {
+                status: TeamGameSessionStatus.CLOSED,
+                socketId: null,
+                disconnectedAt: new Date(),
+              },
+            });
+          }
+
+          removePresence(resolvedGameId, resolvedTeamId);
+          emitLiveTeams(io, resolvedGameId);
+
+          for (const socketId of socketIdsToDisconnect) {
+            const liveSocket = io.sockets.sockets.get(socketId);
+            liveSocket?.disconnect(true);
+          }
+
+          console.log(
+            `🧹 Host booted stale team session for team ${resolvedTeamId} in game ${resolvedGameId}`
+          );
+
+          ack?.({ ok: true });
+        } catch (error) {
+          console.error('Failed to boot team session:', error);
+          ack?.({ ok: false, error: 'Failed to boot team session.' });
+        }
+      }
+    );
+
+
+
   });
+
+
 
   server.listen(PORT, '127.0.0.1', () => {
     console.log(`WebSocket server running on ${protocol} port ${PORT}`);

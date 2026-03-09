@@ -40,6 +40,7 @@ export default function HostPlayWorkspace({
     setTeamTransferMode,
     approveJoinRequest,
     denyJoinRequest,
+    bootTeamSession,
   } = useHostTeamSessions({
     gameId,
     socket,
@@ -129,6 +130,7 @@ export default function HostPlayWorkspace({
             onSetTeamTransferMode={setTeamTransferMode}
             onApproveJoinRequest={approveJoinRequest}
             onDenyJoinRequest={denyJoinRequest}
+            onBootTeam={bootTeamSession}
           />
         </div>
 
@@ -143,6 +145,7 @@ export default function HostPlayWorkspace({
           onSetTeamTransferMode={setTeamTransferMode}
           onApproveJoinRequest={approveJoinRequest}
           onDenyJoinRequest={denyJoinRequest}
+          onBootTeam={bootTeamSession}
         />
 
         <main className="flex-1 px-4 py-6 md:px-8 md:py-8">

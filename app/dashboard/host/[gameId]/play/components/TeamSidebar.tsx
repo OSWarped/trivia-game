@@ -16,6 +16,7 @@ interface TeamSidebarProps {
   ) => Promise<void>;
   onApproveJoinRequest: (teamId: string) => Promise<void>;
   onDenyJoinRequest: (teamId: string) => Promise<void>;
+  onBootTeam: (teamId: string) => Promise<void>;
 }
 
 export default function TeamSidebar({
@@ -27,14 +28,15 @@ export default function TeamSidebar({
   onSetTeamTransferMode,
   onApproveJoinRequest,
   onDenyJoinRequest,
+  onBootTeam,
 }: TeamSidebarProps) {
   return (
-    <aside className="hidden w-[22rem] border-r border-gray-200 bg-gradient-to-b from-gray-50 to-gray-100 p-4 shadow-inner md:block">
+    <aside className="hidden h-screen w-[22rem] shrink-0 border-r border-gray-200 bg-gradient-to-b from-gray-50 to-gray-100 p-4 shadow-inner md:flex md:flex-col">
       <div className="mb-4 flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold text-gray-800">👥 Teams</h2>
           <p className="mt-1 text-xs text-gray-500">
-            Live team control and status
+            All teams in the game will appear here
           </p>
         </div>
 
@@ -46,7 +48,7 @@ export default function TeamSidebar({
         </button>
       </div>
 
-      <div className="max-h-[calc(100vh-7rem)] space-y-3 overflow-y-auto pr-1">
+      <div className="flex-1 space-y-3 overflow-y-auto pr-1 pb-24">
         {teamStatus.map((team) => (
           <TeamSidebarCard
             key={team.id}
@@ -57,6 +59,7 @@ export default function TeamSidebar({
             onSetTeamTransferMode={onSetTeamTransferMode}
             onApproveJoinRequest={onApproveJoinRequest}
             onDenyJoinRequest={onDenyJoinRequest}
+            onBootTeam={onBootTeam}
           />
         ))}
       </div>

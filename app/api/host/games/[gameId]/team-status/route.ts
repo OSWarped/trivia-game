@@ -15,7 +15,6 @@ function mapSessionStatusToConnectionState(
       return 'RECONNECTING';
     case TeamGameSessionStatus.OFFLINE:
       return 'OFFLINE';
-    case TeamGameSessionStatus.CLOSED:
     default:
       return 'OFFLINE';
   }
@@ -56,7 +55,16 @@ export async function GET(
     }),
 
     prisma.teamGameSession.findMany({
-      where: { gameId },
+      where: {
+        gameId,
+        status: {
+          in: [
+            TeamGameSessionStatus.ACTIVE,
+            TeamGameSessionStatus.RECONNECTING,
+            TeamGameSessionStatus.OFFLINE,
+          ],
+        },
+      },
       orderBy: [{ teamId: 'asc' }, { joinedAt: 'desc' }],
       select: {
         id: true,
@@ -73,7 +81,7 @@ export async function GET(
     groupedScores.map((row) => [row.teamGameId, row._sum.awardedPoints ?? 0])
   );
 
-  const latestSessionByTeamId = new Map<
+  const latestOpenSessionByTeamId = new Map<
     string,
     {
       id: string;
@@ -86,30 +94,43 @@ export async function GET(
   >();
 
   for (const session of sessions) {
-    if (!latestSessionByTeamId.has(session.teamId)) {
-      latestSessionByTeamId.set(session.teamId, session);
+    if (!latestOpenSessionByTeamId.has(session.teamId)) {
+      latestOpenSessionByTeamId.set(session.teamId, session);
     }
   }
 
-  const result: HostTeamStatus[] = teamGames.map((teamGame) => {
-    const latestSession = latestSessionByTeamId.get(teamGame.team.id);
+  const result: HostTeamStatus[] = teamGames
+    .filter((teamGame) => {
+      const latestOpenSession = latestOpenSessionByTeamId.get(teamGame.team.id);
 
-    return {
-      id: teamGame.team.id,
-      name: teamGame.team.name,
-      score: scoreMap.get(teamGame.id) ?? 0,
-      submitted: false,
-      connectionState: mapSessionStatusToConnectionState(latestSession?.status),
-      transferMode: teamGame.sessionControlMode,
-      hasDispute: false,
-      activeSessionLabel: latestSession?.deviceId ?? null,
-      pendingSessionLabel: teamGame.pendingApprovalDeviceId ?? null,
-      pendingApprovalRequestedAt: teamGame.pendingApprovalRequestedAt
-        ? teamGame.pendingApprovalRequestedAt.toISOString()
-        : null,
-      hasPendingApproval: !!teamGame.pendingApprovalRequestedAt,
-    };
-  });
+      const shouldKeepWithoutSession =
+        teamGame.sessionControlMode === 'LOCKED' ||
+        teamGame.sessionControlMode === 'HOST_APPROVAL' ||
+        !!teamGame.pendingApprovalRequestedAt;
+
+      return !!latestOpenSession || shouldKeepWithoutSession;
+    })
+    .map((teamGame) => {
+      const latestOpenSession = latestOpenSessionByTeamId.get(teamGame.team.id);
+
+      return {
+        id: teamGame.team.id,
+        name: teamGame.team.name,
+        score: scoreMap.get(teamGame.id) ?? 0,
+        submitted: false,
+        connectionState: mapSessionStatusToConnectionState(
+          latestOpenSession?.status
+        ),
+        transferMode: teamGame.sessionControlMode,
+        hasDispute: false,
+        activeSessionLabel: latestOpenSession?.deviceId ?? null,
+        pendingSessionLabel: teamGame.pendingApprovalDeviceId ?? null,
+        pendingApprovalRequestedAt: teamGame.pendingApprovalRequestedAt
+          ? teamGame.pendingApprovalRequestedAt.toISOString()
+          : null,
+        hasPendingApproval: !!teamGame.pendingApprovalRequestedAt,
+      };
+    });
 
   return NextResponse.json(result);
 }

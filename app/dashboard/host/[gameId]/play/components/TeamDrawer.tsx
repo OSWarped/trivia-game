@@ -16,6 +16,7 @@ interface TeamDrawerProps {
   ) => Promise<void>;
   onApproveJoinRequest: (teamId: string) => Promise<void>;
   onDenyJoinRequest: (teamId: string) => Promise<void>;
+  onBootTeam: (teamId: string) => Promise<void>;
 }
 
 export default function TeamDrawer({
@@ -27,6 +28,7 @@ export default function TeamDrawer({
   onSetTeamTransferMode,
   onApproveJoinRequest,
   onDenyJoinRequest,
+  onBootTeam
 }: TeamDrawerProps) {
   const [open, setOpen] = useState(false);
 
@@ -145,6 +147,7 @@ export default function TeamDrawer({
                     onSetTeamTransferMode={onSetTeamTransferMode}
                     onApproveJoinRequest={onApproveJoinRequest}
                     onDenyJoinRequest={onDenyJoinRequest}
+                    onBootTeam={onBootTeam}
                   />
                 ))}
               </div>

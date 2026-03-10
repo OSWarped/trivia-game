@@ -6,7 +6,9 @@ export type ModalType =
   | 'edit-site'
   | 'add-user'
   | 'edit-user'
-  | 'edit-game';
+  | 'edit-game'
+  | 'edit-event'
+  | 'edit-season';
 
 export interface SiteRow {
   id: string;
@@ -100,6 +102,33 @@ export interface GameDetail {
         id: string;
         name: string;
       };
+    };
+  };
+}
+
+export interface EventDetail {
+  id: string;
+  name: string;
+  site: {
+    id: string;
+    name: string;
+    address: string | null;
+  };
+}
+
+export interface SeasonDetail {
+  id: string;
+  name: string;
+  startsAt: string | null;
+  endsAt: string | null;
+  active: boolean;
+  championGameId: string | null;
+  event: {
+    id: string;
+    name: string;
+    site: {
+      id: string;
+      name: string;
     };
   };
 }

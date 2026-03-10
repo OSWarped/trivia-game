@@ -11,8 +11,6 @@ import type {
     UserRow,
 } from './types/workspace.types';
 
-import TabButton from './components/ui/TabButton';
-import ToolbarButton from './components/ui/ToolbarButton';
 import SitesPanel from './components/SitesPanel';
 import GamesPanel from './components/GamesPanel';
 import UsersPanel from './components/UsersPanel';
@@ -24,9 +22,15 @@ import UserModal from './components/UserModal';
 import GameModal from './components/GameModal';
 import EventDrawer from './components/EventDrawer';
 import SeasonDrawer from './components/SeasonDrawer';
+import EventModal from './components/EventModal';
+import SeasonModal from './components/SeasonModal';
+import AdminWorkspaceHeader from './components/AdminWorkspaceHeader';
+import AdminWorkspaceTabs from './components/AdminWorkspaceTabs';
+import AdminWorkspaceToolbar from './components/AdminWorkspaceToolbar';
+
 import { useAdminWorkspaceData } from './hooks/useAdminWorkspaceData';
 import { useAdminWorkspaceFilters } from './hooks/useAdminWorkspaceFilters';
-import { useAdminWorkspaceUIState } from './hooks/useAdminWorkspaceUIState.ts';
+import { useAdminWorkspaceUIState } from './hooks/useAdminWorkspaceUIState';
 
 export default function AdminWorkspacePage() {
     const router = useRouter();
@@ -55,6 +59,10 @@ export default function AdminWorkspacePage() {
         setSelectedUser,
         selectedGameDetail,
         setSelectedGameDetail,
+        selectedEventDetail,
+        setSelectedEventDetail,
+        selectedSeasonDetail,
+        setSelectedSeasonDetail,
 
         modalType,
         setModalType,
@@ -86,6 +94,26 @@ export default function AdminWorkspacePage() {
         gameTag,
         setGameTag,
 
+        eventName,
+        setEventName,
+        eventSiteId,
+        setEventSiteId,
+        eventSiteName,
+        setEventSiteName,
+
+        seasonName,
+        setSeasonName,
+        seasonStartsAt,
+        setSeasonStartsAt,
+        seasonEndsAt,
+        setSeasonEndsAt,
+        seasonActive,
+        setSeasonActive,
+        seasonEventId,
+        setSeasonEventId,
+        seasonEventName,
+        setSeasonEventName,
+
         closeModal,
         openAddSiteModal,
         openEditSiteModal,
@@ -100,11 +128,15 @@ export default function AdminWorkspacePage() {
         error,
         loadWorkspaceData,
         openEditGameModal,
+        openEditEventModal,
+        openEditSeasonModal,
         handleSaveSite,
         handleDeleteSite,
         handleSaveUser,
         handleDeleteUser,
         handleSaveGame,
+        handleSaveEvent,
+        handleSaveSeason,
         handleDeleteGame,
     } = useAdminWorkspaceData({
         selectedSite,
@@ -127,10 +159,21 @@ export default function AdminWorkspacePage() {
         gameSpecial,
         gameTag,
 
+        eventName,
+        eventSiteId,
+
+        seasonName,
+        seasonStartsAt,
+        seasonEndsAt,
+        seasonActive,
+        seasonEventId,
+
         setSites,
         setGames,
         setUsers,
         setSelectedGameDetail,
+        setSelectedEventDetail,
+        setSelectedSeasonDetail,
 
         setSiteName,
         setSiteAddress,
@@ -146,6 +189,17 @@ export default function AdminWorkspacePage() {
         setGameStatus,
         setGameSpecial,
         setGameTag,
+
+        setEventName,
+        setEventSiteId,
+        setEventSiteName,
+
+        setSeasonName,
+        setSeasonStartsAt,
+        setSeasonEndsAt,
+        setSeasonActive,
+        setSeasonEventId,
+        setSeasonEventName,
 
         setSelectedSite,
         setSelectedGame,
@@ -177,21 +231,90 @@ export default function AdminWorkspacePage() {
         setSelectedGame(match);
     }, [selectedBladeGameId, games, setSelectedGame]);
 
-    <SeasonDrawer
-        seasonId={selectedSeasonId}
-        open={Boolean(selectedSeasonId)}
-        onClose={() => {
-            setSelectedSeasonId(null);
-            setSelectedBladeGameId(null);
-        }}
-        onOpenGame={(gameId) => setSelectedBladeGameId(gameId)}
-    />
+    const clearNestedBladeState = () => {
+        setSelectedEventId(null);
+        setSelectedSeasonId(null);
+        setSelectedBladeGameId(null);
+        setSelectedGame(null);
+    };
+
+    const handleSelectTab = (tab: AdminTab) => {
+        setActiveTab(tab);
+        setStatusFilter('ALL');
+        clearNestedBladeState();
+
+        if (tab !== 'sites') {
+            setSelectedSite(null);
+        }
+
+        if (tab !== 'games') {
+            setSelectedGame(null);
+        }
+
+        if (tab !== 'users') {
+            setSelectedUser(null);
+        }
+    };
+
+    const handleCloseSiteDrawer = () => {
+        setSelectedSite(null);
+        clearNestedBladeState();
+    };
+
+    const handleCloseEventDrawer = () => {
+        setSelectedEventId(null);
+        setSelectedSeasonId(null);
+        setSelectedBladeGameId(null);
+        setSelectedGame(null);
+    };
+
+    const handleCloseSeasonDrawer = () => {
+        setSelectedSeasonId(null);
+        setSelectedBladeGameId(null);
+        setSelectedGame(null);
+    };
+
+    const handleCloseGameDrawer = () => {
+        setSelectedGame(null);
+        setSelectedBladeGameId(null);
+    };
 
     const handleOpenEditGameModal = async (game: GameRow) => {
         setSelectedGame(null);
+        setSelectedBladeGameId(null);
         await openEditGameModal(game);
         setModalType('edit-game');
     };
+
+    const handleOpenEditEventModal = async (eventId: string) => {
+        setSelectedEventId(null);
+        await openEditEventModal(eventId);
+        setModalType('edit-event');
+    };
+
+    const handleOpenEditSeasonModal = async (seasonId: string) => {
+        setSelectedSeasonId(null);
+        await openEditSeasonModal(seasonId);
+        setModalType('edit-season');
+    };
+
+    const toolbarPrimaryAction = useMemo(() => {
+        if (activeTab === 'sites') {
+            return {
+                label: 'Add Site',
+                action: openAddSiteModal,
+            };
+        }
+
+        if (activeTab === 'users') {
+            return {
+                label: 'Add User',
+                action: openAddUserModal,
+            };
+        }
+
+        return null;
+    }, [activeTab, openAddSiteModal, openAddUserModal]);
 
     const {
         filteredSites,
@@ -224,7 +347,9 @@ export default function AdminWorkspacePage() {
             const existing = byEvent.get(game.eventId);
 
             const isUpcoming =
-                game.status === 'SCHEDULED' || game.status === 'LIVE' || game.status === 'DRAFT';
+                game.status === 'SCHEDULED' ||
+                game.status === 'LIVE' ||
+                game.status === 'DRAFT';
 
             if (existing) {
                 existing.upcomingGames += isUpcoming ? 1 : 0;
@@ -253,29 +378,13 @@ export default function AdminWorkspacePage() {
     return (
         <div className="min-h-screen bg-slate-50 px-4 py-6 md:px-8 md:py-8">
             <div className="mx-auto max-w-7xl space-y-6">
-                <header className="rounded-2xl border border-slate-200 bg-white px-6 py-5 shadow-sm">
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                        <div>
-                            <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
-                                Admin Workspace
-                            </h1>
-                            <p className="mt-1 text-sm text-slate-600">
-                                Manage sites, games, and users from one scalable operations
-                                console.
-                            </p>
-                        </div>
-
-                        <div className="flex flex-wrap gap-3">
-                            <ToolbarButton label="Add Site" onClick={openAddSiteModal} />
-                            <ToolbarButton
-                                label="Refresh"
-                                onClick={() => void loadWorkspaceData()}
-                                disabled={refreshing}
-                            />
-                            <ToolbarButton label="Add User" onClick={openAddUserModal} />
-                        </div>
-                    </div>
-                </header>
+                <AdminWorkspaceHeader
+                    activeTab={activeTab}
+                    onAddSite={openAddSiteModal}
+                    onRefresh={() => void loadWorkspaceData()}
+                    onAddUser={openAddUserModal}
+                    refreshing={refreshing}
+                />
 
                 {error ? (
                     <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
@@ -285,65 +394,21 @@ export default function AdminWorkspacePage() {
 
                 <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                        <div className="flex flex-wrap gap-2">
-                            <TabButton
-                                label="Sites"
-                                active={activeTab === 'sites'}
-                                onClick={() => {
-                                    setActiveTab('sites');
-                                    setSelectedGame(null);
-                                    setSelectedUser(null);
-                                }}
-                            />
-                            <TabButton
-                                label="Games"
-                                active={activeTab === 'games'}
-                                onClick={() => {
-                                    setActiveTab('games');
-                                    setSelectedSite(null);
-                                    setSelectedUser(null);
-                                }}
-                            />
-                            <TabButton
-                                label="Users"
-                                active={activeTab === 'users'}
-                                onClick={() => {
-                                    setActiveTab('users');
-                                    setSelectedSite(null);
-                                    setSelectedGame(null);
-                                }}
-                            />
-                        </div>
+                        <AdminWorkspaceTabs
+                            activeTab={activeTab}
+                            onSelectTab={handleSelectTab}
+                        />
 
-                        <div className="flex flex-col gap-3 sm:flex-row">
-                            <input
-                                type="text"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                placeholder={toolbarConfig.placeholder}
-                                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none"
-                            />
-
-                            <select
-                                value={statusFilter}
-                                onChange={(e) => setStatusFilter(e.target.value)}
-                                className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
-                            >
-                                <option value="ALL">All Statuses</option>
-                                <option value="ACTIVE">Active</option>
-                                <option value="INACTIVE">Inactive</option>
-                                <option value="DRAFT">Draft</option>
-                                <option value="SCHEDULED">Scheduled</option>
-                                <option value="LIVE">Live</option>
-                                <option value="CLOSED">Closed</option>
-                            </select>
-
-                            <ToolbarButton
-                                label={toolbarConfig.primaryLabel}
-                                onClick={toolbarConfig.primaryAction}
-                                primary
-                            />
-                        </div>
+                        <AdminWorkspaceToolbar
+                            activeTab={activeTab}
+                            searchTerm={searchTerm}
+                            onChangeSearchTerm={setSearchTerm}
+                            statusFilter={statusFilter}
+                            onChangeStatusFilter={setStatusFilter}
+                            searchPlaceholder={toolbarConfig.placeholder}
+                            primaryLabel={toolbarPrimaryAction?.label}
+                            onPrimaryAction={toolbarPrimaryAction?.action}
+                        />
                     </div>
                 </div>
 
@@ -378,11 +443,7 @@ export default function AdminWorkspacePage() {
             <SiteDrawer
                 site={selectedSite}
                 open={Boolean(selectedSite)}
-                onClose={() => {
-                    setSelectedSite(null);
-                    setSelectedEventId(null);
-                    setSelectedSeasonId(null);
-                }}
+                onClose={handleCloseSiteDrawer}
                 onEdit={openEditSiteModal}
                 events={selectedSiteEvents}
                 onOpenEvent={(eventId) => setSelectedEventId(eventId)}
@@ -391,11 +452,8 @@ export default function AdminWorkspacePage() {
             <EventDrawer
                 eventId={selectedEventId}
                 open={Boolean(selectedEventId)}
-                onClose={() => {
-                    setSelectedEventId(null);
-                    setSelectedSeasonId(null);
-                    setSelectedBladeGameId(null);
-                }}
+                onClose={handleCloseEventDrawer}
+                onEdit={handleOpenEditEventModal}
                 onOpenSeason={(seasonId) => setSelectedSeasonId(seasonId)}
                 onOpenGame={(gameId) => setSelectedBladeGameId(gameId)}
             />
@@ -403,20 +461,15 @@ export default function AdminWorkspacePage() {
             <SeasonDrawer
                 seasonId={selectedSeasonId}
                 open={Boolean(selectedSeasonId)}
-                onClose={() => {
-                    setSelectedSeasonId(null);
-                    setSelectedBladeGameId(null);
-                }}
+                onClose={handleCloseSeasonDrawer}
+                onEdit={handleOpenEditSeasonModal}
                 onOpenGame={(gameId) => setSelectedBladeGameId(gameId)}
             />
 
             <GameDrawer
                 game={selectedGame}
                 open={Boolean(selectedGame)}
-                onClose={() => {
-                    setSelectedGame(null);
-                    setSelectedBladeGameId(null);
-                }}
+                onClose={handleCloseGameDrawer}
                 onEdit={handleOpenEditGameModal}
             />
 
@@ -428,20 +481,8 @@ export default function AdminWorkspacePage() {
             />
 
             <SiteModal
-                open={modalType === 'add-site'}
-                mode="add"
-                siteName={siteName}
-                siteAddress={siteAddress}
-                saving={saving}
-                onClose={closeModal}
-                onChangeName={setSiteName}
-                onChangeAddress={setSiteAddress}
-                onSave={() => handleSaveSite(closeModal)}
-            />
-
-            <SiteModal
-                open={modalType === 'edit-site'}
-                mode="edit"
+                open={modalType === 'add-site' || modalType === 'edit-site'}
+                mode={modalType === 'edit-site' ? 'edit' : 'add'}
                 siteName={siteName}
                 siteAddress={siteAddress}
                 saving={saving}
@@ -452,8 +493,8 @@ export default function AdminWorkspacePage() {
             />
 
             <UserModal
-                open={modalType === 'add-user'}
-                mode="add"
+                open={modalType === 'add-user' || modalType === 'edit-user'}
+                mode={modalType === 'edit-user' ? 'edit' : 'add'}
                 userName={userName}
                 userEmail={userEmail}
                 userRole={userRole}
@@ -467,20 +508,33 @@ export default function AdminWorkspacePage() {
                 onSave={() => handleSaveUser(closeModal)}
             />
 
-            <UserModal
-                open={modalType === 'edit-user'}
-                mode="edit"
-                userName={userName}
-                userEmail={userEmail}
-                userRole={userRole}
-                userPassword={userPassword}
+            <EventModal
+                open={modalType === 'edit-event'}
+                eventName={eventName}
+                eventSiteId={eventSiteId}
+                eventSiteName={eventSiteName}
+                sites={sites}
                 saving={saving}
                 onClose={closeModal}
-                onChangeName={setUserName}
-                onChangeEmail={setUserEmail}
-                onChangeRole={setUserRole}
-                onChangePassword={setUserPassword}
-                onSave={() => handleSaveUser(closeModal)}
+                onChangeName={setEventName}
+                onChangeSiteId={setEventSiteId}
+                onSave={() => handleSaveEvent(closeModal, selectedEventDetail)}
+            />
+
+            <SeasonModal
+                open={modalType === 'edit-season'}
+                seasonName={seasonName}
+                seasonStartsAt={seasonStartsAt}
+                seasonEndsAt={seasonEndsAt}
+                seasonActive={seasonActive}
+                seasonEventName={seasonEventName}
+                saving={saving}
+                onClose={closeModal}
+                onChangeName={setSeasonName}
+                onChangeStartsAt={setSeasonStartsAt}
+                onChangeEndsAt={setSeasonEndsAt}
+                onChangeActive={setSeasonActive}
+                onSave={() => handleSaveSeason(closeModal, selectedSeasonDetail)}
             />
 
             <GameModal

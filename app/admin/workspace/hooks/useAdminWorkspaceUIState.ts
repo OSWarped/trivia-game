@@ -7,14 +7,21 @@ import type {
   GameRow,
   GameDetail,
   UserRow,
+  EventDetail,
+  SeasonDetail,
 } from '../types/workspace.types';
 
 export function useAdminWorkspaceUIState() {
   const [selectedSite, setSelectedSite] = useState<SiteRow | null>(null);
   const [selectedGame, setSelectedGame] = useState<GameRow | null>(null);
   const [selectedUser, setSelectedUser] = useState<UserRow | null>(null);
+
   const [selectedGameDetail, setSelectedGameDetail] =
     useState<GameDetail | null>(null);
+  const [selectedEventDetail, setSelectedEventDetail] =
+    useState<EventDetail | null>(null);
+  const [selectedSeasonDetail, setSelectedSeasonDetail] =
+    useState<SeasonDetail | null>(null);
 
   const [modalType, setModalType] = useState<ModalType>(null);
 
@@ -32,6 +39,17 @@ export function useAdminWorkspaceUIState() {
   const [gameStatus, setGameStatus] = useState('DRAFT');
   const [gameSpecial, setGameSpecial] = useState(false);
   const [gameTag, setGameTag] = useState('');
+
+  const [eventName, setEventName] = useState('');
+  const [eventSiteId, setEventSiteId] = useState('');
+  const [eventSiteName, setEventSiteName] = useState('');
+
+  const [seasonName, setSeasonName] = useState('');
+  const [seasonStartsAt, setSeasonStartsAt] = useState('');
+  const [seasonEndsAt, setSeasonEndsAt] = useState('');
+  const [seasonActive, setSeasonActive] = useState(true);
+  const [seasonEventId, setSeasonEventId] = useState('');
+  const [seasonEventName, setSeasonEventName] = useState('');
 
   const resetSiteForm = () => {
     setSiteName('');
@@ -54,11 +72,33 @@ export function useAdminWorkspaceUIState() {
     setGameTag('');
   };
 
+  const resetEventForm = () => {
+    setEventName('');
+    setEventSiteId('');
+    setEventSiteName('');
+  };
+
+  const resetSeasonForm = () => {
+    setSeasonName('');
+    setSeasonStartsAt('');
+    setSeasonEndsAt('');
+    setSeasonActive(true);
+    setSeasonEventId('');
+    setSeasonEventName('');
+  };
+
   const closeModal = () => {
     setModalType(null);
+
+    setSelectedGameDetail(null);
+    setSelectedEventDetail(null);
+    setSelectedSeasonDetail(null);
+
     resetSiteForm();
     resetUserForm();
     resetGameForm();
+    resetEventForm();
+    resetSeasonForm();
   };
 
   const openAddSiteModal = () => {
@@ -94,8 +134,13 @@ export function useAdminWorkspaceUIState() {
     setSelectedGame,
     selectedUser,
     setSelectedUser,
+
     selectedGameDetail,
     setSelectedGameDetail,
+    selectedEventDetail,
+    setSelectedEventDetail,
+    selectedSeasonDetail,
+    setSelectedSeasonDetail,
 
     modalType,
     setModalType,
@@ -127,9 +172,31 @@ export function useAdminWorkspaceUIState() {
     gameTag,
     setGameTag,
 
+    eventName,
+    setEventName,
+    eventSiteId,
+    setEventSiteId,
+    eventSiteName,
+    setEventSiteName,
+
+    seasonName,
+    setSeasonName,
+    seasonStartsAt,
+    setSeasonStartsAt,
+    seasonEndsAt,
+    setSeasonEndsAt,
+    seasonActive,
+    setSeasonActive,
+    seasonEventId,
+    setSeasonEventId,
+    seasonEventName,
+    setSeasonEventName,
+
     resetSiteForm,
     resetUserForm,
     resetGameForm,
+    resetEventForm,
+    resetSeasonForm,
     closeModal,
     openAddSiteModal,
     openEditSiteModal,

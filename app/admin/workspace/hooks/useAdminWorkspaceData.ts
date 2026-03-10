@@ -126,13 +126,13 @@ export function useAdminWorkspaceData({
   setSelectedEventDetail,
   setSelectedSeasonDetail,
 
-  setSiteName,
-  setSiteAddress,
+//   setSiteName,
+//   setSiteAddress,
 
-  setUserName,
-  setUserEmail,
-  setUserRole,
-  setUserPassword,
+//   setUserName,
+//   setUserEmail,
+//   setUserRole,
+//   setUserPassword,
 
   setGameTitle,
   setGameScheduledFor,

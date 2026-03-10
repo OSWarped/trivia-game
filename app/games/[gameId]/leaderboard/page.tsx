@@ -6,9 +6,6 @@ import { GameStatus } from '@prisma/client';
 import { useSocket } from '@/components/SocketProvider';
 import { useTeamSocket } from '@/app/hooks/useTeamSocket';
 
-/* ------------------------------------------------------------------ */
-/* Types                                                              */
-/* ------------------------------------------------------------------ */
 interface GameInfo {
   id: string;
   title: string;
@@ -20,11 +17,6 @@ interface GameInfo {
     name: string;
     address?: string | null;
   } | null;
-}
-
-interface Team {
-  id: string;
-  name: string;
 }
 
 interface ResumeSessionPayload {
@@ -66,6 +58,16 @@ interface StoredTeamSession {
 interface StoredDeviceIdentity {
   deviceId: string;
   createdAt: string;
+}
+
+interface LeaderboardPayload {
+  gameId: string;
+  standings: {
+    teamId: string;
+    teamName: string;
+    score: number;
+    rank: number;
+  }[];
 }
 
 const STORAGE_PREFIX = 'trivia';
@@ -205,7 +207,6 @@ function persistSession(
   localStorage.setItem(`${STORAGE_PREFIX}:${gameId}:gameId`, gameId);
   localStorage.setItem(`${STORAGE_PREFIX}:${gameId}:joinCode`, joinCode);
 
-  // Legacy compatibility while the rest of the app is still being updated.
   localStorage.setItem('teamId', storedSession.teamId);
   localStorage.setItem('teamName', storedSession.teamName);
   localStorage.setItem('gameId', gameId);
@@ -219,20 +220,21 @@ function persistSession(
   );
 }
 
-export default function LobbyPage(): JSX.Element {
+export default function LeaderboardPage(): JSX.Element {
   const { gameId } = useParams<{ gameId: string }>();
   const router = useRouter();
   const socket = useSocket();
 
   const [teamId, setTeamId] = useState<string | null>(null);
   const [teamName, setTeamName] = useState<string | null>(null);
-
   const [game, setGame] = useState<GameInfo | null>(null);
-  const [teams, setTeams] = useState<Team[]>([]);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [isRestoringSession, setIsRestoringSession] = useState(true);
   const [loadError, setLoadError] = useState<string>('');
-  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected'>('connected');
+  const [connectionStatus, setConnectionStatus] = useState<
+    'connected' | 'disconnected'
+  >('connected');
 
   const initializePage = useCallback(async () => {
     if (!gameId) return;
@@ -286,13 +288,6 @@ export default function LobbyPage(): JSX.Element {
 
       const resumeData = (await resumeRes.json()) as ResumeApiResponse;
 
-      console.log('LOBBY RESUME DATA', {
-        gameStatus: resumeData.gameStatus,
-        displayMode: resumeData.displayMode,
-        route: resumeData.route,
-        redirectTo: resumeData.redirectTo,
-      });
-
       if (
         !resumeRes.ok ||
         !resumeData.teamId ||
@@ -312,7 +307,18 @@ export default function LobbyPage(): JSX.Element {
 
       const resumedStatus = resumeData.gameStatus ?? resolvedGame.status;
       const resumedTeamName = resumeData.teamName ?? storedSession.teamName;
-      const displayMode = resumeData.displayMode ?? (resumedStatus === 'LIVE' ? 'QUESTION' : 'LOBBY');
+      const displayMode =
+        resumeData.displayMode ??
+        (resumedStatus === 'LIVE' ? 'QUESTION' : 'LOBBY');
+
+      const lastKnownScreen =
+        displayMode === 'LOBBY'
+          ? 'lobby'
+          : displayMode === 'ANSWER_REVEAL'
+            ? 'answer-reveal'
+            : displayMode === 'LEADERBOARD'
+              ? 'leaderboard'
+              : 'play';
 
       const refreshedSession: StoredTeamSession = {
         gameId,
@@ -321,12 +327,7 @@ export default function LobbyPage(): JSX.Element {
         sessionToken: resumeData.session.sessionToken,
         deviceId: resumeData.session.deviceId,
         lastKnownStatus: resumedStatus,
-        lastKnownScreen:
-          displayMode === 'LOBBY'
-            ? 'lobby'
-            : displayMode === 'ANSWER_REVEAL'
-              ? 'answer-reveal'
-              : 'play',
+        lastKnownScreen,
         joinedAt: resumeData.session.joinedAt,
         lastSeenAt: resumeData.session.lastSeenAt,
       };
@@ -342,18 +343,25 @@ export default function LobbyPage(): JSX.Element {
       setTeamName(refreshedSession.teamName);
 
       if (displayMode === 'QUESTION') {
+        sessionStorage.removeItem(`trivia:${gameId}:leaderboard`);
         router.replace(`/games/${gameId}/play`);
         return;
       }
 
-      if (displayMode === 'ANSWER_REVEAL') {
-        router.replace(`/games/${gameId}/answer-reveal`);
+      if (displayMode === 'LOBBY') {
+        sessionStorage.removeItem(`trivia:${gameId}:leaderboard`);
+        router.replace(`/games/${gameId}/lobby`);
         return;
       }
 
+      if (displayMode === 'ANSWER_REVEAL') {
+        sessionStorage.removeItem(`trivia:${gameId}:leaderboard`);
+        router.replace(`/games/${gameId}/answer-reveal`);
+        return;
+      }
     } catch (error) {
-      console.error('Failed to initialize lobby page:', error);
-      setLoadError('Failed to restore lobby session.');
+      console.error('Failed to initialize leaderboard page:', error);
+      setLoadError('Failed to restore leaderboard session.');
     } finally {
       setIsRestoringSession(false);
       setLoading(false);
@@ -363,6 +371,20 @@ export default function LobbyPage(): JSX.Element {
   useEffect(() => {
     void initializePage();
   }, [initializePage]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !gameId) return;
+
+    const raw = sessionStorage.getItem(`trivia:${gameId}:leaderboard`);
+    if (!raw) return;
+
+    try {
+      const parsed = JSON.parse(raw) as LeaderboardPayload;
+      setLeaderboard(parsed);
+    } catch (err) {
+      console.error('Failed to parse leaderboard payload', err);
+    }
+  }, [gameId]);
 
   useEffect(() => {
     if (!socket) return;
@@ -377,68 +399,19 @@ export default function LobbyPage(): JSX.Element {
       router.replace(`/games/${gameId}/lobby`);
     };
 
-    const handleShowAnswerReveal = (payload: {
-      gameId: string;
-      reveal: {
-        gameId: string;
-        roundId: string;
-        roundName: string;
-        questionId: string;
-        questionText: string;
-        questionType: string;
-        correctAnswers: string[];
-      };
-    }) => {
-      if (!payload?.reveal) {
-        console.error('Missing answer reveal payload');
-        return;
-      }
-
+    const handleShowAnswerReveal = () => {
       sessionStorage.removeItem(`trivia:${gameId}:leaderboard`);
-      sessionStorage.setItem(
-        `trivia:${gameId}:answerReveal`,
-        JSON.stringify(payload.reveal)
-      );
-
       router.replace(`/games/${gameId}/answer-reveal`);
-    };
-
-    const handleShowLeaderboard = (payload: {
-      gameId: string;
-      leaderboard: {
-        gameId: string;
-        standings: {
-          teamId: string;
-          teamName: string;
-          score: number;
-          rank: number;
-        }[];
-      };
-    }) => {
-      if (!payload?.leaderboard) {
-        console.error('Missing leaderboard payload');
-        return;
-      }
-
-      sessionStorage.removeItem(`trivia:${gameId}:answerReveal`);
-      sessionStorage.setItem(
-        `trivia:${gameId}:leaderboard`,
-        JSON.stringify(payload.leaderboard)
-      );
-
-      router.replace(`/games/${gameId}/leaderboard`);
     };
 
     socket.on('game:showQuestion', handleShowQuestion);
     socket.on('game:showLobby', handleShowLobby);
     socket.on('game:showAnswerReveal', handleShowAnswerReveal);
-    socket.on('game:showLeaderboard', handleShowLeaderboard);
 
     return () => {
       socket.off('game:showQuestion', handleShowQuestion);
       socket.off('game:showLobby', handleShowLobby);
       socket.off('game:showAnswerReveal', handleShowAnswerReveal);
-      socket.off('game:showLeaderboard', handleShowLeaderboard);
     };
   }, [socket, router, gameId]);
 
@@ -447,15 +420,15 @@ export default function LobbyPage(): JSX.Element {
     session:
       gameId && teamId && teamName
         ? {
-          gameId,
-          teamId,
-          teamName,
-          sessionToken: getStoredGameSession(gameId)?.sessionToken ?? null,
-          deviceId: getStoredGameSession(gameId)?.deviceId ?? null,
-        }
+            gameId,
+            teamId,
+            teamName,
+            sessionToken: getStoredGameSession(gameId)?.sessionToken ?? null,
+            deviceId: getStoredGameSession(gameId)?.deviceId ?? null,
+          }
         : null,
     onAuthenticated: () => {
-      socket?.emit('team:requestLiveTeams', { gameId });
+      // no-op for now
     },
     onInvalidSession: (ack) => {
       if (ack.clearStoredSession && gameId) {
@@ -477,19 +450,10 @@ export default function LobbyPage(): JSX.Element {
 
     const handleConnect = () => {
       setConnectionStatus('connected');
-      socket.emit('team:requestLiveTeams', { gameId });
-    };
-
-
-    const handleLiveTeams = (payload: { gameId: string; teams: Team[] }) => {
-      if (payload.gameId === gameId) {
-        setTeams(payload.teams);
-      }
     };
 
     socket.on('disconnect', handleDisconnect);
     socket.on('connect', handleConnect);
-    socket.on('team:liveTeams', handleLiveTeams);
 
     if (socket.connected) {
       handleConnect();
@@ -498,9 +462,8 @@ export default function LobbyPage(): JSX.Element {
     return () => {
       socket.off('disconnect', handleDisconnect);
       socket.off('connect', handleConnect);
-      socket.off('team:liveTeams', handleLiveTeams);
     };
-  }, [socket, gameId, teamId, teamName, router]);
+  }, [socket, gameId, teamId, teamName]);
 
   const scheduledDisplay = useMemo(() => {
     if (!game?.scheduledFor) return 'TBD';
@@ -513,7 +476,7 @@ export default function LobbyPage(): JSX.Element {
         <p className="text-gray-600">
           {isRestoringSession
             ? 'Restoring your team session...'
-            : 'Loading game info...'}
+            : 'Loading leaderboard...'}
         </p>
       </div>
     );
@@ -544,16 +507,14 @@ export default function LobbyPage(): JSX.Element {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-100 p-6">
-      <div className="mx-auto max-w-3xl">
-        <h1 className="mb-6 text-3xl font-bold text-blue-800">
-          🧠 Welcome to the Trivia Lobby
+    <div className="min-h-screen bg-white p-6">
+      <div className="mx-auto max-w-4xl">
+        <h1 className="mb-6 text-3xl font-bold text-slate-900">
+          🏆 Leaderboard
         </h1>
 
         {connectionStatus === 'disconnected' && (
-          <div className="mt-4 text-center text-yellow-600">
-            Reconnecting...
-          </div>
+          <div className="mt-4 text-center text-yellow-700">Reconnecting...</div>
         )}
 
         <div className="mb-6 rounded bg-white p-6 shadow">
@@ -567,42 +528,94 @@ export default function LobbyPage(): JSX.Element {
 
           {teamName ? (
             <p className="mt-2 text-sm text-gray-500">
-              Joined as: <span className="font-medium text-blue-800">{teamName}</span>
+              Joined as:{' '}
+              <span className="font-medium text-slate-900">{teamName}</span>
             </p>
           ) : null}
 
           <span
-            className={`mt-2 inline-block rounded-full px-3 py-1 text-sm ${game.status === 'LIVE'
-              ? 'bg-green-200 text-green-800'
-              : 'bg-yellow-100 text-yellow-700'
-              }`}
+            className={`mt-2 inline-block rounded-full px-3 py-1 text-sm ${
+              game.status === 'LIVE'
+                ? 'bg-green-200 text-green-800'
+                : 'bg-yellow-100 text-yellow-700'
+            }`}
           >
             {game.status}
           </span>
         </div>
 
-        <div className="rounded bg-white p-6 shadow">
-          <h3 className="mb-4 text-xl font-semibold">👥 Teams in Lobby</h3>
+        <div className="rounded bg-white p-8 shadow">
+          <div className="text-center">
+            <div className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-slate-600">
+              Current Standings
+            </div>
 
-          {teams.length === 0 ? (
-            <p className="text-gray-500">No teams have joined yet.</p>
-          ) : (
-            <ul className="space-y-3">
-              {teams.map((team) => (
-                <li
-                  key={team.id}
-                  className="flex justify-between rounded bg-blue-50 p-3 shadow-sm"
-                >
-                  <span className="font-medium text-blue-800">{team.name}</span>
-                  <span className="text-xs text-gray-500">Ready</span>
-                </li>
-              ))}
-            </ul>
-          )}
+            {leaderboard ? (
+              <>
+                <div className="mx-auto mt-6 max-w-2xl space-y-3 text-left">
+                  {leaderboard.standings.map((entry) => {
+                    const isCurrentTeam = entry.teamId === teamId;
 
-          <p className="mt-6 text-sm text-gray-500">
-            Waiting for the host to start the game…
-          </p>
+                    return (
+                      <div
+                        key={entry.teamId}
+                        className={`flex items-center justify-between rounded-lg border px-4 py-4 ${
+                          isCurrentTeam
+                            ? 'border-blue-300 bg-blue-50'
+                            : 'border-slate-200 bg-slate-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 text-xl font-bold text-slate-500">
+                            {entry.rank}
+                          </div>
+
+                          <div>
+                            <div
+                              className={`text-lg font-semibold ${
+                                isCurrentTeam ? 'text-blue-900' : 'text-slate-900'
+                              }`}
+                            >
+                              {entry.teamName}
+                            </div>
+
+                            {isCurrentTeam ? (
+                              <div className="text-sm text-blue-700">
+                                Your team
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        <div className="text-right">
+                          <div className="text-2xl font-bold text-slate-900">
+                            {entry.score}
+                          </div>
+                          <div className="text-xs uppercase tracking-[0.12em] text-slate-500">
+                            Points
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <>
+                <h3 className="text-2xl font-bold text-slate-900">
+                  The leaderboard is being prepared
+                </h3>
+
+                <p className="mx-auto mt-4 max-w-2xl text-base text-slate-600">
+                  No leaderboard data is available yet.
+                </p>
+              </>
+            )}
+
+            <p className="mt-8 text-sm text-slate-500">
+              Waiting for the host to continue…
+            </p>
+          </div>
         </div>
       </div>
     </div>

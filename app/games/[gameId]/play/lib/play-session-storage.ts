@@ -36,7 +36,9 @@ export function getStoredGameSession(gameId: string): StoredTeamSession | null {
       typeof parsed.deviceId !== 'string' ||
       typeof parsed.lastKnownStatus !== 'string' ||
       (parsed.lastKnownScreen !== 'lobby' &&
-        parsed.lastKnownScreen !== 'play') ||
+        parsed.lastKnownScreen !== 'play' &&
+        parsed.lastKnownScreen !== 'answer-reveal' &&
+        parsed.lastKnownScreen !== 'leaderboard') ||
       typeof parsed.joinedAt !== 'string' ||
       typeof parsed.lastSeenAt !== 'string'
     ) {

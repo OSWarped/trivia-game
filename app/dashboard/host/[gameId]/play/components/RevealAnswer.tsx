@@ -1,3 +1,4 @@
+// File: app/dashboard/host/[gameId]/play/components/RevealAnswer.tsx
 'use client';
 
 import React, { useState } from 'react';
@@ -23,7 +24,9 @@ export default function RevealAnswer({ question }: RevealAnswerProps) {
 
   if (!question) return null;
 
-  const correctOptions = (question.options ?? []).filter((option) => option.isCorrect);
+  const correctOptions = (question.options ?? []).filter(
+    (option) => option.isCorrect
+  );
 
   if (!open) {
     return (
@@ -32,7 +35,7 @@ export default function RevealAnswer({ question }: RevealAnswerProps) {
         onClick={() => setOpen(true)}
         className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300"
       >
-        Reveal Answer
+        Preview Answer
       </button>
     );
   }
@@ -42,10 +45,11 @@ export default function RevealAnswer({ question }: RevealAnswerProps) {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-500">
-            Correct Answer
+            Host Answer Preview
           </h3>
           <p className="mt-1 text-sm text-slate-600">
-            Review the accepted answer for the current question.
+            Visible only to the host. Review the accepted answer before showing
+            teams the answer reveal screen.
           </p>
         </div>
 

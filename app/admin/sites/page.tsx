@@ -102,7 +102,7 @@ export default function ManageSites() {
   return (
     <div className="p-6 bg-gray-100 min-h-screen">
       <Link
-        href="/admin/dashboard"
+        href="/admin/workspace"
         className="mb-4 flex items-center text-blue-600 hover:underline"
       >
         <ChevronLeft className="mr-1" size={18} />

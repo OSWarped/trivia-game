@@ -8,7 +8,8 @@ import type {
   FlatQuestion,
   GameStateExpanded,
   Round,
-  ReliableEmit
+  ReliableEmit,
+  TeamDisplayMode,
 } from '../types/host-play.types';
 
 interface UseHostGamePlayStateArgs {
@@ -16,6 +17,26 @@ interface UseHostGamePlayStateArgs {
   socket: Socket | null;
   reliableEmit: ReliableEmit;
 }
+
+interface AnswerRevealPayload {
+  gameId: string;
+  roundId: string;
+  roundName: string;
+  questionId: string;
+  questionText: string;
+  questionType: string;
+  correctAnswers: string[];
+}
+
+type LeaderboardPayload = {
+  gameId: string;
+  standings: {
+    teamId: string;
+    teamName: string;
+    score: number;
+    rank: number;
+  }[];
+};
 
 export function useHostGamePlayState({
   gameId,
@@ -27,6 +48,7 @@ export function useHostGamePlayState({
   const [gameState, setGameState] = useState<GameStateExpanded | null>(null);
   const [loadingPrev, setLoadingPrev] = useState(false);
   const [loadingNext, setLoadingNext] = useState(false);
+  const [displayMode, setDisplayMode] = useState<TeamDisplayMode>('QUESTION');
 
   const bootstrapGameState = useCallback(async () => {
     const res = await fetch(`/api/host/games/${gameId}/state`, {
@@ -37,6 +59,7 @@ export function useHostGamePlayState({
 
     const dto = (await res.json()) as GameStateExpanded;
     setGameState(dto);
+    setDisplayMode(dto.game.displayMode ?? 'QUESTION');
     return dto;
   }, [gameId]);
 
@@ -86,6 +109,54 @@ export function useHostGamePlayState({
 
   const isFinalQuestion = currentIdx === flatQuestions.length - 1;
 
+  const buildAnswerRevealPayload = useCallback((): AnswerRevealPayload | null => {
+    if (!gameState || !currentRound || !gameState.currentQuestionId) {
+      return null;
+    }
+
+    const question =
+      currentRound.questions.find(
+        (q) => q.id === gameState.currentQuestionId
+      ) ?? null;
+
+    if (!question) {
+      return null;
+    }
+
+    return {
+      gameId: gameState.gameId,
+      roundId: currentRound.id,
+      roundName: currentRound.name,
+      questionId: question.id,
+      questionText: question.text,
+      questionType: question.type,
+      correctAnswers: (question.options ?? [])
+        .filter((option) => option.isCorrect)
+        .map((option) => option.text),
+    };
+  }, [gameState, currentRound]);
+
+  const buildLeaderboardPayload = useCallback((): LeaderboardPayload | null => {
+  if (!gameState) return null;
+
+  const standings = [...gameState.game.teamGames]
+    .map((tg) => ({
+      teamId: tg.team.id,
+      teamName: tg.team.name,
+      score: tg.score ?? 0,
+    }))
+    .sort((a, b) => b.score - a.score)
+    .map((team, index) => ({
+      ...team,
+      rank: index + 1,
+    }));
+
+  return {
+    gameId: gameState.gameId,
+    standings,
+  };
+}, [gameState]);
+
   const handlePrev = useCallback(async () => {
     setLoadingPrev(true);
 
@@ -95,7 +166,10 @@ export function useHostGamePlayState({
       reliableEmit(
         'host:previousQuestion',
         { gameId },
-        () => setLoadingPrev(false),
+        () => {
+          setDisplayMode('QUESTION');
+          setLoadingPrev(false);
+        },
         (err) => {
           console.error('Prev delivery failed', err);
           setLoadingPrev(false);
@@ -116,7 +190,10 @@ export function useHostGamePlayState({
       reliableEmit(
         'host:nextQuestion',
         { gameId },
-        () => setLoadingNext(false),
+        () => {
+          setDisplayMode('QUESTION');
+          setLoadingNext(false);
+        },
         (err) => {
           console.error('Next delivery failed', err);
           setLoadingNext(false);
@@ -127,6 +204,110 @@ export function useHostGamePlayState({
       setLoadingNext(false);
     }
   }, [gameId, reliableEmit]);
+
+  const handleShowQuestion = useCallback(async () => {
+    try {
+      await fetch(`/api/host/games/${gameId}/display-mode`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ displayMode: 'QUESTION' }),
+      });
+
+      setDisplayMode('QUESTION');
+      socket?.emit('host:showQuestion', { gameId });
+    } catch (err) {
+      console.error('Failed to switch to question mode', err);
+    }
+  }, [gameId, socket]);
+
+  const handleShowLobby = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/host/games/${gameId}/display-mode`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ displayMode: 'LOBBY' }),
+      });
+
+      const data = await res.json();
+      console.log('SET LOBBY MODE RESPONSE', { ok: res.ok, data });
+
+      if (!res.ok) {
+        console.error('Failed to persist lobby mode', data);
+        return;
+      }
+
+      setDisplayMode('LOBBY');
+      socket?.emit('host:showLobby', { gameId });
+    } catch (err) {
+      console.error('Failed to switch to lobby mode', err);
+    }
+  }, [gameId, socket]);
+
+  const handleShowReveal = useCallback(async () => {
+    try {
+      const revealPayload = buildAnswerRevealPayload();
+
+      if (!revealPayload) {
+        console.error('Could not build answer reveal payload');
+        return;
+      }
+
+      const res = await fetch(`/api/host/games/${gameId}/display-mode`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ displayMode: 'ANSWER_REVEAL' }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        console.error('Failed to switch to answer reveal mode', data);
+        return;
+      }
+
+      setDisplayMode('ANSWER_REVEAL');
+      socket?.emit('host:showAnswerReveal', {
+        gameId,
+        reveal: revealPayload,
+      });
+    } catch (err) {
+      console.error('Failed to switch to answer reveal mode', err);
+    }
+  }, [gameId, socket, buildAnswerRevealPayload]);
+
+  
+
+  const handleShowLeaderboard = useCallback(async () => {
+  try {
+    const leaderboardPayload = buildLeaderboardPayload();
+
+    if (!leaderboardPayload) {
+      console.error('Could not build leaderboard payload');
+      return;
+    }
+
+    const res = await fetch(`/api/host/games/${gameId}/display-mode`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ displayMode: 'LEADERBOARD' }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      console.error('Failed to switch to leaderboard mode', data);
+      return;
+    }
+
+    setDisplayMode('LEADERBOARD');
+    socket?.emit('host:showLeaderboard', {
+      gameId,
+      leaderboard: leaderboardPayload,
+    });
+  } catch (err) {
+    console.error('Failed to switch to leaderboard mode', err);
+  }
+}, [gameId, socket, buildLeaderboardPayload]);
 
   const handleComplete = useCallback(async () => {
     await fetch(`/api/host/games/${gameId}/complete`, { method: 'PATCH' });
@@ -145,8 +326,13 @@ export function useHostGamePlayState({
     isFinalQuestion,
     loadingPrev,
     loadingNext,
+    displayMode,
     handlePrev,
     handleNext,
+    handleShowQuestion,
+    handleShowReveal,
+    handleShowLeaderboard,
+    handleShowLobby,
     handleComplete,
   };
 }

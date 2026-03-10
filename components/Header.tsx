@@ -89,7 +89,7 @@ export default function Header() {
         {!isTeamView && (
           <nav className="hidden md:block">
             <ul className="flex space-x-6 items-center">            
-              {isAdmin && navLink('/admin/dashboard', 'Admin Panel')}
+              {isAdmin && navLink('/admin/workspace', 'Admin Panel')}
               {isHost && navLink('/dashboard/host', 'Host Dashboard')}
 
               {user ? (
@@ -116,7 +116,7 @@ export default function Header() {
       {!isTeamView && open && (
         <nav className="md:hidden mt-2 bg-blue-700 p-4 rounded-lg">
           <ul className="flex flex-col space-y-4">           
-            {isAdmin && navLink('/admin/dashboard', 'Admin Panel')}
+            {isAdmin && navLink('/admin/workspace', 'Admin Panel')}
             {isHost && navLink('/dashboard/host', 'Host Dashboard')}
             <li>
               {user ? (

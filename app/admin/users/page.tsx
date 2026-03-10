@@ -174,7 +174,7 @@ export default function ManageUsers() {
   return (
     <div>
       <button
-        onClick={() => router.push("/admin/dashboard")}
+        onClick={() => router.push("/admin/workspace")}
         className="mb-4 flex items-center text-blue-600 hover:underline"
       >
         <ChevronLeft className="mr-1" size={18} />

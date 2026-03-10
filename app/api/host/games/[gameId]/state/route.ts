@@ -132,6 +132,7 @@ export async function GET(
         title: gs.game.title,
         joinCode: gs.game.joinCode,
         status: gs.game.status,
+        displayMode: gs.game.displayMode,
         tag: gs.game.tag ?? null,
         scheduledFor: gs.game.scheduledFor?.toISOString() ?? null,
 
@@ -142,10 +143,10 @@ export async function GET(
 
         site: gs.game.site
           ? {
-              id: gs.game.site.id,
-              name: gs.game.site.name,
-              address: gs.game.site.address,
-            }
+            id: gs.game.site.id,
+            name: gs.game.site.name,
+            address: gs.game.site.address,
+          }
           : null,
 
         rounds: gs.game.rounds.map((r) => ({

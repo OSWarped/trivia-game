@@ -114,7 +114,10 @@ function getStoredGameSession(gameId: string): StoredTeamSession | null {
       typeof parsed.sessionToken !== 'string' ||
       typeof parsed.deviceId !== 'string' ||
       typeof parsed.lastKnownStatus !== 'string' ||
-      (parsed.lastKnownScreen !== 'lobby' && parsed.lastKnownScreen !== 'play') ||
+      (parsed.lastKnownScreen !== 'lobby' &&
+        parsed.lastKnownScreen !== 'play' &&
+        parsed.lastKnownScreen !== 'answer-reveal' &&
+        parsed.lastKnownScreen !== 'leaderboard') ||
       typeof parsed.joinedAt !== 'string' ||
       typeof parsed.lastSeenAt !== 'string'
     ) {
@@ -346,7 +349,7 @@ export default function JoinPageClient({ joinCode }: { joinCode: string }) {
               if (!cancelled && resumeData.code === 'TEAM_LOCKED') {
                 setSubmitError(
                   resumeData.error ||
-                    'Your team has been locked by the host for this game.'
+                  'Your team has been locked by the host for this game.'
                 );
               } else if (!cancelled && resumeData.error) {
                 setSubmitError(resumeData.error);
@@ -473,7 +476,7 @@ export default function JoinPageClient({ joinCode }: { joinCode: string }) {
           setApprovalPending(true);
           setApprovalMessage(
             data.error ||
-              'This team requires host approval before joining.'
+            'This team requires host approval before joining.'
           );
           return;
         }
@@ -689,8 +692,8 @@ export default function JoinPageClient({ joinCode }: { joinCode: string }) {
               {isSubmitting
                 ? 'Joining...'
                 : approvalPending
-                ? 'Retry Join'
-                : 'Join Game'}
+                  ? 'Retry Join'
+                  : 'Join Game'}
             </button>
           </form>
         ) : null}

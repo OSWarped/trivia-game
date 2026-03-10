@@ -149,7 +149,7 @@ export default function ManageGamesPage() {
     <div className="min-h-screen bg-gray-100 p-6">
       <button
         type="button"
-        onClick={() => router.push('/admin/dashboard')}
+        onClick={() => router.push('/admin/workspace')}
         className="mb-4 inline-flex items-center text-blue-600 hover:underline"
       >
         <ChevronLeft className="mr-1" size={18} />

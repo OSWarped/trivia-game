@@ -11,8 +11,8 @@ import {
 } from '../lib/play-session-storage';
 
 export type QuestionOptionObject = {
-  id: string;
-  text: string;
+    id: string;
+    text: string;
 };
 
 export type QuestionOption = string | QuestionOptionObject;
@@ -58,6 +58,7 @@ interface ResumeApiResponse {
     error?: string;
     code?: string;
     clearStoredSession?: boolean;
+    displayMode?: 'QUESTION' | 'LOBBY' | 'ANSWER_REVEAL' | 'LEADERBOARD';
 }
 
 export interface GameState {
@@ -125,6 +126,8 @@ export function usePlayBootstrap({
         },
         [gameId]
     );
+
+
 
     const initializePage = useCallback(async () => {
         if (!gameId) return;
@@ -195,6 +198,7 @@ export function usePlayBootstrap({
 
             const resumedStatus = resumeData.gameStatus ?? resolvedGame.status;
             const resumedTeamName = resumeData.teamName ?? storedSession.teamName;
+            const displayMode = resumeData.displayMode ?? (resumedStatus === 'LIVE' ? 'QUESTION' : 'LOBBY');
 
             const refreshedSession: StoredTeamSession = {
                 gameId,
@@ -203,7 +207,7 @@ export function usePlayBootstrap({
                 sessionToken: resumeData.session.sessionToken,
                 deviceId: resumeData.session.deviceId,
                 lastKnownStatus: resumedStatus,
-                lastKnownScreen: resumedStatus === 'LIVE' ? 'play' : 'lobby',
+                lastKnownScreen: displayMode === 'LOBBY' ? 'lobby' : 'play',
                 joinedAt: resumeData.session.joinedAt,
                 lastSeenAt: resumeData.session.lastSeenAt,
             };
@@ -220,8 +224,13 @@ export function usePlayBootstrap({
             setSessionToken(refreshedSession.sessionToken);
             setDeviceId(refreshedSession.deviceId);
 
-            if (resumedStatus !== 'LIVE') {
+            if (displayMode === 'LOBBY') {
                 router.replace(`/games/${gameId}/lobby`);
+                return;
+            }
+
+            if (displayMode === 'ANSWER_REVEAL') {
+                router.replace(`/games/${gameId}/answer-reveal`);
                 return;
             }
 

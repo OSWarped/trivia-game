@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Game" ADD COLUMN     "displayMode" TEXT NOT NULL DEFAULT 'QUESTION';

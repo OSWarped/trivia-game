@@ -39,7 +39,7 @@ export default function LoginPage() {
 
       /* ---- role‑based redirect -------------------------------- */
       if (result.role === 'ADMIN') {
-        router.push('/admin/dashboard');
+        router.push('/admin/workspace');
       } else if (result.role === 'HOST') {
         router.push('/dashboard/host');
       } else {

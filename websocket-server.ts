@@ -833,6 +833,81 @@ try {
       io.to(resolvedGameId).emit('game:resetSubmissions', { gameId: resolvedGameId });
     });
 
+    socket.on('host:showLobby', ({ gameId }: { gameId?: string }) => {
+      const resolvedGameId = normalizeString(gameId);
+      if (!resolvedGameId) return;
+
+      io.to(resolvedGameId).emit('game:showLobby', {
+        gameId: resolvedGameId,
+      });
+    });
+
+    socket.on('host:showQuestion', ({ gameId }: { gameId?: string }) => {
+      const resolvedGameId = normalizeString(gameId);
+      if (!resolvedGameId) return;
+
+      io.to(resolvedGameId).emit('game:showQuestion', {
+        gameId: resolvedGameId,
+      });
+    });
+
+    socket.on(
+      'host:showAnswerReveal',
+      ({
+        gameId,
+        reveal,
+      }: {
+        gameId?: string;
+        reveal?: {
+          gameId: string;
+          roundId: string;
+          roundName: string;
+          questionId: string;
+          questionText: string;
+          questionType: string;
+          correctAnswers: string[];
+        };
+      }) => {
+        console.log(
+          `↔️ team:host has sent the answers to be revealed for question ${reveal?.questionId} in game ${gameId}`
+        );
+        const resolvedGameId = normalizeString(gameId);
+        if (!resolvedGameId || !reveal) return;
+
+        io.to(resolvedGameId).emit('game:showAnswerReveal', {
+          gameId: resolvedGameId,
+          reveal,
+        });
+      }
+    );
+
+    socket.on(
+      'host:showLeaderboard',
+      ({
+        gameId,
+        leaderboard,
+      }: {
+        gameId?: string;
+        leaderboard?: {
+          gameId: string;
+          standings: {
+            teamId: string;
+            teamName: string;
+            score: number;
+            rank: number;
+          }[];
+        };
+      }) => {
+        const resolvedGameId = normalizeString(gameId);
+        if (!resolvedGameId || !leaderboard) return;
+
+        io.to(resolvedGameId).emit('game:showLeaderboard', {
+          gameId: resolvedGameId,
+          leaderboard,
+        });
+      }
+    );
+
     socket.on(
       'host:transition',
       ({

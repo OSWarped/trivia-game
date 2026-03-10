@@ -31,6 +31,7 @@ export interface GameStateExpanded extends GameState {
     joinCode: string;
     title: string;
     status: string;
+    displayMode: TeamDisplayMode;
     tag?: string | null;
     scheduledFor: string | null;
     season: {
@@ -42,7 +43,6 @@ export interface GameStateExpanded extends GameState {
       name: string;
       address?: string | null;
     } | null;
-
     rounds: Round[];
     teamGames: {
       team: { id: string; name: string };
@@ -62,19 +62,11 @@ export type TeamConnectionState =
 
 export type TeamTransferMode = 'NORMAL' | 'HOST_APPROVAL' | 'LOCKED';
 
-export interface HostTeamStatus {
-  id: string;
-  name: string;
-  score: number;
-  submitted: boolean;
-
-  // Phase 2+ fields
-  connectionState?: TeamConnectionState;
-  transferMode?: TeamTransferMode;
-  hasDispute?: boolean;
-  activeSessionLabel?: string | null;
-  pendingSessionLabel?: string | null;
-}
+export type TeamDisplayMode =
+  | 'QUESTION'
+  | 'ANSWER_REVEAL'
+  | 'LEADERBOARD'
+  | 'LOBBY';
 
 export interface FlatQuestion extends Question {
   roundId: string;

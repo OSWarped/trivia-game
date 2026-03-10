@@ -1,8 +1,10 @@
+// File: app/dashboard/host/[gameId]/play/components/CurrentGamePanel.tsx
 'use client';
 
 import React from 'react';
 import RevealAnswer from './RevealAnswer';
-import QuestionControls from './QuestionControls';
+import MainActionBar from './MainActionBar';
+import type { TeamDisplayMode } from '../types/host-play.types';
 
 export interface QuestionOption {
   id: string;
@@ -28,10 +30,15 @@ interface CurrentGamePanelProps {
   currentQuestionId: string | null;
   isLastInRound: boolean;
   isFinalQuestion: boolean;
+  displayMode: TeamDisplayMode;
   disablePrev?: boolean;
   disableNext?: boolean;
   onPrev: () => void;
   onNext: () => void;
+  onShowQuestion: () => void;
+  onShowReveal: () => void;
+  onShowLeaderboard: () => void;
+  onShowLobby: () => void;
   onComplete: () => void;
 }
 
@@ -40,10 +47,15 @@ export default function CurrentGamePanel({
   currentQuestionId,
   isLastInRound,
   isFinalQuestion,
+  displayMode,
   disablePrev = false,
   disableNext = false,
   onPrev,
   onNext,
+  onShowQuestion,
+  onShowReveal,
+  onShowLeaderboard,
+  onShowLobby,
   onComplete,
 }: CurrentGamePanelProps) {
   const question =
@@ -86,9 +98,14 @@ export default function CurrentGamePanel({
       </div>
 
       <div className="px-5 py-4">
-        <QuestionControls
+        <MainActionBar
+          displayMode={displayMode}
           onPrev={onPrev}
           onNext={onNext}
+          onShowQuestion={onShowQuestion}
+          onShowReveal={onShowReveal}
+          onShowLeaderboard={onShowLeaderboard}
+          onShowLobby={onShowLobby}
           disablePrev={disablePrev}
           disableNext={disableNext}
           isLastInRound={isLastInRound}

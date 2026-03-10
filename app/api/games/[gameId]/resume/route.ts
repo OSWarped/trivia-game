@@ -221,10 +221,13 @@ export async function POST(
       },
     });
 
+    const displayMode =
+      game.displayMode ?? (game.status === 'LIVE' ? 'QUESTION' : 'LOBBY');
+
     const route =
-      game.status === 'LIVE'
-        ? `/games/${gameId}/play`
-        : `/games/${gameId}/lobby`;
+      displayMode === 'LOBBY'
+        ? `/games/${gameId}/lobby`
+        : `/games/${gameId}/play`;
 
     return NextResponse.json({
       ok: true,
@@ -232,6 +235,7 @@ export async function POST(
       teamId: resumedSession.team.id,
       teamName: resumedSession.team.name,
       gameStatus: game.status,
+      displayMode,
       route,
       redirectTo: route,
       session: {

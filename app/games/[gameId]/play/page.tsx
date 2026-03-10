@@ -67,9 +67,6 @@ export default function PlayGamePage(): JSX.Element {
     reliableEmit,
   });
 
-
-
-
   useEffect(() => {
     if (state?.team.score == null) return;
 
@@ -86,6 +83,83 @@ export default function PlayGamePage(): JSX.Element {
     prevScoreRef.current = next;
   }, [state?.team.score]);
 
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleShowQuestion = () => {
+      sessionStorage.removeItem(`trivia:${gameId}:leaderboard`);
+      router.replace(`/games/${gameId}/play`);
+    };
+
+    const handleShowLobby = () => {
+      sessionStorage.removeItem(`trivia:${gameId}:leaderboard`);
+      router.replace(`/games/${gameId}/lobby`);
+    };
+
+    const handleShowAnswerReveal = (payload: {
+      gameId: string;
+      reveal: {
+        gameId: string;
+        roundId: string;
+        roundName: string;
+        questionId: string;
+        questionText: string;
+        questionType: string;
+        correctAnswers: string[];
+      };
+    }) => {
+      if (!payload?.reveal) {
+        console.error('Missing answer reveal payload');
+        return;
+      }
+
+      sessionStorage.removeItem(`trivia:${gameId}:leaderboard`);
+      sessionStorage.setItem(
+        `trivia:${gameId}:answerReveal`,
+        JSON.stringify(payload.reveal)
+      );
+
+      router.replace(`/games/${gameId}/answer-reveal`);
+    };
+
+    const handleShowLeaderboard = (payload: {
+      gameId: string;
+      leaderboard: {
+        gameId: string;
+        standings: {
+          teamId: string;
+          teamName: string;
+          score: number;
+          rank: number;
+        }[];
+      };
+    }) => {
+      if (!payload?.leaderboard) {
+        console.error('Missing leaderboard payload');
+        return;
+      }
+
+      sessionStorage.removeItem(`trivia:${gameId}:answerReveal`);
+      sessionStorage.setItem(
+        `trivia:${gameId}:leaderboard`,
+        JSON.stringify(payload.leaderboard)
+      );
+
+      router.replace(`/games/${gameId}/leaderboard`);
+    };
+
+    socket.on('game:showQuestion', handleShowQuestion);
+    socket.on('game:showLobby', handleShowLobby);
+    socket.on('game:showAnswerReveal', handleShowAnswerReveal);
+    socket.on('game:showLeaderboard', handleShowLeaderboard);
+
+    return () => {
+      socket.off('game:showQuestion', handleShowQuestion);
+      socket.off('game:showLobby', handleShowLobby);
+      socket.off('game:showAnswerReveal', handleShowAnswerReveal);
+      socket.off('game:showLeaderboard', handleShowLeaderboard);
+    };
+  }, [socket, router, gameId]);
 
 
   type OrderedOption = {

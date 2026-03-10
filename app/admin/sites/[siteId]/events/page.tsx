@@ -196,7 +196,7 @@ export default function ManageEventsPage() {
 
   return (
     <div className="min-h-screen bg-gray-100 p-6">
-      <Link href="/admin/sites" className="mb-4 inline-flex items-center text-blue-600 hover:underline">
+      <Link href="/admin/workspace" className="mb-4 inline-flex items-center text-blue-600 hover:underline">
         <ChevronLeft className="mr-1" size={18} /> Back to Sites
       </Link>
 

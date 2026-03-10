@@ -15,7 +15,7 @@ export default function PoolPointSelector({
 
   return (
     <div className="mt-4">
-      <h4 className="mb-2 text-sm font-medium text-gray-600">
+      <h4 className="mb-2 text-sm font-medium text-slate-200">
         Select a Point Value
       </h4>
 

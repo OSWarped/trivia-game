@@ -3,6 +3,7 @@
 import React, { JSX, useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { GameStatus } from '@prisma/client';
+import AppBackground from '@/components/AppBackground';
 import { useSocket } from '@/components/SocketProvider';
 import { useTeamSocket } from '@/app/hooks/useTeamSocket';
 
@@ -205,7 +206,6 @@ function persistSession(
   localStorage.setItem(`${STORAGE_PREFIX}:${gameId}:gameId`, gameId);
   localStorage.setItem(`${STORAGE_PREFIX}:${gameId}:joinCode`, joinCode);
 
-  // Legacy compatibility while the rest of the app is still being updated.
   localStorage.setItem('teamId', storedSession.teamId);
   localStorage.setItem('teamName', storedSession.teamName);
   localStorage.setItem('gameId', gameId);
@@ -286,13 +286,6 @@ export default function LobbyPage(): JSX.Element {
 
       const resumeData = (await resumeRes.json()) as ResumeApiResponse;
 
-      console.log('LOBBY RESUME DATA', {
-        gameStatus: resumeData.gameStatus,
-        displayMode: resumeData.displayMode,
-        route: resumeData.route,
-        redirectTo: resumeData.redirectTo,
-      });
-
       if (
         !resumeRes.ok ||
         !resumeData.teamId ||
@@ -312,7 +305,8 @@ export default function LobbyPage(): JSX.Element {
 
       const resumedStatus = resumeData.gameStatus ?? resolvedGame.status;
       const resumedTeamName = resumeData.teamName ?? storedSession.teamName;
-      const displayMode = resumeData.displayMode ?? (resumedStatus === 'LIVE' ? 'QUESTION' : 'LOBBY');
+      const displayMode =
+        resumeData.displayMode ?? (resumedStatus === 'LIVE' ? 'QUESTION' : 'LOBBY');
 
       const refreshedSession: StoredTeamSession = {
         gameId,
@@ -350,7 +344,6 @@ export default function LobbyPage(): JSX.Element {
         router.replace(`/games/${gameId}/answer-reveal`);
         return;
       }
-
     } catch (error) {
       console.error('Failed to initialize lobby page:', error);
       setLoadError('Failed to restore lobby session.');
@@ -447,12 +440,12 @@ export default function LobbyPage(): JSX.Element {
     session:
       gameId && teamId && teamName
         ? {
-          gameId,
-          teamId,
-          teamName,
-          sessionToken: getStoredGameSession(gameId)?.sessionToken ?? null,
-          deviceId: getStoredGameSession(gameId)?.deviceId ?? null,
-        }
+            gameId,
+            teamId,
+            teamName,
+            sessionToken: getStoredGameSession(gameId)?.sessionToken ?? null,
+            deviceId: getStoredGameSession(gameId)?.deviceId ?? null,
+          }
         : null,
     onAuthenticated: () => {
       socket?.emit('team:requestLiveTeams', { gameId });
@@ -479,7 +472,6 @@ export default function LobbyPage(): JSX.Element {
       setConnectionStatus('connected');
       socket.emit('team:requestLiveTeams', { gameId });
     };
-
 
     const handleLiveTeams = (payload: { gameId: string; teams: Team[] }) => {
       if (payload.gameId === gameId) {
@@ -509,102 +501,128 @@ export default function LobbyPage(): JSX.Element {
 
   if (loading) {
     return (
-      <div className="p-6">
-        <p className="text-gray-600">
-          {isRestoringSession
-            ? 'Restoring your team session...'
-            : 'Loading game info...'}
-        </p>
-      </div>
+      <AppBackground variant="hero" className="flex min-h-screen items-center justify-center px-6 py-12">
+        <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur-sm">
+          <p className="text-sm text-slate-200">
+            {isRestoringSession
+              ? 'Restoring your team session...'
+              : 'Loading game info...'}
+          </p>
+        </div>
+      </AppBackground>
     );
   }
 
   if (loadError) {
     return (
-      <div className="p-6">
-        <p className="text-red-600">{loadError}</p>
-      </div>
+      <AppBackground variant="hero" className="flex min-h-screen items-center justify-center px-6 py-12">
+        <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur-sm">
+          <p className="text-sm text-red-200">{loadError}</p>
+        </div>
+      </AppBackground>
     );
   }
 
   if (!game) {
     return (
-      <div className="p-6">
-        <p className="text-red-600">Game data was not found.</p>
-      </div>
+      <AppBackground variant="hero" className="flex min-h-screen items-center justify-center px-6 py-12">
+        <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur-sm">
+          <p className="text-sm text-red-200">Game data was not found.</p>
+        </div>
+      </AppBackground>
     );
   }
 
   if (!teamId) {
     return (
-      <div className="p-6">
-        <p className="text-red-600">❌ Missing team session.</p>
-      </div>
+      <AppBackground variant="hero" className="flex min-h-screen items-center justify-center px-6 py-12">
+        <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur-sm">
+          <p className="text-sm text-red-200">Missing team session.</p>
+        </div>
+      </AppBackground>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-100 p-6">
-      <div className="mx-auto max-w-3xl">
-        <h1 className="mb-6 text-3xl font-bold text-blue-800">
-          🧠 Welcome to the Trivia Lobby
-        </h1>
-
-        {connectionStatus === 'disconnected' && (
-          <div className="mt-4 text-center text-yellow-600">
-            Reconnecting...
+    <AppBackground variant="hero" className="flex min-h-screen items-center justify-center px-6 py-12">
+      <div className="w-full max-w-3xl space-y-6">
+        <div className="rounded-3xl border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur-sm">
+          <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-300">
+            Team Lobby
           </div>
-        )}
 
-        <div className="mb-6 rounded bg-white p-6 shadow">
-          <h2 className="text-2xl font-semibold">{game.title}</h2>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">
+            {game.title}
+          </h1>
 
-          <p className="text-gray-600">
-            Location: {game.site?.name ?? 'TBD'} ({game.site?.address ?? 'Unknown'})
-          </p>
-
-          <p className="text-gray-600">Start Time: {scheduledDisplay}</p>
+          <div className="mt-4 space-y-2 text-sm text-slate-200">
+            <p>
+              <span className="font-semibold text-white">Location:</span>{' '}
+              {game.site?.name ?? 'TBD'}
+            </p>
+            <p>
+              <span className="font-semibold text-white">Address:</span>{' '}
+              {game.site?.address ?? 'Unknown'}
+            </p>
+            <p>
+              <span className="font-semibold text-white">Start Time:</span>{' '}
+              {scheduledDisplay}
+            </p>
+          </div>
 
           {teamName ? (
-            <p className="mt-2 text-sm text-gray-500">
-              Joined as: <span className="font-medium text-blue-800">{teamName}</span>
+            <p className="mt-4 text-sm text-slate-300">
+              Joined as:{' '}
+              <span className="font-semibold text-white">{teamName}</span>
             </p>
           ) : null}
 
-          <span
-            className={`mt-2 inline-block rounded-full px-3 py-1 text-sm ${game.status === 'LIVE'
-              ? 'bg-green-200 text-green-800'
-              : 'bg-yellow-100 text-yellow-700'
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <span
+              className={`rounded-full border px-3 py-1 text-sm font-medium ${
+                game.status === 'LIVE'
+                  ? 'border-emerald-300/40 bg-emerald-500/10 text-emerald-100'
+                  : 'border-blue-300/40 bg-blue-500/10 text-blue-100'
               }`}
-          >
-            {game.status}
-          </span>
+            >
+              {game.status}
+            </span>
+
+            {connectionStatus === 'disconnected' ? (
+              <span className="rounded-full border border-amber-300/40 bg-amber-500/10 px-3 py-1 text-sm font-medium text-amber-100">
+                Reconnecting...
+              </span>
+            ) : null}
+          </div>
         </div>
 
-        <div className="rounded bg-white p-6 shadow">
-          <h3 className="mb-4 text-xl font-semibold">👥 Teams in Lobby</h3>
+        <div className="rounded-3xl border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur-sm">
+          <h2 className="text-xl font-semibold text-white">Teams in Lobby</h2>
+          <p className="mt-1 text-sm text-slate-300">
+            Waiting for the host to start the game…
+          </p>
 
           {teams.length === 0 ? (
-            <p className="text-gray-500">No teams have joined yet.</p>
+            <div className="mt-6 rounded-2xl border border-dashed border-white/15 bg-slate-900/30 p-6 text-center">
+              <p className="text-sm text-slate-300">No teams have joined yet.</p>
+            </div>
           ) : (
-            <ul className="space-y-3">
+            <ul className="mt-6 space-y-3">
               {teams.map((team) => (
                 <li
                   key={team.id}
-                  className="flex justify-between rounded bg-blue-50 p-3 shadow-sm"
+                  className="flex items-center justify-between rounded-2xl border border-white/10 bg-slate-900/35 px-4 py-3"
                 >
-                  <span className="font-medium text-blue-800">{team.name}</span>
-                  <span className="text-xs text-gray-500">Ready</span>
+                  <span className="font-medium text-white">{team.name}</span>
+                  <span className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-xs font-medium text-slate-200">
+                    Ready
+                  </span>
                 </li>
               ))}
             </ul>
           )}
-
-          <p className="mt-6 text-sm text-gray-500">
-            Waiting for the host to start the game…
-          </p>
         </div>
       </div>
-    </div>
+    </AppBackground>
   );
 }

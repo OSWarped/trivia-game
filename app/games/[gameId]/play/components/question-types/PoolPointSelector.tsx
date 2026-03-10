@@ -15,9 +15,9 @@ export default function PoolPointSelector({
 
   return (
     <div className="mt-4">
-      <h4 className="mb-2 text-sm font-medium text-gray-600">
-        Select a Point Value
-      </h4>
+      <h4 className="mb-2 text-sm font-medium text-white">
+  Select a Point Value
+</h4>
 
       <div className="flex flex-wrap gap-3">
         {remainingPoints.map((pt) => (

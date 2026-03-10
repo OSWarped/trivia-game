@@ -9,6 +9,7 @@ import {
   type JSX,
 } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import AppBackground from '@/components/AppBackground';
 import { useSocket } from '@/components/SocketProvider';
 import { useTeamSocket } from '@/app/hooks/useTeamSocket';
 import { useReliableEmit } from '@/lib/reliable-handshake';
@@ -32,8 +33,10 @@ export default function PlayGamePage(): JSX.Element {
     timeoutMs: 3000,
     maxRetries: 3,
   });
+
   const prevScoreRef = useRef<number | null>(null);
   const [highlightScore, setHighlightScore] = useState(false);
+
   const {
     teamId,
     teamName,
@@ -50,6 +53,7 @@ export default function PlayGamePage(): JSX.Element {
     gameId,
     router,
   });
+
   const {
     answer,
     setAnswer,
@@ -161,7 +165,6 @@ export default function PlayGamePage(): JSX.Element {
     };
   }, [socket, router, gameId]);
 
-
   type OrderedOption = {
     id: string;
     text: string;
@@ -181,10 +184,7 @@ export default function PlayGamePage(): JSX.Element {
   }
 
   const orderedOptions = useMemo<OrderedOption[]>(() => {
-    if (
-      !state?.currentQuestion ||
-      state.currentQuestion.type !== 'ORDERED'
-    ) {
+    if (!state?.currentQuestion || state.currentQuestion.type !== 'ORDERED') {
       return [];
     }
 
@@ -211,7 +211,7 @@ export default function PlayGamePage(): JSX.Element {
         );
       }
     },
-    [teamId]
+    [teamId, setState]
   );
 
   const handleQuestionAdvance = useCallback(async () => {
@@ -233,12 +233,12 @@ export default function PlayGamePage(): JSX.Element {
     session:
       gameId && teamId && teamName
         ? {
-          gameId,
-          teamId,
-          teamName,
-          sessionToken,
-          deviceId,
-        }
+            gameId,
+            teamId,
+            teamName,
+            sessionToken,
+            deviceId,
+          }
         : null,
   });
 
@@ -254,75 +254,118 @@ export default function PlayGamePage(): JSX.Element {
 
   if (loading) {
     return (
-      <div className="p-6">
-        <p className="text-gray-600">
-          {isRestoringSession
-            ? 'Restoring your team session...'
-            : 'Loading question...'}
-        </p>
-      </div>
+      <AppBackground
+        variant="hero"
+        className="flex min-h-screen items-center justify-center px-6 py-12"
+      >
+        <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur-sm">
+          <p className="text-sm text-slate-200">
+            {isRestoringSession
+              ? 'Restoring your team session...'
+              : 'Loading question...'}
+          </p>
+        </div>
+      </AppBackground>
     );
   }
 
   if (loadError) {
     return (
-      <div className="p-6">
-        <p className="text-red-600">{loadError}</p>
-      </div>
+      <AppBackground
+        variant="hero"
+        className="flex min-h-screen items-center justify-center px-6 py-12"
+      >
+        <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur-sm">
+          <p className="text-sm text-red-200">{loadError}</p>
+        </div>
+      </AppBackground>
     );
   }
 
   if (!state) {
-    return <div className="p-6">Loading question…</div>;
+    return (
+      <AppBackground
+        variant="hero"
+        className="flex min-h-screen items-center justify-center px-6 py-12"
+      >
+        <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur-sm">
+          <p className="text-sm text-slate-200">Loading question…</p>
+        </div>
+      </AppBackground>
+    );
   }
 
   return (
-    <div className="grid gap-6 p-6 md:grid-cols-12">
-      <aside className="space-y-6 md:col-span-3">
-        <TeamScoreCard
-          teamName={state.team.name}
-          score={state.team.score}
-          gameTitle={gameInfo?.title ?? null}
-          highlightScore={highlightScore}
-        />
-      </aside>
+    <AppBackground variant="hero" className="min-h-screen px-6 py-8 md:py-12">
+      <div className="mx-auto max-w-6xl space-y-6">
+        <header className="rounded-3xl border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur-sm">
+          <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-300">
+            Team Play
+          </div>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">
+            {gameInfo?.title ?? 'Trivia Game'}
+          </h1>
+          <p className="mt-2 text-sm text-slate-300">
+            Playing as <span className="font-semibold text-white">{state.team.name}</span>
+          </p>
+        </header>
 
-      <ConnectionBanner connectionStatus={connectionStatus} />
+        <ConnectionBanner connectionStatus={connectionStatus} />
 
-      <section className="space-y-6 md:col-span-9">
-        <div className="rounded-lg bg-white p-6 shadow">
-          <QuestionHeader
-            roundName={state.round?.name ?? null}
-            questionText={state.currentQuestion?.text ?? null}
-          />
+        <div className="grid gap-6 md:grid-cols-12">
+          <aside className="space-y-6 md:col-span-4 xl:col-span-3">
+            <div className="rounded-3xl border border-white/10 bg-white/10 p-4 shadow-2xl backdrop-blur-sm">
+              <TeamScoreCard
+                teamName={state.team.name}
+                score={state.team.score}
+                gameTitle={gameInfo?.title ?? null}
+                highlightScore={highlightScore}
+              />
+            </div>
+          </aside>
 
-          <QuestionInputRenderer
-            questionId={state.currentQuestion?.id}
-            questionType={state.currentQuestion?.type ?? null}
-            options={state.currentQuestion?.options}
-            orderedOptions={orderedOptions}
-            answer={answer}
-            submitted={submitted}
-            onAnswerChange={setAnswer}
-          />
+          <section className="space-y-6 md:col-span-8 xl:col-span-9">
+            <div className="rounded-3xl border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur-sm">
+              <QuestionHeader
+                roundName={state.round?.name ?? null}
+                questionText={state.currentQuestion?.text ?? null}
+              />
 
-          <RoundScoringControls
-            pointSystem={state.round?.pointSystem ?? null}
-            isWagerRound={isWagerRound}
-            remainingPoints={state.team.remainingPoints ?? []}
-            selectedPoints={selectedPoints}
-            maxWager={maxWager}
-            submitted={submitted}
-            onSelectedPointsChange={setSelectedPoints}
-          />
+              <div className="mt-6">
+                <QuestionInputRenderer
+                  questionId={state.currentQuestion?.id}
+                  questionType={state.currentQuestion?.type ?? null}
+                  options={state.currentQuestion?.options}
+                  orderedOptions={orderedOptions}
+                  answer={answer}
+                  submitted={submitted}
+                  onAnswerChange={setAnswer}
+                />
+              </div>
 
-          <SubmitAnswerButton
-            onClick={submitAnswer}
-            submitted={submitted}
-            disabled={submitDisabled}
-          />
+              <div className="mt-6">
+                <RoundScoringControls
+                  pointSystem={state.round?.pointSystem ?? null}
+                  isWagerRound={isWagerRound}
+                  remainingPoints={state.team.remainingPoints ?? []}
+                  selectedPoints={selectedPoints}
+                  maxWager={maxWager}
+                  submitted={submitted}
+                  onSelectedPointsChange={setSelectedPoints}
+                />
+              </div>
+
+              <div className="mt-6">
+                <SubmitAnswerButton
+                  onClick={submitAnswer}
+                  submitted={submitted}
+                  disabled={submitDisabled}
+                />
+              </div>
+            </div>
+          </section>
         </div>
-      </section>
-    </div>
+      </div>
+    </AppBackground>
   );
 }

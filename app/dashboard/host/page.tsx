@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
@@ -11,15 +11,90 @@ interface Game {
   title: string;
   scheduledFor: string | null;
   status: 'DRAFT' | 'LIVE' | 'CLOSED' | 'SCHEDULED' | 'CANCELED';
+  event?: {
+    id: string;
+    name: string;
+  } | null;
+  site?: {
+    id: string;
+    name: string;
+  } | null;
+}
+
+interface EventGroup {
+  eventName: string;
+  games: Game[];
+}
+
+interface SiteGroup {
+  siteName: string;
+  events: EventGroup[];
 }
 
 const STATUS_STYLES: Record<Game['status'], string> = {
-  DRAFT: 'border-amber-400/30 bg-amber-500/10 text-amber-200',
-  LIVE: 'border-emerald-400/30 bg-emerald-500/10 text-emerald-200',
-  CLOSED: 'border-slate-400/30 bg-slate-500/10 text-slate-200',
-  SCHEDULED: 'border-blue-400/30 bg-blue-500/10 text-blue-200',
-  CANCELED: 'border-rose-400/30 bg-rose-500/10 text-rose-200',
+  DRAFT:
+    'border-amber-300 bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200',
+  LIVE:
+    'border-emerald-300 bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200',
+  CLOSED:
+    'border-slate-300 bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200',
+  SCHEDULED:
+    'border-blue-300 bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-200',
+  CANCELED:
+    'border-rose-300 bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-200',
 };
+
+function getDateValue(date: string | null): number {
+  if (!date) return Number.MAX_SAFE_INTEGER;
+  return new Date(date).getTime();
+}
+
+function groupGamesBySiteAndEvent(games: Game[]): SiteGroup[] {
+  const sortedGames = [...games].sort((a, b) => {
+    const siteA = a.site?.name ?? 'Unassigned Site';
+    const siteB = b.site?.name ?? 'Unassigned Site';
+    const siteCompare = siteA.localeCompare(siteB);
+    if (siteCompare !== 0) return siteCompare;
+
+    const eventA = a.event?.name ?? 'Unassigned Event';
+    const eventB = b.event?.name ?? 'Unassigned Event';
+    const eventCompare = eventA.localeCompare(eventB);
+    if (eventCompare !== 0) return eventCompare;
+
+    return getDateValue(a.scheduledFor) - getDateValue(b.scheduledFor);
+  });
+
+  const siteMap = new Map<string, Map<string, Game[]>>();
+
+  for (const game of sortedGames) {
+    const siteName = game.site?.name ?? 'Unassigned Site';
+    const eventName = game.event?.name ?? 'Unassigned Event';
+
+    if (!siteMap.has(siteName)) {
+      siteMap.set(siteName, new Map<string, Game[]>());
+    }
+
+    const eventMap = siteMap.get(siteName);
+    if (!eventMap) continue;
+
+    if (!eventMap.has(eventName)) {
+      eventMap.set(eventName, []);
+    }
+
+    const eventGames = eventMap.get(eventName);
+    if (!eventGames) continue;
+
+    eventGames.push(game);
+  }
+
+  return Array.from(siteMap.entries()).map(([siteName, eventMap]) => ({
+    siteName,
+    events: Array.from(eventMap.entries()).map(([eventName, eventGames]) => ({
+      eventName,
+      games: eventGames,
+    })),
+  }));
+}
 
 export default function HostDashboard() {
   const { user, isHost, isAdmin, loading: authLoading } = useAuth();
@@ -37,35 +112,7 @@ export default function HostDashboard() {
   }, [user, isHost, isAdmin, authLoading, router]);
 
   useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch('/api/host/games', { credentials: 'include' });
-        if (!res.ok) {
-          setGames([]);
-          return;
-        }
-
-        const data: unknown = await res.json();
-
-        if (Array.isArray(data)) {
-          setGames(data as Game[]);
-        } else if (
-          data &&
-          typeof data === 'object' &&
-          'games' in data &&
-          Array.isArray((data as { games?: unknown }).games)
-        ) {
-          setGames((data as { games: Game[] }).games);
-        } else {
-          setGames([]);
-        }
-      } catch (err) {
-        console.error('Error fetching host games:', err);
-        setGames([]);
-      } finally {
-        setLoading(false);
-      }
-    })();
+    void loadGames();
   }, []);
 
   const handleResetGame = async (gameId: string) => {
@@ -83,6 +130,7 @@ export default function HostDashboard() {
 
       if (res.ok) {
         alert('Game reset successfully.');
+        await loadGames();
       } else {
         alert(result.error || 'Failed to reset game.');
       }
@@ -92,13 +140,58 @@ export default function HostDashboard() {
     }
   };
 
+  const loadGames = async () => {
+    try {
+      setLoading(true);
+
+      const res = await fetch('/api/host/games', { credentials: 'include' });
+      if (!res.ok) {
+        setGames([]);
+        return;
+      }
+
+      const data: unknown = await res.json();
+
+      if (Array.isArray(data)) {
+        setGames(data as Game[]);
+      } else if (
+        data &&
+        typeof data === 'object' &&
+        'games' in data &&
+        Array.isArray((data as { games?: unknown }).games)
+      ) {
+        setGames((data as { games: Game[] }).games);
+      } else {
+        setGames([]);
+      }
+    } catch (err) {
+      console.error('Error fetching host games:', err);
+      setGames([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const now = useMemo(() => new Date(), []);
-  const upcoming = games.filter(
-    (g) => g.scheduledFor && new Date(g.scheduledFor) >= now
+
+  const upcoming = useMemo(
+    () =>
+      games.filter((g) => g.scheduledFor && new Date(g.scheduledFor) >= now),
+    [games, now]
   );
-  const past = games.filter(
-    (g) => g.scheduledFor && new Date(g.scheduledFor) < now
+
+  const past = useMemo(
+    () => games.filter((g) => g.scheduledFor && new Date(g.scheduledFor) < now),
+    [games, now]
   );
+
+  const groupedUpcoming = useMemo(
+    () => groupGamesBySiteAndEvent(upcoming),
+    [upcoming]
+  );
+
+  const groupedPast = useMemo(() => groupGamesBySiteAndEvent(past), [past]);
+
   const liveCount = games.filter((g) => g.status === 'LIVE').length;
   const draftCount = games.filter((g) => g.status === 'DRAFT').length;
 
@@ -185,41 +278,37 @@ export default function HostDashboard() {
                 description="Once games are scheduled, they’ll appear here for quick launch and editing."
               />
             ) : (
-              <div className="space-y-4">
-                {upcoming.map((g) => (
-                  <GameCard
-                    key={g.id}
-                    game={g}
-                    dateLabel={formatDate(g.scheduledFor)}
-                    actions={
-                      <>
-                        <button
-                          onClick={() => handleResetGame(g.id)}
+              <GameGroups
+                groups={groupedUpcoming}
+                formatDate={formatDate}
+                renderActions={(game) => (
+                  <>
+                    <button
+                      onClick={() => handleResetGame(game.id)}
+                      className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                    >
+                      Reset Game
+                    </button>
+
+                    {(game.status === 'DRAFT' ||
+                      game.status === 'SCHEDULED') && (
+                        <Link
+                          href={`/dashboard/host/games/${game.id}/edit`}
                           className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                         >
-                          Reset Game
-                        </button>
-
-                        {(g.status === 'DRAFT' || g.status === 'SCHEDULED') && (
-                          <Link
-                            href={`/dashboard/host/games/${g.id}/edit`}
-                            className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                          >
-                            Edit
-                          </Link>
-                        )}
-
-                        <Link
-                          href={`/dashboard/host/${g.id}/command`}
-                          className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
-                        >
-                          Launch
+                          Edit
                         </Link>
-                      </>
-                    }
-                  />
-                ))}
-              </div>
+                      )}
+
+                    <Link
+                      href={`/dashboard/host/${game.id}/command`}
+                      className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+                    >
+                      Launch
+                    </Link>
+                  </>
+                )}
+              />
             )}
           </section>
 
@@ -239,23 +328,18 @@ export default function HostDashboard() {
                 description="Completed games will show up here once you’ve hosted a session."
               />
             ) : (
-              <div className="space-y-4">
-                {past.map((g) => (
-                  <GameCard
-                    key={g.id}
-                    game={g}
-                    dateLabel={formatDate(g.scheduledFor)}
-                    actions={
-                      <Link
-                        href={`/dashboard/host/games/${g.id}`}
-                        className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                      >
-                        View
-                      </Link>
-                    }
-                  />
-                ))}
-              </div>
+              <GameGroups
+                groups={groupedPast}
+                formatDate={formatDate}
+                renderActions={(game) => (
+                  <Link
+                    href={`/dashboard/host/games/${game.id}`}
+                    className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                  >
+                    View
+                  </Link>
+                )}
+              />
             )}
           </section>
         </div>
@@ -292,6 +376,73 @@ function EmptyState({
   );
 }
 
+function MetaPill({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-700">
+      <span className="font-semibold uppercase tracking-wide text-slate-500">
+        {label}
+      </span>
+      <span className="font-medium text-slate-800">{value}</span>
+    </div>
+  );
+}
+
+function GameGroups({
+  groups,
+  formatDate,
+  renderActions,
+}: {
+  groups: SiteGroup[];
+  formatDate: (dt: string | null) => string;
+  renderActions: (game: Game) => ReactNode;
+}) {
+  return (
+    <div className="space-y-8">
+      {groups.map((siteGroup) => (
+        <div key={siteGroup.siteName} className="space-y-5">
+          <div className="border-b border-slate-200/80 pb-2">
+            <h3 className="text-base font-semibold tracking-tight text-slate-900">
+              {siteGroup.siteName}
+            </h3>
+          </div>
+
+          <div className="space-y-6">
+            {siteGroup.events.map((eventGroup) => (
+              <div
+                key={`${siteGroup.siteName}-${eventGroup.eventName}`}
+                className="space-y-3"
+              >
+                <div className="pl-1">
+                  <h4 className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    {eventGroup.eventName}
+                  </h4>
+                </div>
+
+                <div className="space-y-4">
+                  {eventGroup.games.map((game) => (
+                    <GameCard
+                      key={game.id}
+                      game={game}
+                      dateLabel={formatDate(game.scheduledFor)}
+                      actions={renderActions(game)}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function GameCard({
   game,
   dateLabel,
@@ -299,28 +450,39 @@ function GameCard({
 }: {
   game: Game;
   dateLabel: string;
-  actions: React.ReactNode;
+  actions: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:flex-row lg:items-center lg:justify-between">
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-3">
-          <h3 className="truncate text-lg font-semibold text-slate-900">
-            {game.title}
-          </h3>
+    <div className="group relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white/95 p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-xl">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-slate-900 via-blue-600 to-cyan-500 opacity-80" />
 
-          <span
-            className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-wide ${STATUS_STYLES[game.status]
-              }`}
-          >
-            {game.status}
-          </span>
+      <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-start gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                Trivia Game
+              </div>
+
+              <h3 className="mt-1 truncate text-xl font-semibold tracking-tight text-slate-900">
+                {game.title}
+              </h3>
+            </div>
+
+            <span
+              className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] ${STATUS_STYLES[game.status]}`}
+            >
+              {game.status}
+            </span>
+          </div>
+
+          <div className="mt-4">
+            <MetaPill label="When" value={dateLabel} />
+          </div>
         </div>
 
-        <div className="mt-2 text-sm text-slate-600">{dateLabel}</div>
+        <div className="flex flex-wrap gap-3 xl:justify-end">{actions}</div>
       </div>
-
-      <div className="flex flex-wrap gap-3">{actions}</div>
     </div>
   );
 }

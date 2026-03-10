@@ -44,14 +44,14 @@ export default function SiteModal({
           placeholder="Site name"
           value={siteName}
           onChange={(e) => onChangeName(e.target.value)}
-          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-slate-400 focus:outline-none"
+          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-slate-400 focus:outline-none text-slate-900 placeholder:text-slate-400"
         />
         <input
           type="text"
           placeholder="Address"
           value={siteAddress}
           onChange={(e) => onChangeAddress(e.target.value)}
-          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-slate-400 focus:outline-none"
+          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-slate-400 focus:outline-none text-slate-900 placeholder:text-slate-400"
         />
         <div className="flex justify-end gap-3">
           <ToolbarButton label="Cancel" onClick={onClose} />

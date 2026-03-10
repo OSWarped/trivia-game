@@ -10,6 +10,7 @@ import type {
     GameRow,
     UserRow,
 } from './types/workspace.types';
+import AppBackground from '@/components/AppBackground';
 
 import SitesPanel from './components/SitesPanel';
 import GamesPanel from './components/GamesPanel';
@@ -366,196 +367,203 @@ export default function AdminWorkspacePage() {
     }, [games, selectedSite]);
 
     if (!authChecked || loading) {
-        return (
-            <div className="min-h-screen bg-slate-50 px-4 py-6 md:px-8 md:py-8">
-                <div className="mx-auto max-w-7xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                    Loading workspace...
-                </div>
-            </div>
-        );
+        if (!authChecked || loading) {
+            return (
+                <AppBackground variant="dashboard">
+                    <div className="min-h-screen px-4 py-6 md:px-8 md:py-8">
+                        <div className="mx-auto max-w-7xl rounded-2xl border border-white/10 bg-white/80 p-6 shadow-xl backdrop-blur-sm">
+                            Loading workspace...
+                        </div>
+                    </div>
+                </AppBackground>
+            );
+        }
     }
 
     return (
-        <div className="min-h-screen bg-slate-50 px-4 py-6 md:px-8 md:py-8">
-            <div className="mx-auto max-w-7xl space-y-6">
-                <AdminWorkspaceHeader
-                    activeTab={activeTab}
-                    onAddSite={openAddSiteModal}
-                    onRefresh={() => void loadWorkspaceData()}
-                    onAddUser={openAddUserModal}
-                    refreshing={refreshing}
-                />
+        <AppBackground variant="dashboard">
+            <div className="min-h-screen px-4 py-6 md:px-8 md:py-8">
+                <div className="mx-auto max-w-7xl space-y-6">
+                    <AdminWorkspaceHeader
+                        activeTab={activeTab}
+                        onAddSite={openAddSiteModal}
+                        onRefresh={() => void loadWorkspaceData()}
+                        onAddUser={openAddUserModal}
+                        refreshing={refreshing}
+                    />
 
-                {error ? (
-                    <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
-                        {error}
+                    {error ? (
+                        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
+                            {error}
+                        </div>
+                    ) : null}
+
+                    <div className="rounded-2xl border border-white/10 bg-white/80 p-4 shadow-xl backdrop-blur-sm">
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                            <AdminWorkspaceTabs
+                                activeTab={activeTab}
+                                onSelectTab={handleSelectTab}
+                            />
+
+                            <AdminWorkspaceToolbar
+                                activeTab={activeTab}
+                                searchTerm={searchTerm}
+                                onChangeSearchTerm={setSearchTerm}
+                                statusFilter={statusFilter}
+                                onChangeStatusFilter={setStatusFilter}
+                                searchPlaceholder={toolbarConfig.placeholder}
+                                primaryLabel={toolbarPrimaryAction?.label}
+                                onPrimaryAction={toolbarPrimaryAction?.action}
+                            />
+                        </div>
                     </div>
-                ) : null}
 
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                        <AdminWorkspaceTabs
-                            activeTab={activeTab}
-                            onSelectTab={handleSelectTab}
+                    {activeTab === 'sites' && (
+                        <SitesPanel
+                            sites={filteredSites}
+                            onOpenDetails={setSelectedSite}
+                            onEdit={openEditSiteModal}
+                            onDelete={handleDeleteSite}
                         />
+                    )}
 
-                        <AdminWorkspaceToolbar
-                            activeTab={activeTab}
-                            searchTerm={searchTerm}
-                            onChangeSearchTerm={setSearchTerm}
-                            statusFilter={statusFilter}
-                            onChangeStatusFilter={setStatusFilter}
-                            searchPlaceholder={toolbarConfig.placeholder}
-                            primaryLabel={toolbarPrimaryAction?.label}
-                            onPrimaryAction={toolbarPrimaryAction?.action}
+                    {activeTab === 'games' && (
+                        <GamesPanel
+                            games={filteredGames}
+                            onOpenDetails={setSelectedGame}
+                            onEdit={handleOpenEditGameModal}
+                            onDelete={handleDeleteGame}
                         />
-                    </div>
+                    )}
+
+                    {activeTab === 'users' && (
+                        <UsersPanel
+                            users={filteredUsers}
+                            onOpenDetails={setSelectedUser}
+                            onEdit={openEditUserModal}
+                            onDelete={handleDeleteUser}
+                        />
+                    )}
                 </div>
 
-                {activeTab === 'sites' && (
-                    <SitesPanel
-                        sites={filteredSites}
-                        onOpenDetails={setSelectedSite}
-                        onEdit={openEditSiteModal}
-                        onDelete={handleDeleteSite}
-                    />
-                )}
+                <SiteDrawer
+                    site={selectedSite}
+                    open={Boolean(selectedSite)}
+                    onClose={handleCloseSiteDrawer}
+                    onEdit={openEditSiteModal}
+                    events={selectedSiteEvents}
+                    onOpenEvent={(eventId) => setSelectedEventId(eventId)}
+                />
 
-                {activeTab === 'games' && (
-                    <GamesPanel
-                        games={filteredGames}
-                        onOpenDetails={setSelectedGame}
-                        onEdit={handleOpenEditGameModal}
-                        onDelete={handleDeleteGame}
-                    />
-                )}
+                <EventDrawer
+                    eventId={selectedEventId}
+                    open={Boolean(selectedEventId)}
+                    onClose={handleCloseEventDrawer}
+                    onEdit={handleOpenEditEventModal}
+                    onOpenSeason={(seasonId) => setSelectedSeasonId(seasonId)}
+                    onOpenGame={(gameId) => setSelectedBladeGameId(gameId)}
+                />
 
-                {activeTab === 'users' && (
-                    <UsersPanel
-                        users={filteredUsers}
-                        onOpenDetails={setSelectedUser}
-                        onEdit={openEditUserModal}
-                        onDelete={handleDeleteUser}
-                    />
-                )}
+                <SeasonDrawer
+                    seasonId={selectedSeasonId}
+                    open={Boolean(selectedSeasonId)}
+                    onClose={handleCloseSeasonDrawer}
+                    onEdit={handleOpenEditSeasonModal}
+                    onOpenGame={(gameId) => setSelectedBladeGameId(gameId)}
+                />
+
+                <GameDrawer
+                    game={selectedGame}
+                    open={Boolean(selectedGame)}
+                    onClose={handleCloseGameDrawer}
+                    onEdit={handleOpenEditGameModal}
+                />
+
+                <UserDrawer
+                    user={selectedUser}
+                    open={Boolean(selectedUser)}
+                    onClose={() => setSelectedUser(null)}
+                    onEdit={openEditUserModal}
+                />
+
+                <SiteModal
+                    open={modalType === 'add-site' || modalType === 'edit-site'}
+                    mode={modalType === 'edit-site' ? 'edit' : 'add'}
+                    siteName={siteName}
+                    siteAddress={siteAddress}
+                    saving={saving}
+                    onClose={closeModal}
+                    onChangeName={setSiteName}
+                    onChangeAddress={setSiteAddress}
+                    onSave={() => handleSaveSite(closeModal)}
+                />
+
+                <UserModal
+                    open={modalType === 'add-user' || modalType === 'edit-user'}
+                    mode={modalType === 'edit-user' ? 'edit' : 'add'}
+                    userName={userName}
+                    userEmail={userEmail}
+                    userRole={userRole}
+                    userPassword={userPassword}
+                    saving={saving}
+                    onClose={closeModal}
+                    onChangeName={setUserName}
+                    onChangeEmail={setUserEmail}
+                    onChangeRole={setUserRole}
+                    onChangePassword={setUserPassword}
+                    onSave={() => handleSaveUser(closeModal)}
+                />
+
+                <EventModal
+                    open={modalType === 'edit-event'}
+                    eventName={eventName}
+                    eventSiteId={eventSiteId}
+                    eventSiteName={eventSiteName}
+                    sites={sites}
+                    saving={saving}
+                    onClose={closeModal}
+                    onChangeName={setEventName}
+                    onChangeSiteId={setEventSiteId}
+                    onSave={() => handleSaveEvent(closeModal, selectedEventDetail)}
+                />
+
+                <SeasonModal
+                    open={modalType === 'edit-season'}
+                    seasonName={seasonName}
+                    seasonStartsAt={seasonStartsAt}
+                    seasonEndsAt={seasonEndsAt}
+                    seasonActive={seasonActive}
+                    seasonEventName={seasonEventName}
+                    saving={saving}
+                    onClose={closeModal}
+                    onChangeName={setSeasonName}
+                    onChangeStartsAt={setSeasonStartsAt}
+                    onChangeEndsAt={setSeasonEndsAt}
+                    onChangeActive={setSeasonActive}
+                    onSave={() => handleSaveSeason(closeModal, selectedSeasonDetail)}
+                />
+
+                <GameModal
+                    open={modalType === 'edit-game'}
+                    gameTitle={gameTitle}
+                    gameScheduledFor={gameScheduledFor}
+                    gameHostId={gameHostId}
+                    gameStatus={gameStatus}
+                    gameSpecial={gameSpecial}
+                    gameTag={gameTag}
+                    users={users}
+                    saving={saving}
+                    onClose={closeModal}
+                    onChangeTitle={setGameTitle}
+                    onChangeScheduledFor={setGameScheduledFor}
+                    onChangeHostId={setGameHostId}
+                    onChangeStatus={setGameStatus}
+                    onChangeSpecial={setGameSpecial}
+                    onChangeTag={setGameTag}
+                    onSave={() => handleSaveGame(closeModal, selectedGameDetail)}
+                />
             </div>
-
-            <SiteDrawer
-                site={selectedSite}
-                open={Boolean(selectedSite)}
-                onClose={handleCloseSiteDrawer}
-                onEdit={openEditSiteModal}
-                events={selectedSiteEvents}
-                onOpenEvent={(eventId) => setSelectedEventId(eventId)}
-            />
-
-            <EventDrawer
-                eventId={selectedEventId}
-                open={Boolean(selectedEventId)}
-                onClose={handleCloseEventDrawer}
-                onEdit={handleOpenEditEventModal}
-                onOpenSeason={(seasonId) => setSelectedSeasonId(seasonId)}
-                onOpenGame={(gameId) => setSelectedBladeGameId(gameId)}
-            />
-
-            <SeasonDrawer
-                seasonId={selectedSeasonId}
-                open={Boolean(selectedSeasonId)}
-                onClose={handleCloseSeasonDrawer}
-                onEdit={handleOpenEditSeasonModal}
-                onOpenGame={(gameId) => setSelectedBladeGameId(gameId)}
-            />
-
-            <GameDrawer
-                game={selectedGame}
-                open={Boolean(selectedGame)}
-                onClose={handleCloseGameDrawer}
-                onEdit={handleOpenEditGameModal}
-            />
-
-            <UserDrawer
-                user={selectedUser}
-                open={Boolean(selectedUser)}
-                onClose={() => setSelectedUser(null)}
-                onEdit={openEditUserModal}
-            />
-
-            <SiteModal
-                open={modalType === 'add-site' || modalType === 'edit-site'}
-                mode={modalType === 'edit-site' ? 'edit' : 'add'}
-                siteName={siteName}
-                siteAddress={siteAddress}
-                saving={saving}
-                onClose={closeModal}
-                onChangeName={setSiteName}
-                onChangeAddress={setSiteAddress}
-                onSave={() => handleSaveSite(closeModal)}
-            />
-
-            <UserModal
-                open={modalType === 'add-user' || modalType === 'edit-user'}
-                mode={modalType === 'edit-user' ? 'edit' : 'add'}
-                userName={userName}
-                userEmail={userEmail}
-                userRole={userRole}
-                userPassword={userPassword}
-                saving={saving}
-                onClose={closeModal}
-                onChangeName={setUserName}
-                onChangeEmail={setUserEmail}
-                onChangeRole={setUserRole}
-                onChangePassword={setUserPassword}
-                onSave={() => handleSaveUser(closeModal)}
-            />
-
-            <EventModal
-                open={modalType === 'edit-event'}
-                eventName={eventName}
-                eventSiteId={eventSiteId}
-                eventSiteName={eventSiteName}
-                sites={sites}
-                saving={saving}
-                onClose={closeModal}
-                onChangeName={setEventName}
-                onChangeSiteId={setEventSiteId}
-                onSave={() => handleSaveEvent(closeModal, selectedEventDetail)}
-            />
-
-            <SeasonModal
-                open={modalType === 'edit-season'}
-                seasonName={seasonName}
-                seasonStartsAt={seasonStartsAt}
-                seasonEndsAt={seasonEndsAt}
-                seasonActive={seasonActive}
-                seasonEventName={seasonEventName}
-                saving={saving}
-                onClose={closeModal}
-                onChangeName={setSeasonName}
-                onChangeStartsAt={setSeasonStartsAt}
-                onChangeEndsAt={setSeasonEndsAt}
-                onChangeActive={setSeasonActive}
-                onSave={() => handleSaveSeason(closeModal, selectedSeasonDetail)}
-            />
-
-            <GameModal
-                open={modalType === 'edit-game'}
-                gameTitle={gameTitle}
-                gameScheduledFor={gameScheduledFor}
-                gameHostId={gameHostId}
-                gameStatus={gameStatus}
-                gameSpecial={gameSpecial}
-                gameTag={gameTag}
-                users={users}
-                saving={saving}
-                onClose={closeModal}
-                onChangeTitle={setGameTitle}
-                onChangeScheduledFor={setGameScheduledFor}
-                onChangeHostId={setGameHostId}
-                onChangeStatus={setGameStatus}
-                onChangeSpecial={setGameSpecial}
-                onChangeTag={setGameTag}
-                onSave={() => handleSaveGame(closeModal, selectedGameDetail)}
-            />
-        </div>
+        </AppBackground>
     );
+
 }

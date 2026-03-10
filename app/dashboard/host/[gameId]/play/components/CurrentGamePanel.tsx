@@ -1,4 +1,3 @@
-// File: app/dashboard/host/[gameId]/play/components/CurrentGamePanel.tsx
 'use client';
 
 import React from 'react';
@@ -71,16 +70,16 @@ export default function CurrentGamePanel({
       : null;
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-200 px-5 py-4">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    <section className="overflow-hidden rounded-3xl border border-white/10 bg-white/80 shadow-xl backdrop-blur-sm">
+      <div className="border-b border-slate-200/80 px-6 py-5">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="min-w-0">
             <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
               {currentRound?.name ?? 'No active round'}
               {questionNumber ? ` · Question ${questionNumber}` : ''}
             </div>
 
-            <div className="mt-2 text-xl font-semibold leading-7 text-slate-900">
+            <div className="mt-2 text-2xl font-semibold leading-8 tracking-tight text-slate-900">
               {question?.text ?? 'No active question'}
             </div>
           </div>
@@ -89,7 +88,7 @@ export default function CurrentGamePanel({
             <button
               type="button"
               onClick={onComplete}
-              className="shrink-0 rounded-lg border border-red-200 bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700"
+              className="shrink-0 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
             >
               Complete Game
             </button>
@@ -97,7 +96,7 @@ export default function CurrentGamePanel({
         </div>
       </div>
 
-      <div className="px-5 py-4">
+      <div className="px-6 py-5">
         <MainActionBar
           displayMode={displayMode}
           onPrev={onPrev}
@@ -113,7 +112,7 @@ export default function CurrentGamePanel({
         />
       </div>
 
-      <div className="border-t border-slate-200 px-5 py-4">
+      <div className="border-t border-slate-200/80 bg-slate-50/50 px-6 py-5">
         <RevealAnswer question={question} />
       </div>
     </section>

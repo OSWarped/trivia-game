@@ -54,19 +54,19 @@ export default function UserModal({
           placeholder="Name"
           value={userName}
           onChange={(e) => onChangeName(e.target.value)}
-          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-slate-400 focus:outline-none"
+          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-slate-400 focus:outline-none text-slate-900 placeholder:text-slate-400"
         />
         <input
           type="email"
           placeholder="Email"
           value={userEmail}
           onChange={(e) => onChangeEmail(e.target.value)}
-          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-slate-400 focus:outline-none"
+          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-slate-400 focus:outline-none text-slate-900 placeholder:text-slate-400"
         />
         <select
           value={userRole}
           onChange={(e) => onChangeRole(e.target.value)}
-          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-slate-400 focus:outline-none"
+          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-slate-400 focus:outline-none text-slate-900 placeholder:text-slate-400"
         >
           <option value="HOST">HOST</option>
           <option value="ADMIN">ADMIN</option>
@@ -79,7 +79,7 @@ export default function UserModal({
             placeholder="Password"
             value={userPassword}
             onChange={(e) => onChangePassword(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-slate-400 focus:outline-none"
+            className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-slate-400 focus:outline-none text-slate-900 placeholder:text-slate-400"
           />
         ) : null}
 

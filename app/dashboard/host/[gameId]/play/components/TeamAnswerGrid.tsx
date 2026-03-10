@@ -48,20 +48,20 @@ export interface TeamAnswerGridProps {
 
 function getCardClasses(answer: TeamAnswerWithFavorite): string {
   if (answer.isCorrect === true) {
-    return 'border-green-200 bg-green-50/40';
+    return 'border-emerald-200 bg-emerald-50/40';
   }
 
   if (answer.isCorrect === false) {
-    return 'border-red-200 bg-red-50/40';
+    return 'border-rose-200 bg-rose-50/40';
   }
 
-  return 'border-slate-200 bg-white';
+  return 'border-slate-200 bg-white/90';
 }
 
 function getStatusPill(answer: TeamAnswerWithFavorite) {
   if (answer.isCorrect === true) {
     return (
-      <span className="rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-800">
+      <span className="rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
         Correct
       </span>
     );
@@ -69,14 +69,14 @@ function getStatusPill(answer: TeamAnswerWithFavorite) {
 
   if (answer.isCorrect === false) {
     return (
-      <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-800">
+      <span className="rounded-full border border-rose-300 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700">
         Incorrect
       </span>
     );
   }
 
   return (
-    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+    <span className="rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
       Unscored
     </span>
   );
@@ -111,11 +111,11 @@ export default function TeamAnswerGrid({
 }: TeamAnswerGridProps) {
   if (teamAnswers.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center shadow-sm">
-        <div className="text-sm font-medium text-slate-700">
+      <div className="rounded-3xl border border-dashed border-slate-300 bg-white/80 p-8 text-center shadow-xl backdrop-blur-sm">
+        <div className="text-base font-semibold text-slate-900">
           No team answers submitted yet
         </div>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-2 text-sm text-slate-500">
           Submitted answers will appear here for scoring.
         </p>
       </div>
@@ -136,7 +136,7 @@ export default function TeamAnswerGrid({
         return (
           <article
             key={answer.id}
-            className={`rounded-xl border p-4 shadow-sm transition hover:shadow-md ${getCardClasses(
+            className={`rounded-2xl border p-4 shadow-sm transition hover:shadow-md ${getCardClasses(
               answer
             )}`}
           >
@@ -149,7 +149,7 @@ export default function TeamAnswerGrid({
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     {getStatusPill(answer)}
                     {answer.favorite ? (
-                      <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                      <span className="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
                         Favorite
                       </span>
                     ) : null}
@@ -165,9 +165,9 @@ export default function TeamAnswerGrid({
                       !answer.favorite
                     )
                   }
-                  className={`rounded-lg border px-2.5 py-1.5 text-sm font-medium transition ${
+                  className={`rounded-xl border px-2.5 py-1.5 text-sm font-medium transition ${
                     answer.favorite
-                      ? 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'
+                      ? 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100'
                       : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
                   }`}
                   title={answer.favorite ? 'Remove favorite' : 'Mark favorite'}
@@ -176,7 +176,7 @@ export default function TeamAnswerGrid({
                 </button>
               </header>
 
-              <section className="rounded-lg border border-slate-200 bg-white/80 p-3">
+              <section className="rounded-xl border border-slate-200 bg-white/90 p-3">
                 {isList ? (
                   <div className="space-y-3">
                     <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
@@ -187,7 +187,7 @@ export default function TeamAnswerGrid({
                       {answer.items?.map((item, index) => (
                         <div
                           key={index}
-                          className="rounded-lg border border-slate-200 bg-slate-50 p-3"
+                          className="rounded-xl border border-slate-200 bg-slate-50/80 p-3"
                         >
                           <div className="flex flex-col gap-3">
                             <div className="text-sm text-slate-800">
@@ -205,10 +205,10 @@ export default function TeamAnswerGrid({
                                     true
                                   )
                                 }
-                                className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${
+                                className={`rounded-xl border px-3 py-1.5 text-xs font-semibold transition ${
                                   item.isCorrect === true
-                                    ? 'border-green-600 bg-green-600 text-white'
-                                    : 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100'
+                                    ? 'border-emerald-600 bg-emerald-600 text-white'
+                                    : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
                                 }`}
                               >
                                 Correct
@@ -224,10 +224,10 @@ export default function TeamAnswerGrid({
                                     false
                                   )
                                 }
-                                className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${
+                                className={`rounded-xl border px-3 py-1.5 text-xs font-semibold transition ${
                                   item.isCorrect === false
-                                    ? 'border-red-600 bg-red-600 text-white'
-                                    : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'
+                                    ? 'border-rose-600 bg-rose-600 text-white'
+                                    : 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100'
                                 }`}
                               >
                                 Incorrect
@@ -262,7 +262,7 @@ export default function TeamAnswerGrid({
                       onClick={() =>
                         handleScore(answer.teamId, answer.questionId, true)
                       }
-                      className="rounded-lg border border-green-200 bg-green-50 px-3 py-1.5 text-xs font-semibold text-green-700 transition hover:bg-green-100"
+                      className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
                     >
                       Mark Correct
                     </button>
@@ -272,7 +272,7 @@ export default function TeamAnswerGrid({
                       onClick={() =>
                         handleScore(answer.teamId, answer.questionId, false)
                       }
-                      className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-100"
+                      className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
                     >
                       Mark Incorrect
                     </button>

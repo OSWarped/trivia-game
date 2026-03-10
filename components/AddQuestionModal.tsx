@@ -3,7 +3,12 @@
 
 import React, { useState, useEffect } from 'react';
 
-export type QuestionType = 'SINGLE' | 'LIST' | 'MULTIPLE_CHOICE' | 'ORDERED' | 'WAGER';
+export type QuestionType =
+  | 'SINGLE'
+  | 'LIST'
+  | 'MULTIPLE_CHOICE'
+  | 'ORDERED'
+  | 'WAGER';
 
 export type QuestionConfig = {
   text: string;
@@ -16,7 +21,7 @@ interface AddQuestionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (config: QuestionConfig, idToUpdate?: string) => void;
-  question?: QuestionConfig & { id: string }; // 🆕
+  question?: QuestionConfig & { id: string };
 }
 
 export default function AddQuestionModal({
@@ -29,16 +34,13 @@ export default function AddQuestionModal({
   const [type, setType] = useState<QuestionType>('SINGLE');
 
   const [singleAnswer, setSingleAnswer] = useState('');
-
   const [optionInput, setOptionInput] = useState('');
   const [options, setOptions] = useState<string[]>([]);
   const [correctSet, setCorrectSet] = useState<Set<string>>(new Set());
-
   const [errors, setErrors] = useState<string[]>([]);
 
   useEffect(() => {
     if (question) {
-      // Always clear everything first
       setText('');
       setType('SINGLE');
       setSingleAnswer('');
@@ -46,11 +48,10 @@ export default function AddQuestionModal({
       setOptions([]);
       setCorrectSet(new Set());
       setErrors([]);
-  
-      // Now set new values
+
       setText(question.text);
       setType(question.type);
-  
+
       if (question.type === 'SINGLE') {
         setSingleAnswer(question.correctAnswers?.[0] ?? '');
       } else {
@@ -59,6 +60,7 @@ export default function AddQuestionModal({
       }
     }
   }, [question]);
+
   function resetForm() {
     setText('');
     setType('SINGLE');
@@ -91,23 +93,23 @@ export default function AddQuestionModal({
 
   function handleSave() {
     if (!validate()) return;
-  
+
     const config: QuestionConfig = {
       text: text.trim(),
       type,
     };
-  
+
     if (type === 'SINGLE') {
       config.options = [singleAnswer.trim()];
       config.correctAnswers = [singleAnswer.trim()];
     }
-  
+
     if (type === 'MULTIPLE_CHOICE' || type === 'LIST' || type === 'ORDERED') {
       config.options = [...options];
       config.correctAnswers = Array.from(correctSet);
     }
-  
-    onSave(config, question?.id); // 🆕 pass ID if editing
+
+    onSave(config, question?.id);
     resetForm();
     onClose();
   }
@@ -115,10 +117,10 @@ export default function AddQuestionModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="bg-white w-full max-w-lg rounded shadow-lg p-6">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-xl font-semibold">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+      <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-white p-6 shadow-2xl">
+        <div className="mb-5 flex items-center justify-between">
+          <h3 className="text-xl font-semibold text-slate-900">
             {question ? 'Edit Question' : 'Add Question'}
           </h3>
           <button
@@ -126,37 +128,42 @@ export default function AddQuestionModal({
               resetForm();
               onClose();
             }}
-            className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
+            className="text-2xl leading-none text-slate-400 transition hover:text-slate-700"
           >
             &times;
           </button>
         </div>
 
         {errors.length > 0 && (
-          <div className="mb-4 space-y-1 text-red-600">
-            {errors.map((e, i) => (
-              <div key={i}>• {e}</div>
-            ))}
+          <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <div className="space-y-1">
+              {errors.map((e, i) => (
+                <div key={i}>• {e}</div>
+              ))}
+            </div>
           </div>
         )}
 
         <div className="space-y-4">
-          {/* Question Text */}
           <div>
-            <label className="block font-medium mb-1">Question Text</label>
+            <label className="mb-2 block text-sm font-medium text-slate-700">
+              Question Text
+            </label>
             <textarea
-              className="w-full border border-gray-300 rounded p-2"
+              className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
               rows={3}
               value={text}
               onChange={(e) => setText(e.target.value)}
+              placeholder="Enter the question text"
             />
           </div>
 
-          {/* Question Type */}
           <div>
-            <label className="block font-medium mb-1">Type</label>
+            <label className="mb-2 block text-sm font-medium text-slate-700">
+              Type
+            </label>
             <select
-              className="w-full border border-gray-300 rounded p-2"
+              className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={type}
               onChange={(e) => setType(e.target.value as QuestionType)}
             >
@@ -168,33 +175,38 @@ export default function AddQuestionModal({
             </select>
           </div>
 
-          {/* SINGLE: Answer */}
           {type === 'SINGLE' && (
             <div>
-              <label className="block font-medium mb-1">Correct Answer</label>
+              <label className="mb-2 block text-sm font-medium text-slate-700">
+                Correct Answer
+              </label>
               <input
                 type="text"
-                className="w-full border border-gray-300 rounded p-2"
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={singleAnswer}
                 onChange={(e) => setSingleAnswer(e.target.value)}
+                placeholder="Enter the correct answer"
               />
             </div>
           )}
 
-          {/* MULTIPLE_CHOICE or ORDERED: Options */}
           {(type === 'MULTIPLE_CHOICE' || type === 'LIST' || type === 'ORDERED') && (
-            <div className="space-y-2">
-              <label className="block font-medium">Options</label>
-              <div className="flex space-x-2">
+            <div className="space-y-3">
+              <label className="block text-sm font-medium text-slate-700">
+                Options
+              </label>
+
+              <div className="flex gap-2">
                 <input
                   type="text"
-                  className="flex-1 border border-gray-300 rounded p-2"
+                  className="flex-1 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={optionInput}
                   onChange={(e) => setOptionInput(e.target.value)}
+                  placeholder="Add an option"
                 />
                 <button
                   type="button"
-                  className="bg-blue-500 text-white px-3 rounded"
+                  className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
                   onClick={() => {
                     const val = optionInput.trim();
                     if (val && !options.includes(val)) {
@@ -207,9 +219,12 @@ export default function AddQuestionModal({
                 </button>
               </div>
 
-              <ul className="space-y-1 max-h-40 overflow-y-auto">
+              <ul className="max-h-48 space-y-2 overflow-y-auto">
                 {options.map((opt) => (
-                  <li key={opt} className="flex items-center space-x-2">
+                  <li
+                    key={opt}
+                    className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
+                  >
                     <input
                       type="checkbox"
                       checked={correctSet.has(opt)}
@@ -220,11 +235,12 @@ export default function AddQuestionModal({
                           return updated;
                         });
                       }}
+                      className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-400"
                     />
-                    <span className="flex-1">{opt}</span>
+                    <span className="flex-1 text-sm text-slate-800">{opt}</span>
                     <button
                       type="button"
-                      className="text-red-500"
+                      className="text-lg leading-none text-rose-500 transition hover:text-rose-700"
                       onClick={() => {
                         setOptions((prev) => prev.filter((x) => x !== opt));
                         setCorrectSet((prev) => {
@@ -242,27 +258,26 @@ export default function AddQuestionModal({
             </div>
           )}
 
-          {/* WAGER: Placeholder */}
           {type === 'WAGER' && (
-            <div className="text-sm text-gray-600">
-              Wager-type questions typically let teams wager points. No answer needed here.
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+              Wager-type questions typically let teams wager points. No answer is needed here.
             </div>
           )}
         </div>
 
-        <div className="flex justify-end space-x-4 mt-6">
+        <div className="mt-6 flex justify-end gap-3">
           <button
             onClick={() => {
               resetForm();
               onClose();
             }}
-            className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
+            className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
           >
             {question ? 'Save Changes' : 'Save Question'}
           </button>

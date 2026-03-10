@@ -8,7 +8,7 @@ interface TeamStatusBadgesProps {
 }
 
 function badgeBase(classes: string): string {
-  return `inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold tracking-wide ${classes}`;
+  return `inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold tracking-wide ${classes}`;
 }
 
 function getConnectionBadge(connectionState?: HostTeamStatus['connectionState']) {
@@ -16,22 +16,22 @@ function getConnectionBadge(connectionState?: HostTeamStatus['connectionState'])
     case 'ACTIVE':
       return {
         label: 'Active',
-        className: badgeBase('bg-green-100 text-green-800'),
+        className: badgeBase('border-emerald-300 bg-emerald-50 text-emerald-700'),
       };
     case 'RECONNECTING':
       return {
         label: 'Reconnecting',
-        className: badgeBase('bg-yellow-100 text-yellow-800'),
+        className: badgeBase('border-amber-300 bg-amber-50 text-amber-700'),
       };
     case 'OFFLINE':
       return {
         label: 'Offline',
-        className: badgeBase('bg-gray-200 text-gray-700'),
+        className: badgeBase('border-slate-300 bg-slate-100 text-slate-700'),
       };
     case 'PENDING_TRANSFER':
       return {
         label: 'Pending Transfer',
-        className: badgeBase('bg-orange-100 text-orange-800'),
+        className: badgeBase('border-orange-300 bg-orange-50 text-orange-700'),
       };
     default:
       return null;
@@ -43,12 +43,12 @@ function getTransferModeBadge(transferMode?: HostTeamStatus['transferMode']) {
     case 'HOST_APPROVAL':
       return {
         label: 'Host Approval',
-        className: badgeBase('bg-blue-100 text-blue-800'),
+        className: badgeBase('border-blue-300 bg-blue-50 text-blue-700'),
       };
     case 'LOCKED':
       return {
         label: 'Locked',
-        className: badgeBase('bg-red-100 text-red-800'),
+        className: badgeBase('border-rose-300 bg-rose-50 text-rose-700'),
       };
     default:
       return null;
@@ -66,7 +66,7 @@ export default function TeamStatusBadges({ team }: TeamStatusBadgesProps) {
       ) : null}
 
       {team.submitted ? (
-        <span className={badgeBase('bg-emerald-100 text-emerald-800')}>
+        <span className={badgeBase('border-emerald-300 bg-emerald-50 text-emerald-700')}>
           Submitted
         </span>
       ) : null}
@@ -78,13 +78,13 @@ export default function TeamStatusBadges({ team }: TeamStatusBadgesProps) {
       ) : null}
 
       {team.hasPendingApproval ? (
-        <span className={badgeBase('bg-amber-100 text-amber-800')}>
+        <span className={badgeBase('border-amber-300 bg-amber-50 text-amber-700')}>
           Pending Approval
         </span>
       ) : null}
 
       {team.hasDispute ? (
-        <span className={badgeBase('bg-rose-100 text-rose-800')}>
+        <span className={badgeBase('border-rose-300 bg-rose-50 text-rose-700')}>
           Dispute
         </span>
       ) : null}

@@ -48,7 +48,7 @@ export default function SeasonModal({
           placeholder="Season name"
           value={seasonName}
           onChange={(e) => onChangeName(e.target.value)}
-          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-slate-400 focus:outline-none"
+          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-slate-400 focus:outline-none text-slate-900 placeholder:text-slate-400"
         />
 
         {seasonEventName ? (
@@ -62,14 +62,14 @@ export default function SeasonModal({
           type="datetime-local"
           value={seasonStartsAt}
           onChange={(e) => onChangeStartsAt(e.target.value)}
-          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-slate-400 focus:outline-none"
+          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-slate-400 focus:outline-none text-slate-900 placeholder:text-slate-400"
         />
 
         <input
           type="datetime-local"
           value={seasonEndsAt}
           onChange={(e) => onChangeEndsAt(e.target.value)}
-          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-slate-400 focus:outline-none"
+          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-slate-400 focus:outline-none text-slate-900 placeholder:text-slate-400"
         />
 
         <label className="flex items-center gap-3 text-sm text-slate-700">

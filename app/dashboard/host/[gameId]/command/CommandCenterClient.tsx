@@ -1,9 +1,17 @@
 'use client';
 
-import React, { JSX, useEffect, useState } from 'react';
+import React, { JSX, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import QRCode from 'react-qr-code';
+import {
+  Radio,
+  QrCode,
+  Users,
+  ArrowRight,
+  WifiOff,
+} from 'lucide-react';
 
+import AppBackground from '@/components/AppBackground';
 import { useSocket } from '@/components/SocketProvider';
 import { useHostSocket } from '@/app/hooks/useHostSocket';
 
@@ -29,13 +37,13 @@ interface Props {
 function getStatusBadgeClass(status?: Team['status']): string {
   switch (status) {
     case 'ACTIVE':
-      return 'bg-green-100 text-green-800';
+      return 'border-emerald-300 bg-emerald-50 text-emerald-700';
     case 'RECONNECTING':
-      return 'bg-yellow-100 text-yellow-800';
+      return 'border-amber-300 bg-amber-50 text-amber-700';
     case 'OFFLINE':
-      return 'bg-gray-100 text-gray-700';
+      return 'border-slate-300 bg-slate-100 text-slate-700';
     default:
-      return 'bg-blue-50 text-blue-800';
+      return 'border-blue-300 bg-blue-50 text-blue-700';
   }
 }
 
@@ -52,6 +60,23 @@ function getStatusLabel(status?: Team['status']): string {
   }
 }
 
+function getGameStatusBadgeClass(status: string): string {
+  switch (status.toUpperCase()) {
+    case 'LIVE':
+      return 'border-emerald-300 bg-emerald-50 text-emerald-700';
+    case 'SCHEDULED':
+      return 'border-blue-300 bg-blue-50 text-blue-700';
+    case 'DRAFT':
+      return 'border-amber-300 bg-amber-50 text-amber-700';
+    case 'CLOSED':
+      return 'border-slate-300 bg-slate-100 text-slate-700';
+    case 'CANCELED':
+      return 'border-rose-300 bg-rose-50 text-rose-700';
+    default:
+      return 'border-slate-300 bg-slate-100 text-slate-700';
+  }
+}
+
 export default function CommandCenterClient({ gameId }: Props): JSX.Element {
   const router = useRouter();
   const socket = useSocket();
@@ -61,6 +86,14 @@ export default function CommandCenterClient({ gameId }: Props): JSX.Element {
   const [game, setGame] = useState<Game | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected'>('connected');
+  const [joinUrl, setJoinUrl] = useState('');
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && game?.joinCode) {
+      setJoinUrl(`${window.location.origin}/join/${game.joinCode}`);
+    }
+  }, [game?.joinCode]);
 
   useEffect(() => {
     void (async () => {
@@ -118,128 +151,287 @@ export default function CommandCenterClient({ gameId }: Props): JSX.Element {
     };
   }, [socket, gameId]);
 
+  const connectedCount = useMemo(
+    () => teams.filter((team) => team.status === 'ACTIVE').length,
+    [teams]
+  );
+
   if (!game) {
-    return <div>Loading…</div>;
+    return (
+      <AppBackground variant="dashboard">
+        <div className="min-h-screen px-4 py-6 md:px-8 md:py-8">
+          <div className="mx-auto max-w-7xl rounded-2xl border border-white/10 bg-white/80 p-6 shadow-xl backdrop-blur-sm">
+            Loading command center...
+          </div>
+        </div>
+      </AppBackground>
+    );
   }
 
-  const joinUrl = `${window.location.origin}/join/${game.joinCode}`;
-
   return (
-    <div className="flex min-h-screen bg-gray-100">
-      <aside className="w-full border-r bg-white p-4 shadow-lg md:w-1/3 lg:w-1/4">
-        <h2 className="mb-4 text-xl font-semibold">👥 Teams in Lobby</h2>
-
-        {connectionStatus === 'disconnected' && (
-          <p className="mb-3 text-sm text-yellow-600">Reconnecting to live roster…</p>
-        )}
-
-        {teams.length === 0 ? (
-          <p className="text-gray-500">No teams have joined yet.</p>
-        ) : (
-          <ul className="space-y-2">
-            {teams.map((team) => (
-              <li
-                key={team.id}
-                className="rounded bg-blue-50 px-3 py-3 shadow-sm"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-medium text-blue-800">{team.name}</span>
-                  <span
-                    className={`rounded-full px-2 py-1 text-xs font-medium ${getStatusBadgeClass(team.status)}`}
-                  >
-                    {getStatusLabel(team.status)}
-                  </span>
+    <AppBackground variant="dashboard">
+      <div className="min-h-screen px-4 py-6 md:px-8 md:py-8">
+        <div className="mx-auto max-w-7xl space-y-6">
+          <header className="rounded-3xl border border-white/10 bg-white/80 px-6 py-6 shadow-xl backdrop-blur-sm">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <div className="mb-1 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                  Host Command Center
                 </div>
 
-                {team.lastSeenAt ? (
-                  <p className="mt-1 text-xs text-gray-500">
-                    Last seen: {new Date(team.lastSeenAt).toLocaleTimeString()}
-                  </p>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        )}
-      </aside>
+                <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
+                  {game.title}
+                </h1>
 
-      <main className="flex-1 p-6">
-        <div className="mb-6 rounded bg-white p-6 shadow">
-          <h1 className="mb-2 text-2xl font-bold">🎮 Game Command Center</h1>
-          <p className="text-lg">{game.title}</p>
-          <p>
-            Status:{' '}
-            <span
-              className={
-                game.status === 'LIVE' ? 'text-green-600' : 'text-yellow-600'
-              }
-            >
-              {game.status}
-            </span>
-          </p>
-          <p>Scheduled For: {new Date(game.scheduledFor).toLocaleString()}</p>
+                <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-slate-600">
+                  <span
+                    className={`rounded-full border px-2.5 py-1 text-xs font-medium uppercase tracking-wide ${getGameStatusBadgeClass(
+                      game.status
+                    )}`}
+                  >
+                    {game.status}
+                  </span>
+
+                  <span>
+                    Scheduled:{' '}
+                    <span className="font-medium text-slate-800">
+                      {new Date(game.scheduledFor).toLocaleString()}
+                    </span>
+                  </span>
+
+                  <span>
+                    Join Code:{' '}
+                    <span className="font-mono font-medium text-slate-800">
+                      {game.joinCode}
+                    </span>
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 sm:min-w-[260px]">
+                <StatCard label="Teams Joined" value={teams.length} />
+                <StatCard label="Online Now" value={connectedCount} />
+              </div>
+            </div>
+          </header>
+
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+            <aside className="lg:col-span-4 xl:col-span-3">
+              <section className="h-full rounded-3xl border border-white/10 bg-white/80 p-5 shadow-xl backdrop-blur-sm">
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-sm">
+                    <Users size={18} />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-semibold text-slate-900">
+                      Teams in Lobby
+                    </h2>
+                    <p className="text-sm text-slate-600">
+                      Live roster for this game session.
+                    </p>
+                  </div>
+                </div>
+
+                {connectionStatus === 'disconnected' && (
+                  <div className="mb-4 flex items-center gap-2 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                    <WifiOff size={16} />
+                    Reconnecting to live roster…
+                  </div>
+                )}
+
+                {teams.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 px-5 py-8 text-center">
+                    <div className="text-base font-semibold text-slate-900">
+                      No teams yet
+                    </div>
+                    <p className="mt-2 text-sm text-slate-600">
+                      Teams will appear here as soon as they join the lobby.
+                    </p>
+                  </div>
+                ) : (
+                  <ul className="space-y-3">
+                    {teams.map((team) => (
+                      <li
+                        key={team.id}
+                        className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium text-slate-900">
+                            {team.name}
+                          </span>
+                          <span
+                            className={`rounded-full border px-2.5 py-1 text-xs font-medium ${getStatusBadgeClass(
+                              team.status
+                            )}`}
+                          >
+                            {getStatusLabel(team.status)}
+                          </span>
+                        </div>
+
+                        {team.lastSeenAt ? (
+                          <p className="mt-2 text-xs text-slate-500">
+                            Last seen:{' '}
+                            {new Date(team.lastSeenAt).toLocaleTimeString()}
+                          </p>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            </aside>
+
+            <main className="space-y-6 lg:col-span-8 xl:col-span-9">
+              <section className="rounded-3xl border border-white/10 bg-white/80 p-6 shadow-xl backdrop-blur-sm">
+                <div className="mb-5 flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-sm">
+                    <QrCode size={18} />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-semibold text-slate-900">
+                      Share with Players
+                    </h2>
+                    <p className="text-sm text-slate-600">
+                      Teams can scan the QR code or use the direct join URL.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid gap-6 lg:grid-cols-[320px_1fr] lg:items-center">
+                  <div className="flex justify-center rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                    {joinUrl ? (
+                      <QRCode value={joinUrl} className="h-64 w-64" />
+                    ) : (
+                      <div className="flex h-64 w-64 items-center justify-center text-sm text-slate-500">
+                        Preparing QR code…
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                      <div className="mb-1 text-sm font-medium text-slate-700">
+                        Join URL
+                      </div>
+                      <div className="break-all text-sm text-slate-800">
+                        {joinUrl || 'Preparing join link...'}
+                      </div>
+                    </div>
+
+                    {joinUrl ? (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(joinUrl);
+                            setCopied(true);
+                            window.setTimeout(() => setCopied(false), 2000);
+                          } catch (error) {
+                            console.error('Failed to copy join URL', error);
+                          }
+                        }}
+                        className="inline-flex items-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                      >
+                        {copied ? 'Copied Join URL' : 'Copy Join URL'}
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              </section>
+
+              <section className="rounded-3xl border border-white/10 bg-white/80 p-6 shadow-xl backdrop-blur-sm">
+                <div className="mb-5 flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-sm">
+                    <Radio size={18} />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-semibold text-slate-900">
+                      Game Controls
+                    </h2>
+                    <p className="text-sm text-slate-600">
+                      Rejoin an active game or launch the live play flow.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+                  {game.status === 'LIVE' ? (
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/dashboard/host/${gameId}/play`)}
+                      className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800"
+                    >
+                      <ArrowRight size={16} />
+                      Rejoin Live Game
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          const startRes = await fetch(
+                            `/api/host/games/${gameId}/start`,
+                            {
+                              method: 'PATCH',
+                            }
+                          );
+
+                          if (!startRes.ok) {
+                            throw new Error('Failed to start game');
+                          }
+
+                          const displayModeRes = await fetch(
+                            `/api/host/games/${gameId}/display-mode`,
+                            {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ displayMode: 'QUESTION' }),
+                            }
+                          );
+
+                          if (!displayModeRes.ok) {
+                            throw new Error(
+                              'Failed to set display mode to QUESTION'
+                            );
+                          }
+
+                          socket?.emit('host:gameStarted', { gameId });
+                          socket?.emit('host:showQuestion', { gameId });
+
+                          router.push(`/dashboard/host/${gameId}/play`);
+                        } catch (error) {
+                          console.error('Failed to start game flow', error);
+                        }
+                      }}
+                      className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800"
+                    >
+                      <ArrowRight size={16} />
+                      Start Game
+                    </button>
+                  )}
+                </div>
+              </section>
+            </main>
+          </div>
         </div>
+      </div>
+    </AppBackground>
+  );
+}
 
-        <div className="mb-6 flex flex-col items-center rounded bg-white p-6 shadow">
-          <h2 className="mb-4 text-xl font-semibold">📣 Share with Players</h2>
-          <QRCode value={joinUrl} className="h-64 w-64" />
-          <p className="mt-4 text-sm text-gray-700">
-            Join URL:{' '}
-            <a href={joinUrl} className="text-blue-600 underline">
-              {joinUrl}
-            </a>
-          </p>
-        </div>
-
-        <div className="text-center">
-          {game.status === 'LIVE' ? (
-            <button
-              type="button"
-              onClick={() => router.push(`/dashboard/host/${gameId}/play`)}
-              className="rounded bg-green-600 px-6 py-3 text-white hover:bg-green-700"
-            >
-              ✅ Rejoin Live Game
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={async () => {
-                try {
-                  const startRes = await fetch(`/api/host/games/${gameId}/start`, {
-                    method: 'PATCH',
-                  });
-
-                  if (!startRes.ok) {
-                    throw new Error('Failed to start game');
-                  }
-
-                  const displayModeRes = await fetch(
-                    `/api/host/games/${gameId}/display-mode`,
-                    {
-                      method: 'PATCH',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ displayMode: 'QUESTION' }),
-                    }
-                  );
-
-                  if (!displayModeRes.ok) {
-                    throw new Error('Failed to set display mode to QUESTION');
-                  }
-
-                  socket?.emit('host:gameStarted', { gameId });
-                  socket?.emit('host:showQuestion', { gameId });
-
-                  router.push(`/dashboard/host/${gameId}/play`);
-                } catch (error) {
-                  console.error('Failed to start game flow', error);
-                }
-              }}
-              className="rounded bg-blue-600 px-6 py-3 text-white hover:bg-blue-700"
-            >
-              🚀 Start Game
-            </button>
-          )}
-        </div>
-      </main>
+function StatCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: number;
+}): JSX.Element {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 text-center shadow-sm">
+      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        {label}
+      </div>
+      <div className="mt-2 text-2xl font-semibold text-slate-900">{value}</div>
     </div>
   );
 }

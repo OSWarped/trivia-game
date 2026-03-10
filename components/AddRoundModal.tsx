@@ -4,7 +4,13 @@ import { Fragment, useState, useEffect } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { X } from 'lucide-react';
 
-export type RoundType = 'POINT_BASED' | 'TIME_BASED' | 'WAGER' | 'LIGHTNING' | 'IMAGE';
+export type RoundType =
+  | 'POINT_BASED'
+  | 'TIME_BASED'
+  | 'WAGER'
+  | 'LIGHTNING'
+  | 'IMAGE';
+
 export type PointSystem = 'FLAT' | 'POOL';
 
 export interface RoundConfig {
@@ -21,7 +27,11 @@ interface AddRoundModalProps {
   onSave: (config: RoundConfig) => void;
 }
 
-export default function AddRoundModal({ isOpen, onClose, onSave }: AddRoundModalProps) {
+export default function AddRoundModal({
+  isOpen,
+  onClose,
+  onSave,
+}: AddRoundModalProps) {
   const [name, setName] = useState('');
   const [roundType, setRoundType] = useState<RoundType>('POINT_BASED');
   const [pointSystem, setPointSystem] = useState<PointSystem>('FLAT');
@@ -40,54 +50,74 @@ export default function AddRoundModal({ isOpen, onClose, onSave }: AddRoundModal
 
   function addPoolNumber() {
     const num = parseInt(poolInput, 10);
-    if (!isNaN(num) && num > 0 && !pointPool.includes(num)) {
+    if (!Number.isNaN(num) && num > 0 && !pointPool.includes(num)) {
       setPointPool([...pointPool, num].sort((a, b) => a - b));
     }
     setPoolInput('');
   }
 
   function removePoolNumber(n: number) {
-    setPointPool(pointPool.filter(x => x !== n));
+    setPointPool(pointPool.filter((x) => x !== n));
+  }
+
+  function resetForm() {
+    setName('');
+    setRoundType('POINT_BASED');
+    setPointSystem('FLAT');
+    setPointValue(1);
+    setPoolInput('');
+    setPointPool([]);
+    setErrors([]);
   }
 
   function validate(): boolean {
     const errs: string[] = [];
-    if (!name.trim()) errs.push('Name is required');
+    if (!name.trim()) errs.push('Name is required.');
+
     if (roundType === 'POINT_BASED') {
       if (pointSystem === 'FLAT') {
-        if (!pointValue || pointValue < 1) errs.push('Flat points must be ≥ 1');
+        if (!pointValue || pointValue < 1) {
+          errs.push('Flat points must be 1 or greater.');
+        }
       } else if (pointSystem === 'POOL') {
-        if (pointPool.length === 0) errs.push('Pool must have at least one number');
+        if (pointPool.length === 0) {
+          errs.push('Pool must contain at least one number.');
+        }
       }
     }
+
     setErrors(errs);
     return errs.length === 0;
   }
 
+  function handleClose() {
+    resetForm();
+    onClose();
+  }
+
   function handleSave() {
     if (!validate()) return;
-    const config: RoundConfig = { name, roundType };
+
+    const config: RoundConfig = { name: name.trim(), roundType };
+
     if (roundType === 'POINT_BASED') {
       config.pointSystem = pointSystem;
+
       if (pointSystem === 'FLAT') {
         config.pointValue = pointValue;
       } else {
         config.pointPool = pointPool;
       }
     }
+
     onSave(config);
-    // Reset form
-    setName('');
-    setRoundType('POINT_BASED');
-    setPointSystem('FLAT');
-    setPointValue(1);
-    setPointPool([]);
+    resetForm();
     onClose();
   }
 
   return (
     <Transition appear show={isOpen} as={Fragment}>
-      <Dialog as="div" className="relative z-50" onClose={onClose}>
+      <Dialog as="div" className="relative z-50" onClose={handleClose}>
         <Transition.Child
           as={Fragment}
           enter="ease-out duration-300"
@@ -97,11 +127,11 @@ export default function AddRoundModal({ isOpen, onClose, onSave }: AddRoundModal
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          <div className="fixed inset-0 bg-black bg-opacity-25" />
+          <div className="fixed inset-0 bg-black/50" />
         </Transition.Child>
 
-        <div className="fixed inset-0 overflow-y-auto">
-          <div className="flex min-h-full items-center justify-center p-4 text-center">
+        <div className="fixed inset-0 overflow-y-auto px-4">
+          <div className="flex min-h-full items-center justify-center py-6 text-left">
             <Transition.Child
               as={Fragment}
               enter="ease-out duration-300"
@@ -111,36 +141,52 @@ export default function AddRoundModal({ isOpen, onClose, onSave }: AddRoundModal
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel className="w-full max-w-lg transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-medium text-gray-900">Add New Round</h3>
-                  <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+              <Dialog.Panel className="w-full max-w-lg overflow-hidden rounded-3xl border border-white/10 bg-white p-6 shadow-2xl transition-all">
+                <div className="flex items-center justify-between">
+                  <Dialog.Title className="text-xl font-semibold text-slate-900">
+                    Add New Round
+                  </Dialog.Title>
+
+                  <button
+                    onClick={handleClose}
+                    className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                  >
                     <X size={20} />
                   </button>
                 </div>
-                <div className="mt-4 space-y-4">
-                  {errors.length > 0 && (
-                    <div className="space-y-1 text-red-600">
-                      {errors.map((e, i) => <div key={i}>{e}</div>)}
-                    </div>
-                  )}
 
+                {errors.length > 0 && (
+                  <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    <div className="space-y-1">
+                      {errors.map((e, i) => (
+                        <div key={i}>• {e}</div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="mt-5 space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Round Name</label>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">
+                      Round Name
+                    </label>
                     <input
                       type="text"
                       value={name}
-                      onChange={e => setName(e.target.value)}
-                      className="mt-1 block w-full rounded border-gray-300 p-2"
+                      onChange={(e) => setName(e.target.value)}
+                      className="block w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Enter round name"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Round Type</label>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">
+                      Round Type
+                    </label>
                     <select
                       value={roundType}
-                      onChange={e => setRoundType(e.target.value as RoundType)}
-                      className="mt-1 block w-full rounded border-gray-300 p-2"
+                      onChange={(e) => setRoundType(e.target.value as RoundType)}
+                      className="block w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="POINT_BASED">Point-based</option>
                       <option value="TIME_BASED">Time-based</option>
@@ -151,70 +197,91 @@ export default function AddRoundModal({ isOpen, onClose, onSave }: AddRoundModal
                   </div>
 
                   {roundType === 'POINT_BASED' && (
-                    <div className="space-y-4">
-                      <label className="block text-sm font-medium text-gray-700">Point System</label>
-                      <div className="flex space-x-4">
-                        <label className="flex items-center space-x-2">
-                          <input
-                            type="radio"
-                            name="pointSystem"
-                            value="FLAT"
-                            checked={pointSystem === 'FLAT'}
-                            onChange={() => setPointSystem('FLAT')}
-                          />
-                          <span>Flat</span>
+                    <div className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-slate-700">
+                          Point System
                         </label>
-                        <label className="flex items-center space-x-2">
-                          <input
-                            type="radio"
-                            name="pointSystem"
-                            value="POOL"
-                            checked={pointSystem === 'POOL'}
-                            onChange={() => setPointSystem('POOL')}
-                          />
-                          <span>Pool</span>
-                        </label>
+
+                        <div className="flex flex-wrap gap-4">
+                          <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+                            <input
+                              type="radio"
+                              name="pointSystem"
+                              value="FLAT"
+                              checked={pointSystem === 'FLAT'}
+                              onChange={() => setPointSystem('FLAT')}
+                              className="h-4 w-4 border-slate-300 text-slate-900 focus:ring-slate-400"
+                            />
+                            <span>Flat</span>
+                          </label>
+
+                          <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+                            <input
+                              type="radio"
+                              name="pointSystem"
+                              value="POOL"
+                              checked={pointSystem === 'POOL'}
+                              onChange={() => setPointSystem('POOL')}
+                              className="h-4 w-4 border-slate-300 text-slate-900 focus:ring-slate-400"
+                            />
+                            <span>Pool</span>
+                          </label>
+                        </div>
                       </div>
 
                       {pointSystem === 'FLAT' && (
                         <div>
-                          <label className="block text-sm font-medium text-gray-700">Points per question</label>
+                          <label className="mb-2 block text-sm font-medium text-slate-700">
+                            Points per question
+                          </label>
                           <input
                             type="number"
                             min={1}
                             value={pointValue}
-                            onChange={e => setPointValue(parseInt(e.target.value, 10))}
-                            className="mt-1 block w-full rounded border-gray-300 p-2"
+                            onChange={(e) =>
+                              setPointValue(parseInt(e.target.value, 10) || 0)
+                            }
+                            className="block w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                           />
                         </div>
                       )}
 
                       {pointSystem === 'POOL' && (
-                        <div className="space-y-2">
-                          <label className="block text-sm font-medium text-gray-700">Define pool numbers</label>
-                          <div className="flex space-x-2">
+                        <div className="space-y-3">
+                          <label className="block text-sm font-medium text-slate-700">
+                            Define pool numbers
+                          </label>
+
+                          <div className="flex gap-2">
                             <input
                               type="number"
                               min={1}
                               value={poolInput}
-                              onChange={e => setPoolInput(e.target.value)}
-                              className="block w-1/3 rounded border-gray-300 p-2"
+                              onChange={(e) => setPoolInput(e.target.value)}
+                              className="block w-32 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              placeholder="10"
                             />
                             <button
                               type="button"
                               onClick={addPoolNumber}
-                              className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
+                              className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
                             >
-                              + Add
+                              Add
                             </button>
                           </div>
-                          <div className="flex flex-wrap gap-2 mt-2">
-                            {pointPool.map(n => (
-                              <div key={n} className="flex items-center bg-gray-200 px-2 py-1 rounded">
+
+                          <div className="flex flex-wrap gap-2">
+                            {pointPool.map((n) => (
+                              <div
+                                key={n}
+                                className="flex items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-800"
+                              >
                                 <span>{n}</span>
                                 <button
+                                  type="button"
                                   onClick={() => removePoolNumber(n)}
-                                  className="ml-2 text-red-600"
+                                  className="ml-2 text-rose-500 transition hover:text-rose-700"
                                 >
                                   ×
                                 </button>
@@ -227,20 +294,20 @@ export default function AddRoundModal({ isOpen, onClose, onSave }: AddRoundModal
                   )}
                 </div>
 
-                <div className="mt-6 flex justify-end space-x-2">
+                <div className="mt-6 flex justify-end gap-3">
                   <button
                     type="button"
-                    onClick={onClose}
-                    className="rounded border border-gray-300 px-4 py-2 hover:bg-gray-100"
+                    onClick={handleClose}
+                    className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                   >
                     Cancel
                   </button>
                   <button
                     type="button"
                     onClick={handleSave}
-                    className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+                    className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
                   >
-                    Save Round →
+                    Save Round
                   </button>
                 </div>
               </Dialog.Panel>

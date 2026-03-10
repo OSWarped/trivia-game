@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { ChevronLeft } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import AppBackground from '@/components/AppBackground';
 import GameJsonImportPanel from './components/GameJsonImportPanel';
 
 interface User {
@@ -157,151 +158,212 @@ export default function EditGamePage() {
 
   if (!authChecked || loading) {
     return (
-      <div className="min-h-screen bg-gray-100 p-6">
-        <div className="rounded-xl bg-white p-6 shadow">Loading game...</div>
-      </div>
+      <AppBackground variant="dashboard">
+        <div className="min-h-screen px-4 py-6 md:px-8 md:py-8">
+          <div className="mx-auto max-w-6xl rounded-2xl border border-white/10 bg-white/80 p-6 shadow-xl backdrop-blur-sm">
+            Loading game...
+          </div>
+        </div>
+      </AppBackground>
     );
   }
 
   if (error || !game) {
     return (
-      <div className="min-h-screen bg-gray-100 p-6">
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
-          {error ?? 'Unable to load game.'}
+      <AppBackground variant="dashboard">
+        <div className="min-h-screen px-4 py-6 md:px-8 md:py-8">
+          <div className="mx-auto max-w-6xl space-y-4">
+            <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700 shadow-sm">
+              {error ?? 'Unable to load game.'}
+            </div>
+          </div>
         </div>
-      </div>
+      </AppBackground>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
-      <Link
-        href={`/admin/seasons/${game.season.id}`}
-        className="mb-4 inline-flex items-center text-blue-600 hover:underline"
-      >
-        <ChevronLeft className="mr-1" size={18} />
-        Back to Season
-      </Link>
-
-      <div className="mb-6 rounded-xl bg-white p-6 shadow">
-        <p className="text-sm text-gray-500">Edit Game</p>
-        <h1 className="text-3xl font-bold text-gray-900">{game.title}</h1>
-        <p className="mt-1 text-sm text-gray-600">
-          Season: <span className="font-medium">{game.season.name}</span>
-        </p>
-        <p className="mt-1 text-sm text-gray-600">
-          Event: <span className="font-medium">{game.season.event.name}</span>
-        </p>
-        <p className="mt-1 text-sm text-gray-600">
-          Site: <span className="font-medium">{game.season.event.site.name}</span>
-        </p>
-        <p className="mt-1 text-sm text-gray-600">
-          Join Code: <span className="font-mono font-medium">{game.joinCode}</span>
-        </p>
-      </div>
-
-      <div className="rounded-xl bg-white p-6 shadow">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="md:col-span-2">
-            <label className="mb-1 block font-medium">Game Title</label>
-            <input
-              type="text"
-              className="w-full rounded border border-gray-300 p-2"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-          </div>
-
+    <AppBackground variant="dashboard">
+      <div className="min-h-screen px-4 py-6 md:px-8 md:py-8">
+        <div className="mx-auto max-w-6xl space-y-6">
           <div>
-            <label className="mb-1 block font-medium">Scheduled For</label>
-            <input
-              type="datetime-local"
-              className="w-full rounded border border-gray-300 p-2"
-              value={scheduledFor}
-              onChange={(e) => setScheduledFor(e.target.value)}
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block font-medium">Status</label>
-            <select
-              className="w-full rounded border border-gray-300 p-2"
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
+            <Link
+              href={`/admin/seasons/${game.season.id}`}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white/80 px-4 py-2 text-sm font-medium text-slate-700 shadow-sm backdrop-blur-sm transition hover:bg-white"
             >
-              <option value="DRAFT">DRAFT</option>
-              <option value="SCHEDULED">SCHEDULED</option>
-              <option value="LIVE">LIVE</option>
-              <option value="CLOSED">CLOSED</option>
-              <option value="CANCELED">CANCELED</option>
-            </select>
+              <ChevronLeft size={18} />
+              Back to Season
+            </Link>
           </div>
 
-          <div>
-            <label className="mb-1 block font-medium">Host</label>
-            <select
-              className="w-full rounded border border-gray-300 p-2"
-              value={hostId}
-              onChange={(e) => setHostId(e.target.value)}
-            >
-              <option value="">No Host Assigned</option>
-              {users.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {user.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <header className="rounded-3xl border border-white/10 bg-white/80 px-6 py-6 shadow-xl backdrop-blur-sm">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <div className="mb-1 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                  Game Management
+                </div>
 
-          <div className="flex items-center gap-2 pt-7">
-            <input
-              id="special"
-              type="checkbox"
-              checked={special}
-              onChange={(e) => setSpecial(e.target.checked)}
-            />
-            <label htmlFor="special" className="font-medium">
-              Special Game
-            </label>
-          </div>
+                <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
+                  {game.title}
+                </h1>
 
-          {special && (
-            <div className="md:col-span-2">
-              <label className="mb-1 block font-medium">Special Tag</label>
-              <input
-                type="text"
-                className="w-full rounded border border-gray-300 p-2"
-                value={tag}
-                onChange={(e) => setTag(e.target.value)}
-                placeholder="Championship"
-              />
+                <p className="mt-2 text-sm text-slate-600">
+                  Season: <span className="font-medium text-slate-800">{game.season.name}</span>
+                </p>
+                <p className="mt-1 text-sm text-slate-600">
+                  Event: <span className="font-medium text-slate-800">{game.season.event.name}</span>
+                </p>
+                <p className="mt-1 text-sm text-slate-600">
+                  Site: <span className="font-medium text-slate-800">{game.season.event.site.name}</span>
+                </p>
+                <p className="mt-1 text-sm text-slate-600">
+                  Join Code:{' '}
+                  <span className="font-mono font-medium text-slate-800">
+                    {game.joinCode}
+                  </span>
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                <Link
+                  href={`/admin/games/${game.id}/editor`}
+                  className="inline-flex items-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
+                >
+                  Open Rounds / Questions Editor
+                </Link>
+              </div>
             </div>
-          )}
-        </div>
+          </header>
 
-        <div className="mt-6 flex justify-end gap-4">
-          <Link
-            href={`/admin/seasons/${game.season.id}`}
-            className="rounded bg-gray-500 px-4 py-2 text-white hover:bg-gray-600"
-          >
-            Cancel
-          </Link>
-          <button
-            type="button"
-            className="rounded bg-green-600 px-4 py-2 text-white hover:bg-green-700 disabled:opacity-50"
-            onClick={() => {
-              void handleSaveChanges();
-            }}
-            disabled={saving}
-          >
-            {saving ? 'Saving...' : 'Save Changes'}
-          </button>
+          <section className="rounded-3xl border border-white/10 bg-white/80 p-6 shadow-xl backdrop-blur-sm">
+            <div className="mb-5">
+              <h2 className="text-xl font-semibold text-slate-900">Edit Game Details</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Update scheduling, status, host assignment, and special game settings.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="md:col-span-2">
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Game Title
+                </label>
+                <input
+                  type="text"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Scheduled For
+                </label>
+                <input
+                  type="datetime-local"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={scheduledFor}
+                  onChange={(e) => setScheduledFor(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Status
+                </label>
+                <select
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                >
+                  <option value="DRAFT">DRAFT</option>
+                  <option value="SCHEDULED">SCHEDULED</option>
+                  <option value="LIVE">LIVE</option>
+                  <option value="CLOSED">CLOSED</option>
+                  <option value="CANCELED">CANCELED</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Host
+                </label>
+                <select
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={hostId}
+                  onChange={(e) => setHostId(e.target.value)}
+                >
+                  <option value="">No Host Assigned</option>
+                  {users.map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-3 pt-7">
+                <input
+                  id="special"
+                  type="checkbox"
+                  checked={special}
+                  onChange={(e) => setSpecial(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-400"
+                />
+                <label htmlFor="special" className="text-sm font-medium text-slate-700">
+                  Special Game
+                </label>
+              </div>
+
+              {special ? (
+                <div className="md:col-span-2">
+                  <label className="mb-2 block text-sm font-medium text-slate-700">
+                    Special Tag
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={tag}
+                    onChange={(e) => setTag(e.target.value)}
+                    placeholder="Championship"
+                  />
+                </div>
+              ) : null}
+            </div>
+
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <Link
+                href={`/admin/seasons/${game.season.id}`}
+                className="inline-flex items-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              >
+                Cancel
+              </Link>
+              <button
+                type="button"
+                className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() => {
+                  void handleSaveChanges();
+                }}
+                disabled={saving}
+              >
+                {saving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-white/10 bg-white/80 p-6 shadow-xl backdrop-blur-sm">
+            <div className="mb-5">
+              <h2 className="text-xl font-semibold text-slate-900">Game Content Import</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Import structured game content into this game.
+              </p>
+            </div>
+
+            <GameJsonImportPanel gameId={gameId} />
+          </section>
         </div>
       </div>
-
-      <div className="mt-6">
-        <GameJsonImportPanel gameId={gameId} />
-      </div>
-    </div>
+    </AppBackground>
   );
 }

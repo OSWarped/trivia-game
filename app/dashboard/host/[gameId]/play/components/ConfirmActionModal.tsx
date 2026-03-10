@@ -19,12 +19,12 @@ function getConfirmButtonClasses(
 ): string {
   switch (tone) {
     case 'danger':
-      return 'border-red-200 bg-red-600 text-white hover:bg-red-700';
+      return 'border-rose-300 bg-rose-600 text-white hover:bg-rose-700';
     case 'primary':
-      return 'border-blue-200 bg-blue-600 text-white hover:bg-blue-700';
+      return 'border-slate-900 bg-slate-900 text-white hover:bg-slate-800';
     case 'neutral':
     default:
-      return 'border-gray-300 bg-gray-800 text-white hover:bg-gray-900';
+      return 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50';
   }
 }
 
@@ -44,22 +44,24 @@ export default function ConfirmActionModal({
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
       <div
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/45 backdrop-blur-sm"
         onClick={isLoading ? undefined : onCancel}
       />
 
-      <div className="relative z-[101] w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl">
-        <div className="space-y-3">
+      <div className="relative z-[101] w-full max-w-md rounded-3xl border border-white/10 bg-white p-6 shadow-2xl">
+        <div className="space-y-4">
           <div>
-            <h3 className="text-lg font-bold text-gray-900">{title}</h3>
-            <p className="mt-2 text-sm leading-6 text-gray-600">{message}</p>
+            <h3 className="text-xl font-semibold tracking-tight text-slate-900">
+              {title}
+            </h3>
+            <p className="mt-2 text-sm leading-6 text-slate-600">{message}</p>
           </div>
 
           <div className="flex justify-end gap-3 pt-2">
             <button
               onClick={onCancel}
               disabled={isLoading}
-              className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {cancelLabel}
             </button>

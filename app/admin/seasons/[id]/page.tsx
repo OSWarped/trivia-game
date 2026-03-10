@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { ChevronLeft, CalendarDays, Trophy, PlusCircle } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import AppBackground from '@/components/AppBackground';
 
 interface SeasonDetailData {
   id: string;
@@ -55,17 +56,17 @@ function formatDateTime(date: string | null): string {
 function getStatusBadgeClasses(status: string): string {
   switch (status.toUpperCase()) {
     case 'LIVE':
-      return 'bg-green-100 text-green-700';
+      return 'border-emerald-300 bg-emerald-50 text-emerald-700';
     case 'CLOSED':
-      return 'bg-gray-200 text-gray-700';
+      return 'border-slate-300 bg-slate-100 text-slate-700';
     case 'DRAFT':
-      return 'bg-yellow-100 text-yellow-700';
+      return 'border-amber-300 bg-amber-50 text-amber-700';
     case 'SCHEDULED':
-      return 'bg-blue-100 text-blue-700';
+      return 'border-blue-300 bg-blue-50 text-blue-700';
     case 'CANCELED':
-      return 'bg-red-100 text-red-700';
+      return 'border-rose-300 bg-rose-50 text-rose-700';
     default:
-      return 'bg-gray-100 text-gray-600';
+      return 'border-slate-300 bg-slate-100 text-slate-600';
   }
 }
 
@@ -179,188 +180,273 @@ export default function SeasonDetailPage() {
 
   if (!authChecked || loading) {
     return (
-      <div className="min-h-screen bg-gray-100 p-6">
-        <div className="rounded-xl bg-white p-6 shadow">Loading season...</div>
-      </div>
+      <AppBackground variant="dashboard">
+        <div className="min-h-screen px-4 py-6 md:px-8 md:py-8">
+          <div className="mx-auto max-w-6xl rounded-2xl border border-white/10 bg-white/80 p-6 shadow-xl backdrop-blur-sm">
+            Loading season...
+          </div>
+        </div>
+      </AppBackground>
     );
   }
 
   if (error || !season) {
     return (
-      <div className="min-h-screen bg-gray-100 p-6">
-        <Link
-          href="/admin/sites"
-          className="mb-4 inline-flex items-center text-blue-600 hover:underline"
-        >
-          <ChevronLeft className="mr-1" size={18} />
-          Back to Sites
-        </Link>
+      <AppBackground variant="dashboard">
+        <div className="min-h-screen px-4 py-6 md:px-8 md:py-8">
+          <div className="mx-auto max-w-6xl space-y-4">
+            <Link
+              href="/admin/sites"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white/80 px-4 py-2 text-sm font-medium text-slate-700 shadow-sm backdrop-blur-sm transition hover:bg-white"
+            >
+              <ChevronLeft size={18} />
+              Back to Sites
+            </Link>
 
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
-          {error ?? 'Unable to load season.'}
+            <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700 shadow-sm">
+              {error ?? 'Unable to load season.'}
+            </div>
+          </div>
         </div>
-      </div>
+      </AppBackground>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
-      <Link
-        href={`/admin/events/${season.event.id}`}
-        className="mb-4 inline-flex items-center text-blue-600 hover:underline"
-      >
-        <ChevronLeft className="mr-1" size={18} />
-        Back to Event
-      </Link>
-
-      <div className="mb-6 rounded-xl bg-white p-6 shadow">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    <AppBackground variant="dashboard">
+      <div className="min-h-screen px-4 py-6 md:px-8 md:py-8">
+        <div className="mx-auto max-w-6xl space-y-6">
           <div>
-            <p className="text-sm text-gray-500">Season</p>
-            <h1 className="text-3xl font-bold text-gray-900">{season.name}</h1>
-            <p className="mt-1 text-sm text-gray-600">
-              Event: <span className="font-medium">{season.event.name}</span>
-            </p>
-            <p className="mt-1 text-sm text-gray-600">
-              Site: <span className="font-medium">{season.event.site.name}</span>
-            </p>
-            <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-gray-600">
-              <span className="inline-flex items-center gap-1">
-                <CalendarDays size={16} />
-                {formatDate(season.startsAt)} - {formatDate(season.endsAt)}
-              </span>
-              <span
-                className={`rounded-full px-2 py-1 text-xs font-medium ${season.active
-                  ? 'bg-green-100 text-green-700'
-                  : 'bg-gray-100 text-gray-700'
-                  }`}
-              >
-                {season.active ? 'Active' : 'Closed'}
-              </span>
-            </div>
+            <Link
+              href={`/admin/events/${season.event.id}`}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white/80 px-4 py-2 text-sm font-medium text-slate-700 shadow-sm backdrop-blur-sm transition hover:bg-white"
+            >
+              <ChevronLeft size={18} />
+              Back to Event
+            </Link>
           </div>
-        </div>
-      </div>
 
-      <section className="mb-8 rounded-xl bg-white p-6 shadow">
-        <div className="mb-4 flex items-center gap-2">
-          <PlusCircle size={20} className="text-blue-600" />
-          <h2 className="text-xl font-semibold text-gray-900">Draft Game in This Season</h2>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-          <input
-            type="text"
-            placeholder="Game title"
-            className="rounded border p-2 md:col-span-2"
-            value={newTitle}
-            onChange={(e) => setNewTitle(e.target.value)}
-          />
-          <input
-            type="datetime-local"
-            className="rounded border p-2"
-            value={scheduledFor}
-            onChange={(e) => setScheduledFor(e.target.value)}
-          />
-          <button
-            type="button"
-            className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
-            onClick={() => {
-              void createGame();
-            }}
-            disabled={saving || !newTitle.trim() || !scheduledFor}
-          >
-            {saving ? 'Creating...' : 'Draft Game'}
-          </button>
-        </div>
-      </section>
-
-      <section className="mb-8 rounded-xl bg-white p-6 shadow">
-        <div className="mb-4 flex items-center gap-2">
-          <Trophy size={20} className="text-gray-700" />
-          <h2 className="text-xl font-semibold text-gray-900">Standings</h2>
-        </div>
-
-        {table.length === 0 ? (
-          <p className="text-gray-500">No standings yet for this season.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border text-left">
-              <thead>
-                <tr className="bg-gray-100">
-                  <th className="border p-2">#</th>
-                  <th className="border p-2">Team</th>
-                  <th className="border p-2">Games</th>
-                  <th className="border p-2">Points</th>
-                </tr>
-              </thead>
-              <tbody>
-                {table.map((row, idx) => (
-                  <tr key={row.teamId}>
-                    <td className="border p-2">{idx + 1}</td>
-                    <td className="border p-2">{row.team}</td>
-                    <td className="border p-2">{row.games}</td>
-                    <td className="border p-2">{row.points}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      <section className="rounded-xl bg-white p-6 shadow">
-        <h2 className="mb-4 text-xl font-semibold text-gray-900">Games in Season</h2>
-
-        {games.length === 0 ? (
-          <p className="text-gray-500">No games have been created for this season yet.</p>
-        ) : (
-          <ul className="space-y-3">
-            {games.map((game) => (
-              <li
-                key={game.id}
-                className="flex flex-col gap-3 rounded-lg border border-gray-200 p-4 md:flex-row md:items-center md:justify-between"
-              >
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-medium text-gray-900">{game.title}</p>
-                    {game.special && (
-                      <span className="rounded bg-purple-600 px-2 py-0.5 text-xs text-white">
-                        {game.tag ?? 'Special'}
-                      </span>
-                    )}
-                  </div>
-
-                  <p className="mt-1 text-sm text-gray-500">
-                    Scheduled: {formatDateTime(game.scheduledFor)}
-                  </p>
-
-                  <p className="mt-1 text-sm text-gray-500">
-                    Join Code: <span className="font-mono">{game.joinCode}</span>
-                  </p>
+          <header className="rounded-3xl border border-white/10 bg-white/80 px-6 py-6 shadow-xl backdrop-blur-sm">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <div className="mb-1 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                  Season Management
                 </div>
 
-                <div className="flex items-center gap-3">
-                  <span
-                    className={`rounded-full px-2 py-1 text-xs font-medium uppercase tracking-wide ${getStatusBadgeClasses(
-                      game.status
-                    )}`}
-                  >
-                    {game.status}
+                <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
+                  {season.name}
+                </h1>
+
+                <p className="mt-2 text-sm text-slate-600">
+                  Event: <span className="font-medium text-slate-800">{season.event.name}</span>
+                </p>
+                <p className="mt-1 text-sm text-slate-600">
+                  Site: <span className="font-medium text-slate-800">{season.event.site.name}</span>
+                </p>
+
+                <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-slate-600">
+                  <span className="inline-flex items-center gap-1.5">
+                    <CalendarDays size={16} />
+                    {formatDate(season.startsAt)} - {formatDate(season.endsAt)}
                   </span>
 
-                  <Link
-                    href={`/admin/games/${game.id}`}
-                    className="text-sm font-medium text-blue-600 hover:underline"
+                  <span
+                    className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
+                      season.active
+                        ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                        : 'border-slate-300 bg-slate-100 text-slate-700'
+                    }`}
                   >
-                    View Game
-                  </Link>
+                    {season.active ? 'Active' : 'Closed'}
+                  </span>
                 </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-    </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-600">
+                <span className="font-semibold text-slate-900">{games.length}</span>{' '}
+                game{games.length === 1 ? '' : 's'}
+              </div>
+            </div>
+          </header>
+
+          <section className="rounded-3xl border border-white/10 bg-white/80 p-6 shadow-xl backdrop-blur-sm">
+            <div className="mb-5 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-sm">
+                <PlusCircle size={18} />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">
+                  Draft Game in This Season
+                </h2>
+                <p className="text-sm text-slate-600">
+                  Create a new draft game and attach it to this season.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+              <input
+                type="text"
+                placeholder="Game title"
+                className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 md:col-span-2"
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+              />
+              <input
+                type="datetime-local"
+                className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={scheduledFor}
+                onChange={(e) => setScheduledFor(e.target.value)}
+              />
+              <button
+                type="button"
+                className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() => {
+                  void createGame();
+                }}
+                disabled={saving || !newTitle.trim() || !scheduledFor}
+              >
+                {saving ? 'Creating...' : 'Draft Game'}
+              </button>
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-white/10 bg-white/80 p-6 shadow-xl backdrop-blur-sm">
+            <div className="mb-5 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-sm">
+                <Trophy size={18} />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">Standings</h2>
+                <p className="text-sm text-slate-600">
+                  Current season totals across participating teams.
+                </p>
+              </div>
+            </div>
+
+            {table.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 px-6 py-10 text-center">
+                <div className="text-lg font-semibold text-slate-900">
+                  No standings yet
+                </div>
+                <p className="mx-auto mt-2 max-w-xl text-sm text-slate-600">
+                  Standings will appear here once teams have played games in this season.
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+                <table className="w-full text-left">
+                  <thead className="bg-slate-50">
+                    <tr>
+                      <th className="border-b border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700">
+                        #
+                      </th>
+                      <th className="border-b border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700">
+                        Team
+                      </th>
+                      <th className="border-b border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700">
+                        Games
+                      </th>
+                      <th className="border-b border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700">
+                        Points
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {table.map((row, idx) => (
+                      <tr key={row.teamId} className="hover:bg-slate-50/80">
+                        <td className="border-b border-slate-100 px-4 py-3 text-sm text-slate-700">
+                          {idx + 1}
+                        </td>
+                        <td className="border-b border-slate-100 px-4 py-3 text-sm font-medium text-slate-900">
+                          {row.team}
+                        </td>
+                        <td className="border-b border-slate-100 px-4 py-3 text-sm text-slate-700">
+                          {row.games}
+                        </td>
+                        <td className="border-b border-slate-100 px-4 py-3 text-sm text-slate-700">
+                          {row.points}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
+          <section className="rounded-3xl border border-white/10 bg-white/80 p-6 shadow-xl backdrop-blur-sm">
+            <div className="mb-5">
+              <h2 className="text-xl font-semibold text-slate-900">Games in Season</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Review games attached to this season and jump into game detail.
+              </p>
+            </div>
+
+            {games.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 px-6 py-10 text-center">
+                <div className="text-lg font-semibold text-slate-900">
+                  No games yet
+                </div>
+                <p className="mx-auto mt-2 max-w-xl text-sm text-slate-600">
+                  No games have been created for this season yet.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {games.map((game) => (
+                  <div
+                    key={game.id}
+                    className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:flex-row md:items-center md:justify-between"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-lg font-semibold text-slate-900">
+                          {game.title}
+                        </p>
+
+                        {game.special ? (
+                          <span className="rounded-full border border-violet-300 bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700">
+                            {game.tag ?? 'Special'}
+                          </span>
+                        ) : null}
+                      </div>
+
+                      <p className="mt-2 text-sm text-slate-600">
+                        Scheduled: {formatDateTime(game.scheduledFor)}
+                      </p>
+
+                      <p className="mt-1 text-sm text-slate-600">
+                        Join Code:{' '}
+                        <span className="font-mono font-medium text-slate-800">
+                          {game.joinCode}
+                        </span>
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span
+                        className={`rounded-full border px-2.5 py-1 text-xs font-medium uppercase tracking-wide ${getStatusBadgeClasses(
+                          game.status
+                        )}`}
+                      >
+                        {game.status}
+                      </span>
+
+                      <Link
+                        href={`/admin/games/${game.id}`}
+                        className="inline-flex items-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                      >
+                        View Game
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
+      </div>
+    </AppBackground>
   );
 }

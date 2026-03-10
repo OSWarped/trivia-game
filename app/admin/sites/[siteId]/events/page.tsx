@@ -6,6 +6,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { CalendarDays, ChevronLeft, Layers3, PlayCircle } from 'lucide-react';
 import ScheduleWizard from '@/components/ScheduleWizard';
+import AppBackground from '@/components/AppBackground';
 
 /* ——— Types coming from API ——— */
 interface EventSchedule {
@@ -188,188 +189,243 @@ export default function ManageEventsPage() {
 
   if (!authChecked || pageLoading) {
     return (
-      <div className="min-h-screen bg-gray-100 p-6">
-        <div className="rounded-xl bg-white p-6 shadow">Loading events...</div>
-      </div>
+      <AppBackground variant="dashboard">
+        <div className="min-h-screen px-4 py-6 md:px-8 md:py-8">
+          <div className="mx-auto max-w-6xl rounded-2xl border border-white/10 bg-white/80 p-6 shadow-xl backdrop-blur-sm">
+            Loading events...
+          </div>
+        </div>
+      </AppBackground>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
-      <Link href="/admin/workspace" className="mb-4 inline-flex items-center text-blue-600 hover:underline">
-        <ChevronLeft className="mr-1" size={18} /> Back to Sites
-      </Link>
-
-      <div className="mb-6 rounded-xl bg-white p-6 shadow">
-        <h1 className="text-2xl font-bold text-gray-900">Events for Site</h1>
-        <p className="mt-1 text-sm text-gray-600">
-          Manage recurring event series, their schedules, and jump into seasons.
-        </p>
-      </div>
-
-      <section className="mb-6">
-        <div className="mb-4 flex items-center gap-2">
-          <Layers3 size={20} className="text-gray-600" />
-          <h2 className="text-xl font-semibold">Events</h2>
-        </div>
-
-        {events.length === 0 ? (
-          <div className="rounded-xl bg-white p-6 shadow">
-            <p className="text-gray-600">No events have been created for this site yet.</p>
+    <AppBackground variant="dashboard">
+      <div className="min-h-screen px-4 py-6 md:px-8 md:py-8">
+        <div className="mx-auto max-w-6xl space-y-6">
+          <div>
+            <Link
+              href="/admin/workspace"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white/80 px-4 py-2 text-sm font-medium text-slate-700 shadow-sm backdrop-blur-sm transition hover:bg-white"
+            >
+              <ChevronLeft size={18} />
+              Back to Sites
+            </Link>
           </div>
-        ) : (
-          <div className="space-y-4">
-            {events.map((ev) => (
-              <div key={ev.id} className="rounded-xl bg-white p-5 shadow">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="min-w-0">
-                    <h3 className="text-xl font-semibold text-gray-900">{ev.name}</h3>
 
-                    <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-gray-600">
-                      <span className="inline-flex items-center gap-1">
-                        <CalendarDays size={16} />
-                        {ev.schedules.length > 0
-                          ? ev.schedules.map(formatSchedule).join(' • ')
-                          : 'No schedules yet'}
-                      </span>
-
-                      <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
-                        {ev.seasonCount} season{ev.seasonCount === 1 ? '' : 's'}
-                      </span>
-                    </div>
-
-                    <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-3">
-                      {ev.activeSeason ? (
-                        <>
-                          <p className="text-sm font-semibold text-gray-800">Active Season</p>
-                          <p className="mt-1 text-sm text-gray-700">{ev.activeSeason.name}</p>
-                          <p className="mt-1 text-xs text-gray-500">
-                            {formatDate(ev.activeSeason.startsAt)} - {formatDate(ev.activeSeason.endsAt)}
-                          </p>
-                          <p className="mt-1 text-xs text-gray-500">
-                            {ev.activeSeason.gameCount} game{ev.activeSeason.gameCount === 1 ? '' : 's'}
-                          </p>
-                        </>
-                      ) : (
-                        <>
-                          <p className="text-sm font-semibold text-gray-800">No Active Season</p>
-                          <p className="mt-1 text-xs text-gray-500">
-                            Open this event to create or activate a season.
-                          </p>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap gap-3">
-                    <Link
-                      href={`/admin/events/${ev.id}`}
-                      className="inline-flex items-center gap-2 rounded bg-purple-600 px-3 py-2 text-sm font-medium text-white hover:bg-purple-700"
-                    >
-                      <PlayCircle size={16} />
-                      Open Event
-                    </Link>
-
-                    {ev.activeSeason && (
-                      <Link
-                        href={`/admin/seasons/${ev.activeSeason.id}`}
-                        className="rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
-                      >
-                        View Active Season
-                      </Link>
-                    )}
-
-                    <button
-                      className="rounded bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700"
-                      onClick={() => {
-                        setActiveEventId(ev.id);
-                        setShowWizard(true);
-                      }}
-                    >
-                      + Schedule
-                    </button>
-
-                    <button
-                      className="rounded bg-yellow-500 px-3 py-2 text-sm font-medium text-white hover:bg-yellow-600"
-                      onClick={() => startEdit(ev)}
-                    >
-                      Edit
-                    </button>
-
-                    <button
-                      className="rounded bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700"
-                      onClick={() => deleteEvent(ev.id)}
-                    >
-                      Delete
-                    </button>
-                  </div>
+          <header className="rounded-3xl border border-white/10 bg-white/80 px-6 py-6 shadow-xl backdrop-blur-sm">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <div className="mb-1 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                  Venue Operations
                 </div>
+
+                <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
+                  Site Events
+                </h1>
+
+                <p className="mt-2 max-w-2xl text-sm text-slate-600">
+                  Manage recurring event series, schedules, and active seasons
+                  for this venue.
+                </p>
               </div>
-            ))}
-          </div>
-        )}
-      </section>
 
-      {edit ? (
-        <FormCard
-          title="Edit Event"
-          name={nameIn}
-          setName={setNameIn}
-          onPrimary={saveEdit}
-          primaryLabel="Save"
-          loading={uiLoading}
-          onCancel={cancel}
-          scheduleFields={false}
-        />
-      ) : (
-        <FormCard
-          title="Add Weekly Event"
-          name={nameIn}
-          setName={setNameIn}
-          onPrimary={addEvent}
-          primaryLabel="Add Event"
-          loading={uiLoading}
-          onCancel={() => setNameIn('')}
-          scheduleFields={true}
-          dowIn={dowIn}
-          setDowIn={setDowIn}
-          timeIn={timeIn}
-          setTimeIn={setTimeIn}
-        />
-      )}
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-600">
+                <span className="font-semibold text-slate-900">{events.length}</span>{' '}
+                event{events.length === 1 ? '' : 's'}
+              </div>
+            </div>
+          </header>
 
-      {showWizard && activeEventId && (
-        <ScheduleWizard
-          onSave={async (payload) => {
-            const res = await fetch(`/api/admin/events/${activeEventId}/schedules`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload),
-            });
+          <section className="rounded-3xl border border-white/10 bg-white/80 p-6 shadow-xl backdrop-blur-sm">
+            <div className="mb-5 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-sm">
+                <Layers3 size={18} />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">Events</h2>
+                <p className="text-sm text-slate-600">
+                  Open event detail, manage schedules, and jump into active seasons.
+                </p>
+              </div>
+            </div>
 
-            if (!res.ok) {
-              const data = (await res.json()) as { error?: string };
-              window.alert(data.error ?? 'Failed to add schedule.');
-              return;
-            }
+            {events.length === 0 ? (
+              <EmptyState
+                title="No events yet"
+                description="No events have been created for this site yet."
+              />
+            ) : (
+              <div className="space-y-4">
+                {events.map((ev) => (
+                  <div
+                    key={ev.id}
+                    className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+                  >
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="min-w-0">
+                        <h3 className="text-xl font-semibold text-slate-900">
+                          {ev.name}
+                        </h3>
 
-            setShowWizard(false);
-            setActiveEventId(null);
-            await loadEvents();
-          }}
-          onClose={() => {
-            setShowWizard(false);
-            setActiveEventId(null);
-          }}
-        />
-      )}
-    </div>
+                        <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-slate-600">
+                          <span className="inline-flex items-center gap-1.5">
+                            <CalendarDays size={16} />
+                            {ev.schedules.length > 0
+                              ? ev.schedules.map(formatSchedule).join(' • ')
+                              : 'No schedules yet'}
+                          </span>
+
+                          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-700">
+                            {ev.seasonCount} season{ev.seasonCount === 1 ? '' : 's'}
+                          </span>
+                        </div>
+
+                        <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                          {ev.activeSeason ? (
+                            <>
+                              <p className="text-sm font-semibold text-slate-900">
+                                Active Season
+                              </p>
+                              <p className="mt-1 text-sm text-slate-700">
+                                {ev.activeSeason.name}
+                              </p>
+                              <p className="mt-1 text-xs text-slate-500">
+                                {formatDate(ev.activeSeason.startsAt)} -{' '}
+                                {formatDate(ev.activeSeason.endsAt)}
+                              </p>
+                              <p className="mt-1 text-xs text-slate-500">
+                                {ev.activeSeason.gameCount} game
+                                {ev.activeSeason.gameCount === 1 ? '' : 's'}
+                              </p>
+                            </>
+                          ) : (
+                            <>
+                              <p className="text-sm font-semibold text-slate-900">
+                                No Active Season
+                              </p>
+                              <p className="mt-1 text-xs text-slate-500">
+                                Open this event to create or activate a season.
+                              </p>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap gap-3">
+                        <Link
+                          href={`/admin/events/${ev.id}`}
+                          className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+                        >
+                          <PlayCircle size={16} />
+                          Open Event
+                        </Link>
+
+                        {ev.activeSeason ? (
+                          <Link
+                            href={`/admin/seasons/${ev.activeSeason.id}`}
+                            className="inline-flex items-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                          >
+                            View Active Season
+                          </Link>
+                        ) : null}
+
+                        <button
+                          className="inline-flex items-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                          onClick={() => {
+                            setActiveEventId(ev.id);
+                            setShowWizard(true);
+                          }}
+                        >
+                          Add Schedule
+                        </button>
+
+                        <button
+                          className="inline-flex items-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                          onClick={() => startEdit(ev)}
+                        >
+                          Edit
+                        </button>
+
+                        <button
+                          className="inline-flex items-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                          onClick={() => deleteEvent(ev.id)}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {edit ? (
+            <FormCard
+              title="Edit Event"
+              description="Update the event name for this recurring series."
+              name={nameIn}
+              setName={setNameIn}
+              onPrimary={saveEdit}
+              primaryLabel="Save Changes"
+              loading={uiLoading}
+              onCancel={cancel}
+              scheduleFields={false}
+            />
+          ) : (
+            <FormCard
+              title="Add Weekly Event"
+              description="Create a new recurring event series for this site."
+              name={nameIn}
+              setName={setNameIn}
+              onPrimary={addEvent}
+              primaryLabel="Add Event"
+              loading={uiLoading}
+              onCancel={() => setNameIn('')}
+              scheduleFields={true}
+              dowIn={dowIn}
+              setDowIn={setDowIn}
+              timeIn={timeIn}
+              setTimeIn={setTimeIn}
+            />
+          )}
+
+          {showWizard && activeEventId && (
+            <ScheduleWizard
+              onSave={async (payload) => {
+                const res = await fetch(`/api/admin/events/${activeEventId}/schedules`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(payload),
+                });
+
+                if (!res.ok) {
+                  const data = (await res.json()) as { error?: string };
+                  window.alert(data.error ?? 'Failed to add schedule.');
+                  return;
+                }
+
+                setShowWizard(false);
+                setActiveEventId(null);
+                await loadEvents();
+              }}
+              onClose={() => {
+                setShowWizard(false);
+                setActiveEventId(null);
+              }}
+            />
+          )}
+        </div>
+      </div>
+    </AppBackground>
   );
 }
 
 /* ——— Re-usable Card ——— */
 function FormCard(props: {
   title: string;
+  description?: string;
   name: string;
   setName: (v: string) => void;
   onPrimary: () => void;
@@ -383,25 +439,34 @@ function FormCard(props: {
   setTimeIn?: (t: string) => void;
 }) {
   return (
-    <section className="mb-6 rounded-xl bg-white p-6 shadow">
-      <h2 className="mb-4 text-xl font-semibold">{props.title}</h2>
+    <section className="rounded-3xl border border-white/10 bg-white/80 p-6 shadow-xl backdrop-blur-sm">
+      <div className="mb-5">
+        <h2 className="text-xl font-semibold text-slate-900">{props.title}</h2>
+        {props.description ? (
+          <p className="mt-1 text-sm text-slate-600">{props.description}</p>
+        ) : null}
+      </div>
 
       <div className="space-y-4">
         <div>
-          <label className="mb-1 block font-medium">Name</label>
+          <label className="mb-2 block text-sm font-medium text-slate-700">
+            Name
+          </label>
           <input
-            className="w-full rounded border border-gray-300 p-2"
+            className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
             value={props.name}
             onChange={(e) => props.setName(e.target.value)}
           />
         </div>
 
-        {props.scheduleFields && (
+        {props.scheduleFields ? (
           <>
             <div>
-              <label className="mb-1 block font-medium">Weekday</label>
+              <label className="mb-2 block text-sm font-medium text-slate-700">
+                Weekday
+              </label>
               <select
-                className="w-full rounded border p-2"
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={props.dowIn}
                 onChange={(e) => props.setDowIn?.(parseInt(e.target.value, 10))}
               >
@@ -414,24 +479,26 @@ function FormCard(props: {
             </div>
 
             <div>
-              <label className="mb-1 block font-medium">Start Time (UTC)</label>
+              <label className="mb-2 block text-sm font-medium text-slate-700">
+                Start Time (UTC)
+              </label>
               <input
                 type="time"
-                className="w-full rounded border p-2"
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={props.timeIn}
                 onChange={(e) => props.setTimeIn?.(e.target.value)}
               />
             </div>
           </>
-        )}
+        ) : null}
       </div>
 
-      <div className="mt-4 flex space-x-4">
+      <div className="mt-5 flex flex-wrap gap-3">
         <button
           type="button"
           onClick={props.onPrimary}
           disabled={props.loading}
-          className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600 disabled:opacity-50"
+          className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {props.primaryLabel}
         </button>
@@ -440,11 +507,28 @@ function FormCard(props: {
           type="button"
           onClick={props.onCancel}
           disabled={props.loading}
-          className="rounded bg-gray-500 px-4 py-2 text-white hover:bg-gray-600"
+          className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
           Cancel
         </button>
       </div>
     </section>
+  );
+}
+
+function EmptyState({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 px-6 py-10 text-center">
+      <div className="text-lg font-semibold text-slate-900">{title}</div>
+      <p className="mx-auto mt-2 max-w-xl text-sm text-slate-600">
+        {description}
+      </p>
+    </div>
   );
 }

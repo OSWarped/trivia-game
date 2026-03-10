@@ -35,7 +35,7 @@ type PendingAction =
 
 function getCardAccentClasses(team: HostTeamStatus): string {
   if (team.transferMode === 'LOCKED') {
-    return 'border-red-200 bg-red-50/60';
+    return 'border-rose-200 bg-rose-50/60';
   }
 
   if (team.transferMode === 'HOST_APPROVAL') {
@@ -44,7 +44,7 @@ function getCardAccentClasses(team: HostTeamStatus): string {
 
   switch (team.connectionState) {
     case 'ACTIVE':
-      return 'border-green-200 bg-white';
+      return 'border-emerald-200 bg-white';
     case 'RECONNECTING':
       return 'border-amber-200 bg-amber-50/40';
     case 'OFFLINE':
@@ -58,14 +58,14 @@ function getCardAccentClasses(team: HostTeamStatus): string {
 
 function getScorePillClasses(team: HostTeamStatus): string {
   if (team.transferMode === 'LOCKED') {
-    return 'bg-red-100 text-red-700';
+    return 'border-rose-200 bg-rose-50 text-rose-700';
   }
 
   if (team.transferMode === 'HOST_APPROVAL') {
-    return 'bg-blue-100 text-blue-700';
+    return 'border-blue-200 bg-blue-50 text-blue-700';
   }
 
-  return 'bg-blue-50 text-blue-700';
+  return 'border-slate-200 bg-slate-50 text-slate-700';
 }
 
 export default function TeamSidebarCard({
@@ -254,7 +254,7 @@ export default function TeamSidebarCard({
           team
         )}`}
       >
-        <div className="flex h-full flex-col gap-3">
+        <div className="flex h-full flex-col gap-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <div className="line-clamp-2 break-words text-[15px] font-semibold leading-5 text-slate-900">
@@ -267,7 +267,7 @@ export default function TeamSidebarCard({
             </div>
 
             <div
-              className={`shrink-0 rounded-full px-3 py-1 text-sm font-semibold ${getScorePillClasses(
+              className={`shrink-0 rounded-full border px-3 py-1 text-sm font-semibold ${getScorePillClasses(
                 team
               )}`}
             >
@@ -276,7 +276,7 @@ export default function TeamSidebarCard({
           </div>
 
           {pinVisible && revealedPin ? (
-            <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-3">
+            <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-3 py-3">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="text-[11px] font-semibold uppercase tracking-wide text-indigo-600">
@@ -289,7 +289,7 @@ export default function TeamSidebarCard({
 
                 <button
                   onClick={() => setPinVisible(false)}
-                  className="rounded-lg px-2 py-1 text-xs font-medium text-indigo-700 transition hover:bg-indigo-100"
+                  className="rounded-xl px-2.5 py-1.5 text-xs font-medium text-indigo-700 transition hover:bg-indigo-100"
                 >
                   Hide
                 </button>
@@ -297,13 +297,13 @@ export default function TeamSidebarCard({
             </div>
           ) : null}
 
-          <div className="flex items-center justify-between gap-3 border-t border-black/5 pt-3">
+          <div className="flex items-center justify-between gap-3 border-t border-slate-200/80 pt-3">
             <div>
               {team.hasPendingApproval ? (
                 <button
                   onClick={() => setPendingAction('approveRequest')}
                   disabled={isBusy}
-                  className="rounded-lg border border-green-200 bg-green-50 px-3 py-1.5 text-xs font-semibold text-green-700 transition hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isApproving ? 'Approving...' : 'Approve Request'}
                 </button>
@@ -311,7 +311,7 @@ export default function TeamSidebarCard({
                 <button
                   onClick={() => setPendingAction('unlock')}
                   disabled={isBusy}
-                  className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isUnlocking ? 'Unlocking...' : 'Unlock Team'}
                 </button>
@@ -323,17 +323,17 @@ export default function TeamSidebarCard({
                 type="button"
                 onClick={() => setMenuOpen((prev) => !prev)}
                 disabled={isBusy}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Actions
               </button>
 
               {menuOpen ? (
-                <div className="absolute right-0 top-full z-20 mt-2 w-48 rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+                <div className="absolute right-0 top-full z-20 mt-2 w-52 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl">
                   <button
                     type="button"
                     onClick={() => openAction('resetPin')}
-                    className="w-full rounded-lg px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50"
+                    className="w-full rounded-xl px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50"
                   >
                     Reset PIN
                   </button>
@@ -343,7 +343,7 @@ export default function TeamSidebarCard({
                     <button
                       type="button"
                       onClick={() => openAction('requireApproval')}
-                      className="w-full rounded-lg px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50"
+                      className="w-full rounded-xl px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50"
                     >
                       Require Approval
                     </button>
@@ -353,7 +353,7 @@ export default function TeamSidebarCard({
                     <button
                       type="button"
                       onClick={() => openAction('setNormal')}
-                      className="w-full rounded-lg px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50"
+                      className="w-full rounded-xl px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50"
                     >
                       Set Normal
                     </button>
@@ -363,7 +363,7 @@ export default function TeamSidebarCard({
                     <button
                       type="button"
                       onClick={() => openAction('denyRequest')}
-                      className="w-full rounded-lg px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50"
+                      className="w-full rounded-xl px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50"
                     >
                       Deny Request
                     </button>
@@ -373,7 +373,7 @@ export default function TeamSidebarCard({
                     <button
                       type="button"
                       onClick={() => openAction('bootTeam')}
-                      className="w-full rounded-lg px-3 py-2 text-left text-sm text-amber-700 transition hover:bg-amber-50"
+                      className="w-full rounded-xl px-3 py-2 text-left text-sm text-amber-700 transition hover:bg-amber-50"
                     >
                       Boot Team
                     </button>
@@ -383,7 +383,7 @@ export default function TeamSidebarCard({
                     <button
                       type="button"
                       onClick={() => openAction('revokeLock')}
-                      className="w-full rounded-lg px-3 py-2 text-left text-sm text-red-700 transition hover:bg-red-50"
+                      className="w-full rounded-xl px-3 py-2 text-left text-sm text-rose-700 transition hover:bg-rose-50"
                     >
                       Revoke + Lock
                     </button>

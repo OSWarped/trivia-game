@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import type { AdminTab } from '../types/workspace.types';
 import ToolbarButton from './ui/ToolbarButton';
 
@@ -37,6 +38,7 @@ export default function AdminWorkspaceHeader({
   onAddUser,
   refreshing = false,
 }: AdminWorkspaceHeaderProps) {
+  const router = useRouter();
   const copy = TAB_COPY[activeTab];
 
   return (
@@ -48,13 +50,18 @@ export default function AdminWorkspaceHeader({
           </div>
 
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
-            Quizzam Admin
+            Quizam Admin
           </h1>
 
           <p className="mt-1 text-sm text-slate-600">{copy.subtitle}</p>
         </div>
 
         <div className="flex flex-wrap gap-3">
+          <ToolbarButton
+            label="Host Dashboard"
+            onClick={() => router.push('/dashboard/host')}
+          />
+
           <ToolbarButton
             label="Refresh"
             onClick={onRefresh}

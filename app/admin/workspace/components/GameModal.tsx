@@ -57,20 +57,20 @@ export default function GameModal({
           placeholder="Game title"
           value={gameTitle}
           onChange={(e) => onChangeTitle(e.target.value)}
-          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-slate-400 focus:outline-none"
+          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-slate-400 focus:outline-none text-slate-900 placeholder:text-slate-400"
         />
 
         <input
           type="datetime-local"
           value={gameScheduledFor}
           onChange={(e) => onChangeScheduledFor(e.target.value)}
-          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-slate-400 focus:outline-none"
+          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-slate-400 focus:outline-none text-slate-900 placeholder:text-slate-400"
         />
 
         <select
           value={gameHostId}
           onChange={(e) => onChangeHostId(e.target.value)}
-          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-slate-400 focus:outline-none"
+          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-slate-400 focus:outline-none text-slate-900 placeholder:text-slate-400"
         >
           <option value="">No host assigned</option>
           {users.map((user) => (
@@ -83,7 +83,7 @@ export default function GameModal({
         <select
           value={gameStatus}
           onChange={(e) => onChangeStatus(e.target.value)}
-          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-slate-400 focus:outline-none"
+          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-slate-400 focus:outline-none text-slate-900 placeholder:text-slate-400"
         >
           <option value="DRAFT">DRAFT</option>
           <option value="SCHEDULED">SCHEDULED</option>
@@ -107,7 +107,7 @@ export default function GameModal({
           value={gameTag}
           onChange={(e) => onChangeTag(e.target.value)}
           disabled={!gameSpecial}
-          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-slate-400 focus:outline-none disabled:bg-slate-100"
+          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-slate-400 focus:outline-none disabled:bg-slate-100 text-slate-900 placeholder:text-slate-400"
         />
 
         <div className="flex justify-end gap-3">

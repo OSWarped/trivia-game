@@ -43,13 +43,13 @@ export default function EventModal({
           placeholder="Event name"
           value={eventName}
           onChange={(e) => onChangeName(e.target.value)}
-          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-slate-400 focus:outline-none"
+          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-slate-400 focus:outline-none text-slate-900 placeholder:text-slate-400"
         />
 
         <select
           value={eventSiteId}
           onChange={(e) => onChangeSiteId(e.target.value)}
-          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-slate-400 focus:outline-none"
+          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-slate-400 focus:outline-none text-slate-900 placeholder:text-slate-400"
         >
           <option value="">Select site</option>
           {sites.map((site) => (

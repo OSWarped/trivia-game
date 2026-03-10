@@ -11,6 +11,7 @@ import {
   Trophy,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import AppBackground from '@/components/AppBackground';
 
 interface GamePreview {
   id: string;
@@ -52,17 +53,17 @@ function formatDateTime(date: string | null): string {
 function getStatusBadgeClasses(status: string): string {
   switch (status.toUpperCase()) {
     case 'LIVE':
-      return 'bg-green-100 text-green-700';
+      return 'border-emerald-300 bg-emerald-50 text-emerald-700';
     case 'CLOSED':
-      return 'bg-gray-200 text-gray-700';
+      return 'border-slate-300 bg-slate-100 text-slate-700';
     case 'DRAFT':
-      return 'bg-yellow-100 text-yellow-700';
+      return 'border-amber-300 bg-amber-50 text-amber-700';
     case 'SCHEDULED':
-      return 'bg-blue-100 text-blue-700';
+      return 'border-blue-300 bg-blue-50 text-blue-700';
     case 'CANCELED':
-      return 'bg-red-100 text-red-700';
+      return 'border-rose-300 bg-rose-50 text-rose-700';
     default:
-      return 'bg-gray-100 text-gray-600';
+      return 'border-slate-300 bg-slate-100 text-slate-600';
   }
 }
 
@@ -212,238 +213,293 @@ export default function EventDetailPage() {
 
   if (!authChecked || loading) {
     return (
-      <div className="min-h-screen bg-gray-100 p-6">
-        <div className="rounded-xl bg-white p-6 shadow">Loading event...</div>
-      </div>
+      <AppBackground variant="dashboard">
+        <div className="min-h-screen px-4 py-6 md:px-8 md:py-8">
+          <div className="mx-auto max-w-6xl rounded-2xl border border-white/10 bg-white/80 p-6 shadow-xl backdrop-blur-sm">
+            Loading event...
+          </div>
+        </div>
+      </AppBackground>
     );
   }
 
   if (error || !eventData) {
     return (
-      <div className="min-h-screen bg-gray-100 p-6">
-        <Link
-          href="/admin/sites"
-          className="mb-4 inline-flex items-center text-blue-600 hover:underline"
-        >
-          <ChevronLeft className="mr-1" size={18} />
-          Back to Sites
-        </Link>
+      <AppBackground variant="dashboard">
+        <div className="min-h-screen px-4 py-6 md:px-8 md:py-8">
+          <div className="mx-auto max-w-6xl space-y-4">
+            <Link
+              href="/admin/workspace"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white/80 px-4 py-2 text-sm font-medium text-slate-700 shadow-sm backdrop-blur-sm transition hover:bg-white"
+            >
+              <ChevronLeft size={18} />
+              Back to Admin Workspace
+            </Link>
 
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
-          {error ?? 'Unable to load event.'}
+            <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700 shadow-sm">
+              {error ?? 'Unable to load event.'}
+            </div>
+          </div>
         </div>
-      </div>
+      </AppBackground>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
-      <Link
-        href="/admin/sites"
-        className="mb-4 inline-flex items-center text-blue-600 hover:underline"
-      >
-        <ChevronLeft className="mr-1" size={18} />
-        Back to Sites
-      </Link>
-
-      <div className="mb-6 rounded-xl bg-white p-6 shadow">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    <AppBackground variant="dashboard">
+      <div className="min-h-screen px-4 py-6 md:px-8 md:py-8">
+        <div className="mx-auto max-w-6xl space-y-6">
           <div>
-            <p className="text-sm text-gray-500">Event</p>
-            <h1 className="text-3xl font-bold text-gray-900">{eventData.name}</h1>
-            <p className="mt-1 text-sm text-gray-600">
-              Site: <span className="font-medium">{eventData.site.name}</span>
-            </p>
+            <div>
+              <Link
+                href={`/admin/sites/${eventData.site.id}/events`}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white/80 px-4 py-2 text-sm font-medium text-slate-700 shadow-sm backdrop-blur-sm transition hover:bg-white"
+              >
+                <ChevronLeft size={18} />
+                Back to Events
+              </Link>
+            </div>
           </div>
 
-          <Link
-            href={`/admin/events/${eventId}/seasons/new`}
-            className="inline-flex items-center gap-2 rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
-          >
-            <PlusCircle size={18} />
-            New Season
-          </Link>
-        </div>
-      </div>
+          <header className="rounded-3xl border border-white/10 bg-white/80 px-6 py-6 shadow-xl backdrop-blur-sm">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <div className="mb-1 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                  Event Management
+                </div>
 
-      {activeSeason ? (
-        <section className="mb-8 rounded-xl border border-green-200 bg-green-50 p-6 shadow-sm">
-          <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-green-700">
-                Active Season
-              </p>
-              <h2 className="text-2xl font-bold text-gray-900">{activeSeason.name}</h2>
-              <p className="mt-1 text-sm text-gray-700">
-                {formatDate(activeSeason.startsAt)} - {formatDate(activeSeason.endsAt)}
-              </p>
-              <p className="mt-1 text-sm text-gray-700">
-                {activeSeason.gameCount} game{activeSeason.gameCount === 1 ? '' : 's'}
-              </p>
+                <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
+                  {eventData.name}
+                </h1>
+
+                <p className="mt-2 text-sm text-slate-600">
+                  Site:{' '}
+                  <span className="font-medium text-slate-800">
+                    {eventData.site.name}
+                  </span>
+                </p>
+              </div>
+
+              <Link
+                href={`/admin/events/${eventId}/seasons/new`}
+                className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
+              >
+                <PlusCircle size={18} />
+                New Season
+              </Link>
+            </div>
+          </header>
+
+          {activeSeason ? (
+            <section className="rounded-3xl border border-white/10 bg-white/80 p-6 shadow-xl backdrop-blur-sm">
+              <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <div className="mb-1 text-xs font-semibold uppercase tracking-[0.12em] text-emerald-700">
+                    Active Season
+                  </div>
+                  <h2 className="text-2xl font-semibold text-slate-900">
+                    {activeSeason.name}
+                  </h2>
+                  <p className="mt-2 text-sm text-slate-600">
+                    {formatDate(activeSeason.startsAt)} -{' '}
+                    {formatDate(activeSeason.endsAt)}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    {activeSeason.gameCount} game
+                    {activeSeason.gameCount === 1 ? '' : 's'}
+                  </p>
+                </div>
+
+                <Link
+                  href={`/admin/seasons/${activeSeason.id}`}
+                  className="inline-flex items-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                >
+                  View Season Details
+                </Link>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                <input
+                  type="text"
+                  placeholder="Game title"
+                  className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 md:col-span-2"
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                />
+                <input
+                  type="datetime-local"
+                  className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={scheduledFor}
+                  onChange={(e) => setScheduledFor(e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={() => {
+                    void createGame();
+                  }}
+                  disabled={saving || !newTitle.trim() || !scheduledFor}
+                >
+                  {saving ? 'Creating...' : 'Draft Game'}
+                </button>
+              </div>
+            </section>
+          ) : (
+            <section className="rounded-3xl border border-white/10 bg-white/80 p-6 shadow-xl backdrop-blur-sm">
+              <div className="rounded-2xl border border-dashed border-amber-300 bg-amber-50/80 px-6 py-8">
+                <h2 className="text-xl font-semibold text-slate-900">
+                  No Active Season
+                </h2>
+                <p className="mt-2 text-sm text-slate-700">
+                  Create or activate a season before drafting games for this
+                  event.
+                </p>
+              </div>
+            </section>
+          )}
+
+          <section className="rounded-3xl border border-white/10 bg-white/80 p-6 shadow-xl backdrop-blur-sm">
+            <div className="mb-5 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-sm">
+                <Layers3 size={18} />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">Seasons</h2>
+                <p className="text-sm text-slate-600">
+                  Review season status, highlight recent games, and manage
+                  activation.
+                </p>
+              </div>
             </div>
 
-            <Link
-              href={`/admin/seasons/${activeSeason.id}`}
-              className="inline-flex items-center rounded bg-white px-4 py-2 text-sm font-medium text-gray-900 shadow hover:bg-gray-50"
-            >
-              View Season Details
-            </Link>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-            <input
-              type="text"
-              placeholder="Game title"
-              className="rounded border p-2 md:col-span-2"
-              value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-            />
-            <input
-              type="datetime-local"
-              className="rounded border p-2"
-              value={scheduledFor}
-              onChange={(e) => setScheduledFor(e.target.value)}
-            />
-            <button
-              type="button"
-              className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
-              onClick={() => {
-                void createGame();
-              }}
-              disabled={saving || !newTitle.trim() || !scheduledFor}
-            >
-              {saving ? 'Creating...' : 'Draft Game'}
-            </button>
-          </div>
-        </section>
-      ) : (
-        <section className="mb-8 rounded-xl border border-yellow-200 bg-yellow-50 p-6 shadow-sm">
-          <h2 className="text-xl font-semibold text-gray-900">No Active Season</h2>
-          <p className="mt-2 text-sm text-gray-700">
-            Create or activate a season before drafting games for this event.
-          </p>
-        </section>
-      )}
-
-      <section>
-        <div className="mb-4 flex items-center gap-2">
-          <Layers3 size={20} className="text-gray-600" />
-          <h2 className="text-2xl font-semibold text-gray-900">Seasons</h2>
-        </div>
-
-        {eventData.seasons.length === 0 ? (
-          <div className="rounded-xl bg-white p-6 shadow">
-            <p className="text-gray-600">No seasons yet for this event.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-            {eventData.seasons.map((season) => (
-              <div key={season.id} className="rounded-xl bg-white p-5 shadow">
-                <div className="mb-4 flex items-start justify-between gap-4">
-                  <div>
-                    <Link
-                      href={`/admin/seasons/${season.id}`}
-                      className="text-xl font-semibold text-gray-900 hover:underline"
-                    >
-                      {season.name}
-                    </Link>
-
-                    <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-gray-600">
-                      <span className="inline-flex items-center gap-1">
-                        <CalendarDays size={16} />
-                        {formatDate(season.startsAt)} - {formatDate(season.endsAt)}
-                      </span>
-
-                      <span
-                        className={`rounded-full px-2 py-1 text-xs font-medium ${season.active
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-gray-100 text-gray-700'
-                          }`}
-                      >
-                        {season.active ? 'Active' : 'Closed'}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="text-right text-sm text-gray-600">
-                    <div className="inline-flex items-center gap-1">
-                      <Trophy size={16} />
-                      {season.gameCount} game{season.gameCount === 1 ? '' : 's'}
-                    </div>
-                  </div>
+            {eventData.seasons.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 px-6 py-10 text-center">
+                <div className="text-lg font-semibold text-slate-900">
+                  No seasons yet
                 </div>
-
-                <div className="mb-4">
-                  <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">
-                    Game Highlights
-                  </h3>
-
-                  {season.games.length === 0 ? (
-                    <p className="text-sm text-gray-500">No games in this season yet.</p>
-                  ) : (
-                    <ul className="space-y-2">
-                      {season.games.map((game) => (
-                        <li
-                          key={game.id}
-                          className="flex items-center justify-between rounded border border-gray-200 px-3 py-2"
+                <p className="mx-auto mt-2 max-w-xl text-sm text-slate-600">
+                  Create a season to begin scheduling games for this event.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+                {eventData.seasons.map((season) => (
+                  <div
+                    key={season.id}
+                    className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+                  >
+                    <div className="mb-4 flex items-start justify-between gap-4">
+                      <div>
+                        <Link
+                          href={`/admin/seasons/${season.id}`}
+                          className="text-xl font-semibold text-slate-900 hover:underline"
                         >
-                          <div className="min-w-0">
-                            <p className="truncate font-medium text-gray-900">
-                              {game.title}
-                            </p>
-                            <p className="text-sm text-gray-500">
-                              {formatDateTime(game.scheduledFor)}
-                            </p>
-                          </div>
+                          {season.name}
+                        </Link>
+
+                        <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-slate-600">
+                          <span className="inline-flex items-center gap-1.5">
+                            <CalendarDays size={16} />
+                            {formatDate(season.startsAt)} -{' '}
+                            {formatDate(season.endsAt)}
+                          </span>
 
                           <span
-                            className={`ml-3 rounded-full px-2 py-1 text-xs font-medium uppercase tracking-wide ${getStatusBadgeClasses(
-                              game.status
-                            )}`}
+                            className={`rounded-full border px-2.5 py-1 text-xs font-medium ${season.active
+                                ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                                : 'border-slate-300 bg-slate-100 text-slate-700'
+                              }`}
                           >
-                            {game.status}
+                            {season.active ? 'Active' : 'Closed'}
                           </span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
+                        </div>
+                      </div>
 
-                <div className="flex items-center justify-between">
-                  <label className="flex items-center gap-2 text-sm text-gray-700">
-                    <input
-                      type="checkbox"
-                      checked={season.active}
-                      onChange={() => {
-                        void toggleActive(season.id, !season.active);
-                      }}
-                    />
-                    Active
-                  </label>
+                      <div className="text-right text-sm text-slate-600">
+                        <div className="inline-flex items-center gap-1.5">
+                          <Trophy size={16} />
+                          {season.gameCount} game
+                          {season.gameCount === 1 ? '' : 's'}
+                        </div>
+                      </div>
+                    </div>
 
-                  <div className="flex gap-3">
-                    <Link
-                      href={`/admin/seasons/${season.id}`}
-                      className="text-sm font-medium text-blue-600 hover:underline"
-                    >
-                      View Details
-                    </Link>
-                    <button
-                      type="button"
-                      className="text-sm font-medium text-red-600 hover:underline"
-                      onClick={() => {
-                        void deleteSeason(season.id);
-                      }}
-                    >
-                      Delete
-                    </button>
+                    <div className="mb-5">
+                      <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">
+                        Game Highlights
+                      </h3>
+
+                      {season.games.length === 0 ? (
+                        <p className="text-sm text-slate-500">
+                          No games in this season yet.
+                        </p>
+                      ) : (
+                        <ul className="space-y-2">
+                          {season.games.map((game) => (
+                            <li
+                              key={game.id}
+                              className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-3"
+                            >
+                              <div className="min-w-0">
+                                <p className="truncate font-medium text-slate-900">
+                                  {game.title}
+                                </p>
+                                <p className="text-sm text-slate-500">
+                                  {formatDateTime(game.scheduledFor)}
+                                </p>
+                              </div>
+
+                              <span
+                                className={`ml-3 rounded-full border px-2.5 py-1 text-xs font-medium uppercase tracking-wide ${getStatusBadgeClasses(
+                                  game.status
+                                )}`}
+                              >
+                                {game.status}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={season.active}
+                          onChange={() => {
+                            void toggleActive(season.id, !season.active);
+                          }}
+                          className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-400"
+                        />
+                        Active
+                      </label>
+
+                      <div className="flex flex-wrap gap-3">
+                        <Link
+                          href={`/admin/seasons/${season.id}`}
+                          className="inline-flex items-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                        >
+                          View Details
+                        </Link>
+                        <button
+                          type="button"
+                          className="inline-flex items-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                          onClick={() => {
+                            void deleteSeason(season.id);
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
-      </section>
-    </div>
+            )}
+          </section>
+        </div>
+      </div>
+    </AppBackground>
   );
 }

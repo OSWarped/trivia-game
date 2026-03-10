@@ -7,6 +7,8 @@ import type {
   GameRow,
   GameDetail,
   UserRow,
+  EventDetail,
+  SeasonDetail,
   ModalType,
 } from '../types/workspace.types';
 import {
@@ -36,10 +38,24 @@ interface UseAdminWorkspaceDataArgs {
   gameSpecial: boolean;
   gameTag: string;
 
+  eventName: string;
+  eventSiteId: string;
+
+  seasonName: string;
+  seasonStartsAt: string;
+  seasonEndsAt: string;
+  seasonActive: boolean;
+  seasonEventId: string;
+
   setSites: React.Dispatch<React.SetStateAction<SiteRow[]>>;
   setGames: React.Dispatch<React.SetStateAction<GameRow[]>>;
   setUsers: React.Dispatch<React.SetStateAction<UserRow[]>>;
+
   setSelectedGameDetail: React.Dispatch<React.SetStateAction<GameDetail | null>>;
+  setSelectedEventDetail: React.Dispatch<React.SetStateAction<EventDetail | null>>;
+  setSelectedSeasonDetail: React.Dispatch<
+    React.SetStateAction<SeasonDetail | null>
+  >;
 
   setSiteName: React.Dispatch<React.SetStateAction<string>>;
   setSiteAddress: React.Dispatch<React.SetStateAction<string>>;
@@ -55,6 +71,17 @@ interface UseAdminWorkspaceDataArgs {
   setGameStatus: React.Dispatch<React.SetStateAction<string>>;
   setGameSpecial: React.Dispatch<React.SetStateAction<boolean>>;
   setGameTag: React.Dispatch<React.SetStateAction<string>>;
+
+  setEventName: React.Dispatch<React.SetStateAction<string>>;
+  setEventSiteId: React.Dispatch<React.SetStateAction<string>>;
+  setEventSiteName: React.Dispatch<React.SetStateAction<string>>;
+
+  setSeasonName: React.Dispatch<React.SetStateAction<string>>;
+  setSeasonStartsAt: React.Dispatch<React.SetStateAction<string>>;
+  setSeasonEndsAt: React.Dispatch<React.SetStateAction<string>>;
+  setSeasonActive: React.Dispatch<React.SetStateAction<boolean>>;
+  setSeasonEventId: React.Dispatch<React.SetStateAction<string>>;
+  setSeasonEventName: React.Dispatch<React.SetStateAction<string>>;
 
   setSelectedSite: React.Dispatch<React.SetStateAction<SiteRow | null>>;
   setSelectedGame: React.Dispatch<React.SetStateAction<GameRow | null>>;
@@ -82,10 +109,22 @@ export function useAdminWorkspaceData({
   gameSpecial,
   gameTag,
 
+  eventName,
+  eventSiteId,
+
+  seasonName,
+  seasonStartsAt,
+  seasonEndsAt,
+  seasonActive,
+  seasonEventId,
+
   setSites,
   setGames,
   setUsers,
+
   setSelectedGameDetail,
+  setSelectedEventDetail,
+  setSelectedSeasonDetail,
 
   setSiteName,
   setSiteAddress,
@@ -101,6 +140,17 @@ export function useAdminWorkspaceData({
   setGameStatus,
   setGameSpecial,
   setGameTag,
+
+  setEventName,
+  setEventSiteId,
+  setEventSiteName,
+
+  setSeasonName,
+  setSeasonStartsAt,
+  setSeasonEndsAt,
+  setSeasonActive,
+  setSeasonEventId,
+  setSeasonEventName,
 
   setSelectedSite,
   setSelectedGame,
@@ -154,34 +204,6 @@ export function useAdminWorkspaceData({
     }
   }, [setSites, setGames, setUsers]);
 
-  const resetSiteForm = useCallback(() => {
-    setSiteName('');
-    setSiteAddress('');
-  }, [setSiteName, setSiteAddress]);
-
-  const resetUserForm = useCallback(() => {
-    setUserName('');
-    setUserEmail('');
-    setUserRole('HOST');
-    setUserPassword('');
-  }, [setUserName, setUserEmail, setUserRole, setUserPassword]);
-
-  const resetGameForm = useCallback(() => {
-    setGameTitle('');
-    setGameScheduledFor('');
-    setGameHostId('');
-    setGameStatus('DRAFT');
-    setGameSpecial(false);
-    setGameTag('');
-  }, [
-    setGameTitle,
-    setGameScheduledFor,
-    setGameHostId,
-    setGameStatus,
-    setGameSpecial,
-    setGameTag,
-  ]);
-
   const openEditGameModal = useCallback(
     async (game: GameRow) => {
       try {
@@ -222,6 +244,84 @@ export function useAdminWorkspaceData({
       setGameStatus,
       setGameSpecial,
       setGameTag,
+    ]
+  );
+
+  const openEditEventModal = useCallback(
+    async (eventId: string) => {
+      try {
+        setSaving(true);
+
+        const res = await fetch(`/api/admin/events/${eventId}`, {
+          cache: 'no-store',
+        });
+
+        if (!res.ok) {
+          const data = (await res.json()) as { error?: string };
+          throw new Error(data.error ?? 'Failed to load event details.');
+        }
+
+        const detail = (await res.json()) as EventDetail;
+
+        setSelectedEventDetail(detail);
+        setEventName(detail.name);
+        setEventSiteId(detail.site.id);
+        setEventSiteName(detail.site.name);
+      } catch (err) {
+        window.alert(
+          err instanceof Error ? err.message : 'Failed to load event.'
+        );
+      } finally {
+        setSaving(false);
+      }
+    },
+    [
+      setSelectedEventDetail,
+      setEventName,
+      setEventSiteId,
+      setEventSiteName,
+    ]
+  );
+
+  const openEditSeasonModal = useCallback(
+    async (seasonId: string) => {
+      try {
+        setSaving(true);
+
+        const res = await fetch(`/api/admin/seasons/${seasonId}`, {
+          cache: 'no-store',
+        });
+
+        if (!res.ok) {
+          const data = (await res.json()) as { error?: string };
+          throw new Error(data.error ?? 'Failed to load season details.');
+        }
+
+        const detail = (await res.json()) as SeasonDetail;
+
+        setSelectedSeasonDetail(detail);
+        setSeasonName(detail.name);
+        setSeasonStartsAt(toDateTimeLocal(detail.startsAt));
+        setSeasonEndsAt(toDateTimeLocal(detail.endsAt));
+        setSeasonActive(detail.active);
+        setSeasonEventId(detail.event.id);
+        setSeasonEventName(detail.event.name);
+      } catch (err) {
+        window.alert(
+          err instanceof Error ? err.message : 'Failed to load season.'
+        );
+      } finally {
+        setSaving(false);
+      }
+    },
+    [
+      setSelectedSeasonDetail,
+      setSeasonName,
+      setSeasonStartsAt,
+      setSeasonEndsAt,
+      setSeasonActive,
+      setSeasonEventId,
+      setSeasonEventName,
     ]
   );
 
@@ -453,6 +553,100 @@ export function useAdminWorkspaceData({
     ]
   );
 
+  const handleSaveEvent = useCallback(
+    async (closeModal: () => void, selectedEventDetail: EventDetail | null) => {
+      if (!selectedEventDetail) return;
+
+      try {
+        setSaving(true);
+
+        if (!eventName.trim()) {
+          window.alert('Event name is required.');
+          return;
+        }
+
+        const res = await fetch(`/api/admin/events/${selectedEventDetail.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: eventName.trim(),
+            siteId: eventSiteId || null,
+          }),
+        });
+
+        if (!res.ok) {
+          const data = (await res.json()) as { error?: string };
+          throw new Error(data.error ?? 'Failed to update event.');
+        }
+
+        closeModal();
+        setSelectedEventDetail(null);
+        await loadWorkspaceData();
+      } catch (err) {
+        window.alert(
+          err instanceof Error ? err.message : 'Failed to save event.'
+        );
+      } finally {
+        setSaving(false);
+      }
+    },
+    [eventName, eventSiteId, setSelectedEventDetail, loadWorkspaceData]
+  );
+
+  const handleSaveSeason = useCallback(
+    async (
+      closeModal: () => void,
+      selectedSeasonDetail: SeasonDetail | null
+    ) => {
+      if (!selectedSeasonDetail) return;
+
+      try {
+        setSaving(true);
+
+        if (!seasonName.trim()) {
+          window.alert('Season name is required.');
+          return;
+        }
+
+        const res = await fetch(`/api/admin/seasons/${selectedSeasonDetail.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: seasonName.trim(),
+            startsAt: seasonStartsAt || null,
+            endsAt: seasonEndsAt || null,
+            active: seasonActive,
+            eventId: seasonEventId || null,
+          }),
+        });
+
+        if (!res.ok) {
+          const data = (await res.json()) as { error?: string };
+          throw new Error(data.error ?? 'Failed to update season.');
+        }
+
+        closeModal();
+        setSelectedSeasonDetail(null);
+        await loadWorkspaceData();
+      } catch (err) {
+        window.alert(
+          err instanceof Error ? err.message : 'Failed to save season.'
+        );
+      } finally {
+        setSaving(false);
+      }
+    },
+    [
+      seasonName,
+      seasonStartsAt,
+      seasonEndsAt,
+      seasonActive,
+      seasonEventId,
+      setSelectedSeasonDetail,
+      loadWorkspaceData,
+    ]
+  );
+
   const handleDeleteGame = useCallback(
     async (game: GameRow) => {
       if (!window.confirm(`Delete ${game.title}?`)) return;
@@ -487,15 +681,16 @@ export function useAdminWorkspaceData({
     saving,
     error,
     loadWorkspaceData,
-    resetSiteForm,
-    resetUserForm,
-    resetGameForm,
     openEditGameModal,
+    openEditEventModal,
+    openEditSeasonModal,
     handleSaveSite,
     handleDeleteSite,
     handleSaveUser,
     handleDeleteUser,
     handleSaveGame,
+    handleSaveEvent,
+    handleSaveSeason,
     handleDeleteGame,
   };
 }

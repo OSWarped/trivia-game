@@ -96,23 +96,54 @@ export async function PUT(
   { params }: { params: Promise<{ eventId: string }> },
 ) {
   const { eventId } = await params;
-  const { name } = await req.json();
+  const body = (await req.json()) as {
+    name?: string;
+    siteId?: string | null;
+  };
 
-  if (!name?.trim()) {
+  const name = body.name?.trim();
+  const siteId = body.siteId?.trim() ?? null;
+
+  if (!name) {
     return NextResponse.json({ error: 'Name required' }, { status: 400 });
   }
 
+  if (!siteId) {
+    return NextResponse.json({ error: 'Site required' }, { status: 400 });
+  }
+
   try {
+    const site = await prisma.site.findUnique({
+      where: { id: siteId },
+      select: { id: true },
+    });
+
+    if (!site) {
+      return NextResponse.json(
+        { error: 'Selected site not found' },
+        { status: 404 }
+      );
+    }
+
     const updated = await prisma.event.update({
       where: { id: eventId },
-      data: { name: name.trim() },
-      include: { schedules: true },
+      data: {
+        name,
+        siteId,
+      },
+      include: {
+        site: true,
+        schedules: true,
+      },
     });
 
     return NextResponse.json(updated);
   } catch (err) {
     console.error('Error updating event:', err);
-    return NextResponse.json({ error: 'Failed to update event' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to update event' },
+      { status: 500 }
+    );
   }
 }
 
@@ -123,6 +154,17 @@ export async function DELETE(
   const { eventId } = await params;
 
   try {
+    const seasonCount = await prisma.season.count({
+      where: { eventId },
+    });
+
+    if (seasonCount > 0) {
+      return NextResponse.json(
+        { error: 'Cannot delete an event that still has seasons' },
+        { status: 400 }
+      );
+    }
+
     await prisma.event.delete({
       where: { id: eventId },
     });

@@ -203,9 +203,35 @@ export default function CommandCenterClient({ gameId }: Props): JSX.Element {
             <button
               type="button"
               onClick={async () => {
-                await fetch(`/api/host/games/${gameId}/start`, { method: 'PATCH' });
-                socket?.emit('host:gameStarted', { gameId });
-                router.push(`/dashboard/host/${gameId}/play`);
+                try {
+                  const startRes = await fetch(`/api/host/games/${gameId}/start`, {
+                    method: 'PATCH',
+                  });
+
+                  if (!startRes.ok) {
+                    throw new Error('Failed to start game');
+                  }
+
+                  const displayModeRes = await fetch(
+                    `/api/host/games/${gameId}/display-mode`,
+                    {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ displayMode: 'QUESTION' }),
+                    }
+                  );
+
+                  if (!displayModeRes.ok) {
+                    throw new Error('Failed to set display mode to QUESTION');
+                  }
+
+                  socket?.emit('host:gameStarted', { gameId });
+                  socket?.emit('host:showQuestion', { gameId });
+
+                  router.push(`/dashboard/host/${gameId}/play`);
+                } catch (error) {
+                  console.error('Failed to start game flow', error);
+                }
               }}
               className="rounded bg-blue-600 px-6 py-3 text-white hover:bg-blue-700"
             >

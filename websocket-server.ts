@@ -257,17 +257,24 @@ function removePresence(gameId: string, teamId: string) {
 }
 
 function emitSnapshotToSocket(socket: Socket, gameId: string) {
-  const teams = Array.from(activeTeamsByGame.get(gameId)?.values() || []).map(
-    ({ id, name, status, lastSeenAt }) => ({
+  const snapshotTeams = Array.from(activeTeamsByGame.get(gameId)?.values() || []);
+
+  const hostTeams = snapshotTeams.map(({ id, name, status, lastSeenAt }) => ({
+    id,
+    name,
+    status,
+    lastSeenAt,
+  }));
+
+  const liveLobbyTeams = snapshotTeams
+    .filter((team) => team.status === 'ACTIVE' || team.status === 'RECONNECTING')
+    .map(({ id, name }) => ({
       id,
       name,
-      status,
-      lastSeenAt,
-    })
-  );
+    }));
 
-  socket.emit('team:liveTeams', { gameId, teams });
-  socket.emit('host:liveTeams', { gameId, teams });
+  socket.emit('team:liveTeams', { gameId, teams: liveLobbyTeams });
+  socket.emit('host:liveTeams', { gameId, teams: hostTeams });
 }
 
 function normalizeString(value: unknown): string {

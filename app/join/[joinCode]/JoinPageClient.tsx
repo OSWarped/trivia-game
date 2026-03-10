@@ -2,10 +2,22 @@
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import AppBackground from '@/components/AppBackground';
+
+type SuggestionSource = 'CURRENT_GAME' | 'KNOWN_SITE';
+type SessionControlMode = 'NORMAL' | 'HOST_APPROVAL' | 'LOCKED';
 
 interface JoinableTeam {
   id: string;
   name: string;
+  normalizedKey: string;
+  source: SuggestionSource;
+  inCurrentGame: boolean;
+  pinProtected: boolean;
+  siteAppearanceCount: number;
+  lastPlayedAtSite: string | null;
+  currentGameTeamGameId: string | null;
+  sessionControlMode: SessionControlMode | null;
 }
 
 interface JoinGamePayload {
@@ -51,7 +63,7 @@ interface StoredTeamSession {
   sessionToken: string;
   deviceId: string;
   lastKnownStatus: string;
-  lastKnownScreen: 'lobby' | 'play';
+  lastKnownScreen: 'lobby' | 'play' | 'answer-reveal' | 'leaderboard';
   joinedAt: string;
   lastSeenAt: string;
 }
@@ -64,6 +76,10 @@ interface StoredDeviceIdentity {
 const STORAGE_PREFIX = 'trivia';
 const JOINABLE_STATUSES = new Set(['SCHEDULED', 'LIVE']);
 
+function normalizeTeamNameForCompare(value: string): string {
+  return value.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
 function formatScheduledFor(value: string | null): string {
   if (!value) return 'TBD';
 
@@ -71,6 +87,15 @@ function formatScheduledFor(value: string | null): string {
   if (Number.isNaN(date.getTime())) return 'TBD';
 
   return date.toLocaleString();
+}
+
+function formatLastPlayed(value: string | null): string | null {
+  if (!value) return null;
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  return date.toLocaleDateString();
 }
 
 function getStoredDeviceIdentity(): StoredDeviceIdentity | null {
@@ -208,7 +233,6 @@ function persistSession(
   localStorage.setItem(`${STORAGE_PREFIX}:${gameId}:gameId`, gameId);
   localStorage.setItem(`${STORAGE_PREFIX}:${gameId}:joinCode`, joinCode);
 
-  // Legacy compatibility while other pages are still being updated.
   localStorage.setItem('teamId', storedSession.teamId);
   localStorage.setItem('teamName', storedSession.teamName);
   localStorage.setItem('gameId', gameId);
@@ -222,11 +246,56 @@ function persistSession(
   );
 }
 
+function getSuggestionBadges(team: JoinableTeam): string[] {
+  const badges: string[] = [];
+
+  if (team.inCurrentGame) {
+    badges.push('In this game');
+  } else if (team.source === 'KNOWN_SITE') {
+    badges.push('Known at this site');
+  }
+
+  if (team.pinProtected) {
+    badges.push('PIN');
+  }
+
+  if (team.sessionControlMode === 'HOST_APPROVAL') {
+    badges.push('Approval');
+  }
+
+  if (team.sessionControlMode === 'LOCKED') {
+    badges.push('Locked');
+  }
+
+  return badges;
+}
+
+function getSubmitErrorMessage(data: SessionApiResponse): string {
+  switch (data.code) {
+    case 'HOST_APPROVAL_REQUIRED':
+      return (
+        data.error || 'This team requires host approval before joining.'
+      );
+    case 'TEAM_LOCKED':
+      return (
+        data.error || 'This team has been locked by the host for this game.'
+      );
+    case 'DEVICE_ALREADY_JOINED':
+      return (
+        data.error ||
+        'This device is already joined to another team for this game. Resume that team instead of switching now.'
+      );
+    default:
+      return data.error || 'Failed to join game.';
+  }
+}
+
 export default function JoinPageClient({ joinCode }: { joinCode: string }) {
   const router = useRouter();
 
   const [game, setGame] = useState<JoinGamePayload | null>(null);
   const [teamQuery, setTeamQuery] = useState('');
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const [pin, setPin] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
 
@@ -346,13 +415,8 @@ export default function JoinPageClient({ joinCode }: { joinCode: string }) {
                 clearStoredGameSession(normalizedGame.id);
               }
 
-              if (!cancelled && resumeData.code === 'TEAM_LOCKED') {
-                setSubmitError(
-                  resumeData.error ||
-                  'Your team has been locked by the host for this game.'
-                );
-              } else if (!cancelled && resumeData.error) {
-                setSubmitError(resumeData.error);
+              if (!cancelled && resumeData.error) {
+                setSubmitError(getSubmitErrorMessage(resumeData));
               }
             } catch {
               if (!cancelled) {
@@ -395,32 +459,51 @@ export default function JoinPageClient({ joinCode }: { joinCode: string }) {
     };
   }, [joinCode, router]);
 
+  const normalizedQuery = useMemo(
+    () => normalizeTeamNameForCompare(teamQuery),
+    [teamQuery]
+  );
+
+  const selectedTeam = useMemo(() => {
+    if (!game || !selectedTeamId) return null;
+    return game.teams.find((team) => team.id === selectedTeamId) ?? null;
+  }, [game, selectedTeamId]);
+
+  const exactNormalizedMatch = useMemo(() => {
+    if (!game || !normalizedQuery) return null;
+
+    return (
+      game.teams.find((team) => team.normalizedKey === normalizedQuery) ?? null
+    );
+  }, [game, normalizedQuery]);
+
+  const hintedTeam = selectedTeam ?? exactNormalizedMatch ?? null;
+
   const filteredTeams = useMemo(() => {
     if (!game) return [];
 
-    const query = teamQuery.trim().toLowerCase();
-
-    if (!query) {
-      return game.teams;
+    if (!normalizedQuery) {
+      return game.teams.slice(0, 8);
     }
 
-    return game.teams.filter((team) =>
-      team.name.toLowerCase().includes(query)
-    );
-  }, [game, teamQuery]);
+    return game.teams
+      .filter((team) => {
+        const normalizedName = normalizeTeamNameForCompare(team.name);
+        return (
+          normalizedName.includes(normalizedQuery) ||
+          team.normalizedKey.includes(normalizedQuery)
+        );
+      })
+      .slice(0, 8);
+  }, [game, normalizedQuery]);
 
-  const matchedTeam = useMemo(() => {
-    if (!game) return null;
+  useEffect(() => {
+    if (!selectedTeam) return;
 
-    const normalizedQuery = teamQuery.trim().toLowerCase();
-    if (!normalizedQuery) return null;
-
-    return (
-      game.teams.find(
-        (team) => team.name.trim().toLowerCase() === normalizedQuery
-      ) ?? null
-    );
-  }, [game, teamQuery]);
+    if (selectedTeam.normalizedKey !== normalizedQuery) {
+      setSelectedTeamId(null);
+    }
+  }, [selectedTeam, normalizedQuery]);
 
   const trimmedTeamName = teamQuery.trim();
   const trimmedPin = pin.trim();
@@ -454,6 +537,7 @@ export default function JoinPageClient({ joinCode }: { joinCode: string }) {
 
     try {
       const storedDevice = getStoredDeviceIdentity();
+      const resolvedTeamId = selectedTeamId ?? exactNormalizedMatch?.id ?? null;
 
       const res = await fetch(`/api/games/${game.id}/join`, {
         method: 'POST',
@@ -462,26 +546,33 @@ export default function JoinPageClient({ joinCode }: { joinCode: string }) {
         },
         body: JSON.stringify({
           joinCode,
-          teamId: matchedTeam?.id ?? null,
+          teamId: resolvedTeamId,
           teamName: trimmedTeamName,
           pin: trimmedPin || null,
           deviceId: storedDevice?.deviceId ?? null,
         }),
       });
 
-      const data = (await res.json()) as SessionApiResponse;
+      const raw = await res.text();
+
+      let data: SessionApiResponse = {};
+      try {
+        data = raw ? (JSON.parse(raw) as SessionApiResponse) : {};
+      } catch {
+        setSubmitError(
+          `Join request failed (${res.status}). The server did not return valid JSON.`
+        );
+        return;
+      }
 
       if (!res.ok) {
         if (data.code === 'HOST_APPROVAL_REQUIRED') {
           setApprovalPending(true);
-          setApprovalMessage(
-            data.error ||
-            'This team requires host approval before joining.'
-          );
+          setApprovalMessage(getSubmitErrorMessage(data));
           return;
         }
 
-        setSubmitError(data.error || 'Failed to join game.');
+        setSubmitError(getSubmitErrorMessage(data));
         return;
       }
 
@@ -530,70 +621,85 @@ export default function JoinPageClient({ joinCode }: { joinCode: string }) {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-md p-6">
-        <div className="rounded-lg border bg-white p-6 shadow-sm">
-          <p className="text-sm text-gray-600">
+      <AppBackground variant="hero" className="flex min-h-screen items-center justify-center px-6 py-12">
+        <div className="w-full max-w-md rounded-3xl border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur-sm">
+          <p className="text-sm text-slate-200">
             {isAttemptingResume
               ? 'Restoring your team session...'
               : 'Loading game info...'}
           </p>
         </div>
-      </div>
+      </AppBackground>
     );
   }
 
   if (loadError || !game) {
     return (
-      <div className="mx-auto max-w-md p-6">
-        <div className="rounded-lg border bg-white p-6 shadow-sm">
-          <h1 className="mb-2 text-xl font-bold">Unable to join game</h1>
-          <p className="text-sm text-red-600">
+      <AppBackground variant="hero" className="flex min-h-screen items-center justify-center px-6 py-12">
+        <div className="w-full max-w-md rounded-3xl border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur-sm">
+          <h1 className="mb-2 text-2xl font-semibold text-white">
+            Unable to join game
+          </h1>
+          <p className="text-sm text-red-200">
             {loadError || 'Game not found.'}
           </p>
         </div>
-      </div>
+      </AppBackground>
     );
   }
 
   return (
-    <div className="mx-auto max-w-md p-6">
-      <div className="rounded-lg border bg-white p-6 shadow-sm">
-        <h1 className="mb-4 text-2xl font-bold">Join {game.title}</h1>
+    <AppBackground variant="hero" className="flex min-h-screen items-center justify-center px-6 py-12">
+      <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur-sm sm:p-8">
+        <div className="mb-6">
+          <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-300">
+            Team Join
+          </div>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">
+            Join {game.title}
+          </h1>
+        </div>
 
-        <div className="mb-4 space-y-2 text-sm text-gray-600">
+        <div className="mb-6 space-y-3 rounded-2xl border border-white/10 bg-slate-900/40 p-4 text-sm text-slate-200">
           <p>
-            <strong>Status:</strong> {game.status}
+            <span className="font-semibold text-white">Status:</span> {game.status}
           </p>
           <p>
-            <strong>Location:</strong> {game.site?.name ?? 'Unknown'}
+            <span className="font-semibold text-white">Location:</span>{' '}
+            {game.site?.name ?? 'Unknown'}
           </p>
           <p>
-            <strong>Scheduled:</strong> {formatScheduledFor(game.scheduledFor)}
+            <span className="font-semibold text-white">Scheduled:</span>{' '}
+            {formatScheduledFor(game.scheduledFor)}
           </p>
           {game.site?.address ? (
             <p>
-              <strong>Address:</strong> {game.site.address}
+              <span className="font-semibold text-white">Address:</span>{' '}
+              {game.site.address}
             </p>
           ) : null}
         </div>
 
         {isScheduled ? (
-          <div className="mb-4 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+          <div className="mb-4 rounded-2xl border border-blue-300/30 bg-blue-500/10 p-3 text-sm text-blue-100">
             This game has not started yet. Join now and wait in the lobby for
             the host to begin.
           </div>
         ) : null}
 
         {isClosed ? (
-          <div className="rounded-md border border-yellow-300 bg-yellow-50 p-3 text-sm text-yellow-800">
+          <div className="rounded-2xl border border-amber-300/30 bg-amber-500/10 p-3 text-sm text-amber-100">
             This game is not currently accepting team joins.
           </div>
         ) : null}
 
         {!isClosed ? (
-          <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+          <form onSubmit={handleSubmit} className="mt-4 space-y-5">
             <div className="relative">
-              <label htmlFor="teamName" className="mb-1 block font-medium">
+              <label
+                htmlFor="teamName"
+                className="mb-2 block text-sm font-medium text-slate-200"
+              >
                 Team Name
               </label>
               <input
@@ -612,35 +718,110 @@ export default function JoinPageClient({ joinCode }: { joinCode: string }) {
                 onBlur={() => {
                   window.setTimeout(() => setShowSuggestions(false), 150);
                 }}
-                placeholder="Enter your team name"
-                className="w-full rounded border p-2"
+                placeholder="Choose an existing team or enter a new name"
+                className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-400/30"
                 required
               />
 
               {showSuggestions && filteredTeams.length > 0 ? (
-                <ul className="absolute z-10 mt-1 max-h-48 w-full overflow-y-auto rounded border bg-white shadow">
-                  {filteredTeams.slice(0, 8).map((team) => (
-                    <li
-                      key={team.id}
-                      className="cursor-pointer px-3 py-2 hover:bg-blue-100"
-                      onMouseDown={() => {
-                        setTeamQuery(team.name);
-                        setShowSuggestions(false);
-                        setSubmitError('');
-                        setApprovalPending(false);
-                        setApprovalMessage('');
-                      }}
-                    >
-                      {team.name}
-                    </li>
-                  ))}
+                <ul className="absolute z-10 mt-2 max-h-64 w-full overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 shadow-xl">
+                  {filteredTeams.map((team) => {
+                    const isSelected = selectedTeamId === team.id;
+                    const badges = getSuggestionBadges(team);
+                    const lastPlayed = formatLastPlayed(team.lastPlayedAtSite);
+
+                    return (
+                      <li
+                        key={team.id}
+                        className={`cursor-pointer px-4 py-3 text-sm text-slate-100 transition hover:bg-slate-800 ${isSelected ? 'bg-slate-800/80' : ''
+                          }`}
+                        onMouseDown={() => {
+                          setTeamQuery(team.name);
+                          setSelectedTeamId(team.id);
+                          setShowSuggestions(false);
+                          setSubmitError('');
+                          setApprovalPending(false);
+                          setApprovalMessage('');
+                        }}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="truncate font-medium text-white">
+                              {team.name}
+                            </div>
+
+                            <div className="mt-1 text-xs text-slate-400">
+                              {team.siteAppearanceCount > 1
+                                ? `Used ${team.siteAppearanceCount} times at this site`
+                                : team.source === 'KNOWN_SITE'
+                                  ? 'Previously used at this site'
+                                  : 'Already in this game'}
+                              {lastPlayed ? ` • Last played ${lastPlayed}` : ''}
+                            </div>
+                          </div>
+
+                          {badges.length > 0 ? (
+                            <div className="flex flex-wrap justify-end gap-1">
+                              {badges.map((badge) => (
+                                <span
+                                  key={`${team.id}-${badge}`}
+                                  className="rounded-full border border-white/10 bg-white/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-200"
+                                >
+                                  {badge}
+                                </span>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
+              ) : null}
+
+              {selectedTeam ? (
+                <p className="mt-2 text-sm text-emerald-200">
+                  Selected existing team:{' '}
+                  <span className="font-semibold">{selectedTeam.name}</span>
+                </p>
+              ) : exactNormalizedMatch ? (
+                <p className="mt-2 text-sm text-slate-300">
+                  Exact match found:{' '}
+                  <span className="font-semibold text-white">
+                    {exactNormalizedMatch.name}
+                  </span>
+                </p>
+              ) : trimmedTeamName ? (
+                <p className="mt-2 text-sm text-slate-400">
+                  No exact team match found. A new team may be created.
+                </p>
+              ) : null}
+
+              {hintedTeam?.sessionControlMode === 'LOCKED' ? (
+                <p className="mt-2 text-sm text-amber-200">
+                  This team is currently locked by the host for this game.
+                </p>
+              ) : null}
+
+              {hintedTeam?.sessionControlMode === 'HOST_APPROVAL' ? (
+                <p className="mt-2 text-sm text-blue-200">
+                  This team requires host approval before it can join.
+                </p>
+              ) : null}
+
+              {hintedTeam?.pinProtected ? (
+                <p className="mt-2 text-sm text-slate-300">
+                  This team name is PIN protected.
+                </p>
               ) : null}
             </div>
 
             <div>
-              <label htmlFor="pin" className="mb-1 block font-medium">
-                Team PIN <span className="text-gray-500">(optional)</span>
+              <label
+                htmlFor="pin"
+                className="mb-2 block text-sm font-medium text-slate-200"
+              >
+                Team PIN <span className="text-slate-400">(optional)</span>
               </label>
               <input
                 id="pin"
@@ -656,15 +837,15 @@ export default function JoinPageClient({ joinCode }: { joinCode: string }) {
                   setApprovalMessage('');
                 }}
                 placeholder="Optional 4-digit PIN"
-                className="w-full rounded border p-2"
+                className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-400/30"
               />
-              <p className="mt-1 text-sm text-gray-500">
+              <p className="mt-2 text-sm text-slate-400">
                 Use a PIN if you want to protect this team name for future games.
               </p>
             </div>
 
             {approvalPending ? (
-              <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+              <div className="rounded-2xl border border-blue-300/30 bg-blue-500/10 p-3 text-sm text-blue-100">
                 <p className="font-semibold">Host approval required</p>
                 <p className="mt-1">
                   {approvalMessage ||
@@ -674,20 +855,22 @@ export default function JoinPageClient({ joinCode }: { joinCode: string }) {
             ) : null}
 
             {game.teams.length === 0 ? (
-              <p className="text-sm text-gray-500">
-                No saved team names were found for this game. You can still
-                enter your team name and join.
+              <p className="text-sm text-slate-400">
+                No saved team names were found for this game or site. You can still
+                enter a new team name and join.
               </p>
             ) : null}
 
             {submitError ? (
-              <p className="text-sm text-red-600">{submitError}</p>
+              <div className="rounded-2xl border border-red-300/30 bg-red-500/10 p-3 text-sm text-red-100">
+                {submitError}
+              </div>
             ) : null}
 
             <button
               type="submit"
               disabled={isSubmitting || !trimmedTeamName}
-              className="w-full rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="w-full rounded-xl bg-white px-4 py-3 font-semibold text-slate-900 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isSubmitting
                 ? 'Joining...'
@@ -698,6 +881,6 @@ export default function JoinPageClient({ joinCode }: { joinCode: string }) {
           </form>
         ) : null}
       </div>
-    </div>
+    </AppBackground>
   );
 }

@@ -3,6 +3,7 @@
 import React, { JSX, useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { GameStatus } from '@prisma/client';
+import AppBackground from '@/components/AppBackground';
 import { useSocket } from '@/components/SocketProvider';
 import { useTeamSocket } from '@/app/hooks/useTeamSocket';
 
@@ -265,6 +266,16 @@ export default function LeaderboardPage(): JSX.Element {
         return;
       }
 
+      const raw = sessionStorage.getItem(`trivia:${gameId}:leaderboard`);
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw) as LeaderboardPayload;
+          setLeaderboard(parsed);
+        } catch (err) {
+          console.error('Failed to parse leaderboard payload', err);
+        }
+      }
+
       const storedSession = getStoredGameSession(gameId);
 
       if (!storedSession) {
@@ -373,20 +384,6 @@ export default function LeaderboardPage(): JSX.Element {
   }, [initializePage]);
 
   useEffect(() => {
-    if (typeof window === 'undefined' || !gameId) return;
-
-    const raw = sessionStorage.getItem(`trivia:${gameId}:leaderboard`);
-    if (!raw) return;
-
-    try {
-      const parsed = JSON.parse(raw) as LeaderboardPayload;
-      setLeaderboard(parsed);
-    } catch (err) {
-      console.error('Failed to parse leaderboard payload', err);
-    }
-  }, [gameId]);
-
-  useEffect(() => {
     if (!socket) return;
 
     const handleShowQuestion = () => {
@@ -400,18 +397,33 @@ export default function LeaderboardPage(): JSX.Element {
     };
 
     const handleShowAnswerReveal = () => {
-      sessionStorage.removeItem(`trivia:${gameId}:leaderboard`);
       router.replace(`/games/${gameId}/answer-reveal`);
+    };
+
+    const handleShowLeaderboard = (payload: {
+      gameId: string;
+      leaderboard: LeaderboardPayload;
+    }) => {
+      if (!payload?.leaderboard) return;
+
+      sessionStorage.setItem(
+        `trivia:${gameId}:leaderboard`,
+        JSON.stringify(payload.leaderboard)
+      );
+      setLeaderboard(payload.leaderboard);
+      router.replace(`/games/${gameId}/leaderboard`);
     };
 
     socket.on('game:showQuestion', handleShowQuestion);
     socket.on('game:showLobby', handleShowLobby);
     socket.on('game:showAnswerReveal', handleShowAnswerReveal);
+    socket.on('game:showLeaderboard', handleShowLeaderboard);
 
     return () => {
       socket.off('game:showQuestion', handleShowQuestion);
       socket.off('game:showLobby', handleShowLobby);
       socket.off('game:showAnswerReveal', handleShowAnswerReveal);
+      socket.off('game:showLeaderboard', handleShowLeaderboard);
     };
   }, [socket, router, gameId]);
 
@@ -427,9 +439,7 @@ export default function LeaderboardPage(): JSX.Element {
             deviceId: getStoredGameSession(gameId)?.deviceId ?? null,
           }
         : null,
-    onAuthenticated: () => {
-      // no-op for now
-    },
+    onAuthenticated: () => {},
     onInvalidSession: (ack) => {
       if (ack.clearStoredSession && gameId) {
         clearStoredGameSession(gameId);
@@ -472,152 +482,183 @@ export default function LeaderboardPage(): JSX.Element {
 
   if (loading) {
     return (
-      <div className="p-6">
-        <p className="text-gray-600">
-          {isRestoringSession
-            ? 'Restoring your team session...'
-            : 'Loading leaderboard...'}
-        </p>
-      </div>
+      <AppBackground
+        variant="hero"
+        className="flex min-h-screen items-center justify-center px-6 py-12"
+      >
+        <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur-sm">
+          <p className="text-sm text-slate-200">
+            {isRestoringSession
+              ? 'Restoring your team session...'
+              : 'Loading leaderboard...'}
+          </p>
+        </div>
+      </AppBackground>
     );
   }
 
   if (loadError) {
     return (
-      <div className="p-6">
-        <p className="text-red-600">{loadError}</p>
-      </div>
+      <AppBackground
+        variant="hero"
+        className="flex min-h-screen items-center justify-center px-6 py-12"
+      >
+        <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur-sm">
+          <p className="text-sm text-red-200">{loadError}</p>
+        </div>
+      </AppBackground>
     );
   }
 
   if (!game) {
     return (
-      <div className="p-6">
-        <p className="text-red-600">Game data was not found.</p>
-      </div>
+      <AppBackground
+        variant="hero"
+        className="flex min-h-screen items-center justify-center px-6 py-12"
+      >
+        <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur-sm">
+          <p className="text-sm text-red-200">Game data was not found.</p>
+        </div>
+      </AppBackground>
     );
   }
 
   if (!teamId) {
     return (
-      <div className="p-6">
-        <p className="text-red-600">❌ Missing team session.</p>
-      </div>
+      <AppBackground
+        variant="hero"
+        className="flex min-h-screen items-center justify-center px-6 py-12"
+      >
+        <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur-sm">
+          <p className="text-sm text-red-200">Missing team session.</p>
+        </div>
+      </AppBackground>
     );
   }
 
   return (
-    <div className="min-h-screen bg-white p-6">
-      <div className="mx-auto max-w-4xl">
-        <h1 className="mb-6 text-3xl font-bold text-slate-900">
-          🏆 Leaderboard
-        </h1>
+    <AppBackground variant="hero" className="min-h-screen px-6 py-8 md:py-12">
+      <div className="mx-auto max-w-4xl space-y-6">
+        <header className="rounded-3xl border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur-sm">
+          <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-300">
+            Leaderboard
+          </div>
 
-        {connectionStatus === 'disconnected' && (
-          <div className="mt-4 text-center text-yellow-700">Reconnecting...</div>
-        )}
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">
+            {game.title}
+          </h1>
 
-        <div className="mb-6 rounded bg-white p-6 shadow">
-          <h2 className="text-2xl font-semibold">{game.title}</h2>
-
-          <p className="text-gray-600">
-            Location: {game.site?.name ?? 'TBD'} ({game.site?.address ?? 'Unknown'})
-          </p>
-
-          <p className="text-gray-600">Start Time: {scheduledDisplay}</p>
+          <div className="mt-4 space-y-2 text-sm text-slate-200">
+            <p>
+              <span className="font-semibold text-white">Location:</span>{' '}
+              {game.site?.name ?? 'TBD'}
+            </p>
+            <p>
+              <span className="font-semibold text-white">Address:</span>{' '}
+              {game.site?.address ?? 'Unknown'}
+            </p>
+            <p>
+              <span className="font-semibold text-white">Start Time:</span>{' '}
+              {scheduledDisplay}
+            </p>
+          </div>
 
           {teamName ? (
-            <p className="mt-2 text-sm text-gray-500">
+            <p className="mt-4 text-sm text-slate-300">
               Joined as:{' '}
-              <span className="font-medium text-slate-900">{teamName}</span>
+              <span className="font-semibold text-white">{teamName}</span>
             </p>
           ) : null}
 
-          <span
-            className={`mt-2 inline-block rounded-full px-3 py-1 text-sm ${
-              game.status === 'LIVE'
-                ? 'bg-green-200 text-green-800'
-                : 'bg-yellow-100 text-yellow-700'
-            }`}
-          >
-            {game.status}
-          </span>
-        </div>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <span
+              className={`rounded-full border px-3 py-1 text-sm font-medium ${
+                game.status === 'LIVE'
+                  ? 'border-emerald-300/40 bg-emerald-500/10 text-emerald-100'
+                  : 'border-blue-300/40 bg-blue-500/10 text-blue-100'
+              }`}
+            >
+              {game.status}
+            </span>
 
-        <div className="rounded bg-white p-8 shadow">
+            {connectionStatus === 'disconnected' ? (
+              <span className="rounded-full border border-amber-300/40 bg-amber-500/10 px-3 py-1 text-sm font-medium text-amber-100">
+                Reconnecting...
+              </span>
+            ) : null}
+          </div>
+        </header>
+
+        <section className="rounded-3xl border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur-sm">
           <div className="text-center">
-            <div className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-slate-600">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-300">
               Current Standings
             </div>
 
             {leaderboard ? (
-              <>
-                <div className="mx-auto mt-6 max-w-2xl space-y-3 text-left">
-                  {leaderboard.standings.map((entry) => {
-                    const isCurrentTeam = entry.teamId === teamId;
+              <div className="mx-auto mt-6 max-w-2xl space-y-3 text-left">
+                {leaderboard.standings.map((entry) => {
+                  const isCurrentTeam = entry.teamId === teamId;
 
-                    return (
-                      <div
-                        key={entry.teamId}
-                        className={`flex items-center justify-between rounded-lg border px-4 py-4 ${
-                          isCurrentTeam
-                            ? 'border-blue-300 bg-blue-50'
-                            : 'border-slate-200 bg-slate-50'
-                        }`}
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="w-10 text-xl font-bold text-slate-500">
-                            {entry.rank}
-                          </div>
-
-                          <div>
-                            <div
-                              className={`text-lg font-semibold ${
-                                isCurrentTeam ? 'text-blue-900' : 'text-slate-900'
-                              }`}
-                            >
-                              {entry.teamName}
-                            </div>
-
-                            {isCurrentTeam ? (
-                              <div className="text-sm text-blue-700">
-                                Your team
-                              </div>
-                            ) : null}
-                          </div>
+                  return (
+                    <div
+                      key={entry.teamId}
+                      className={`flex items-center justify-between rounded-2xl border px-4 py-4 ${
+                        isCurrentTeam
+                          ? 'border-blue-300/30 bg-blue-500/10'
+                          : 'border-white/10 bg-slate-900/30'
+                      }`}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 text-xl font-bold text-slate-300">
+                          {entry.rank}
                         </div>
 
-                        <div className="text-right">
-                          <div className="text-2xl font-bold text-slate-900">
-                            {entry.score}
+                        <div>
+                          <div
+                            className={`text-lg font-semibold ${
+                              isCurrentTeam ? 'text-blue-100' : 'text-white'
+                            }`}
+                          >
+                            {entry.teamName}
                           </div>
-                          <div className="text-xs uppercase tracking-[0.12em] text-slate-500">
-                            Points
-                          </div>
+
+                          {isCurrentTeam ? (
+                            <div className="text-sm text-blue-200">Your team</div>
+                          ) : null}
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              </>
+
+                      <div className="text-right">
+                        <div className="text-2xl font-bold text-white">
+                          {entry.score}
+                        </div>
+                        <div className="text-xs uppercase tracking-[0.12em] text-slate-400">
+                          Points
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             ) : (
               <>
-                <h3 className="text-2xl font-bold text-slate-900">
+                <h2 className="mt-4 text-3xl font-semibold tracking-tight text-white">
                   The leaderboard is being prepared
-                </h3>
+                </h2>
 
-                <p className="mx-auto mt-4 max-w-2xl text-base text-slate-600">
+                <p className="mx-auto mt-4 max-w-2xl text-base text-slate-300">
                   No leaderboard data is available yet.
                 </p>
               </>
             )}
 
-            <p className="mt-8 text-sm text-slate-500">
+            <p className="mt-8 text-sm text-slate-400">
               Waiting for the host to continue…
             </p>
           </div>
-        </div>
+        </section>
       </div>
-    </div>
+    </AppBackground>
   );
 }

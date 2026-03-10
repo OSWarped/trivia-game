@@ -9,11 +9,11 @@ export default function QuestionHeader({
 }: QuestionHeaderProps) {
   return (
     <header className="mb-4 border-b pb-2">
-      <h2 className="text-lg font-semibold text-gray-700">
+      <h2 className="text-lg font-semibold text-slate-400">
         Round: <span className="text-blue-600">{roundName ?? '—'}</span>
       </h2>
 
-      <h3 className="mt-1 text-xl font-medium text-gray-900">
+      <h3 className="mt-2 text-2xl font-semibold tracking-tight text-white">
         {questionText ?? 'No question loaded.'}
       </h3>
     </header>

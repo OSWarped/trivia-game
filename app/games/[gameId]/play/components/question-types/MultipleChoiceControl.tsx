@@ -35,7 +35,7 @@ export default function MultipleChoiceControl({
                 onChange(next);
               }}
               disabled={disabled}
-              className="h-4 w-4 text-blue-600 focus:ring-blue-500"
+              className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-400/30"
             />
             <span className="text-gray-800">{opt}</span>
           </label>

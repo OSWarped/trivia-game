@@ -14,7 +14,7 @@ export default function SingleAnswerControl({
   return (
     <input
       type="text"
-      className="w-full rounded-md border-gray-300 bg-gray-50 px-4 py-2 focus:border-blue-500 focus:ring-blue-200"
+      className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-400/30"
       value={value}
       onChange={(e) => onChange(e.target.value)}
       disabled={disabled}

@@ -64,31 +64,30 @@ function SortableItem({ id, label }: SortableItemProps) {
     display: 'flex',
     alignItems: 'center',
     gap: '0.75rem',
-    padding: '0.75rem 1rem',
-    marginBottom: '0.5rem',
-    background: 'white',
-    borderRadius: '0.5rem',
+    padding: '0.875rem 1rem',
+    marginBottom: '0.75rem',
+    background: isDragging ? '#eff6ff' : '#ffffff',
+    borderRadius: '1rem',
     boxShadow: isDragging
-      ? '0 6px 18px rgba(0,0,0,0.12)'
-      : '0 1px 2px rgba(0,0,0,0.1)',
-    border: '1px solid #e2e8f0',
-    opacity: isDragging ? 0.95 : 1,
+      ? '0 10px 24px rgba(15, 23, 42, 0.14)'
+      : '0 1px 2px rgba(15, 23, 42, 0.06)',
+    border: isDragging ? '1px solid #93c5fd' : '1px solid #e2e8f0',
+    opacity: 1,
+    color: '#0f172a',
   };
 
   const handleStyle: React.CSSProperties = {
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    width: '2.25rem',
-    height: '2.25rem',
+    width: '2.5rem',
+    height: '2.5rem',
     border: '1px solid #cbd5e1',
-    borderRadius: '0.5rem',
-    background: '#f8fafc',
+    borderRadius: '0.875rem',
+    background: isDragging ? '#dbeafe' : '#f8fafc',
     color: '#475569',
-    cursor: 'grab',
+    cursor: isDragging ? 'grabbing' : 'grab',
     flexShrink: 0,
-
-    // Important for touch devices
     touchAction: 'none',
     userSelect: 'none',
     WebkitUserSelect: 'none',
@@ -99,6 +98,10 @@ function SortableItem({ id, label }: SortableItemProps) {
     flex: 1,
     minWidth: 0,
     wordBreak: 'break-word',
+    color: '#0f172a',
+    fontSize: '0.95rem',
+    fontWeight: 500,
+    lineHeight: 1.4,
   };
 
   return (
@@ -184,20 +187,26 @@ const OrderedQuestion: React.FC<OrderedQuestionProps> = ({
   }
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragEnd={handleDragEnd}
+    <div
+      style={{
+        width: '100%',
+      }}
     >
-      <SortableContext
-        items={items.map((item) => item.id)}
-        strategy={verticalListSortingStrategy}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
       >
-        {items.map((item) => (
-          <SortableItem key={item.id} id={item.id} label={item.text} />
-        ))}
-      </SortableContext>
-    </DndContext>
+        <SortableContext
+          items={items.map((item) => item.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          {items.map((item) => (
+            <SortableItem key={item.id} id={item.id} label={item.text} />
+          ))}
+        </SortableContext>
+      </DndContext>
+    </div>
   );
 };
 

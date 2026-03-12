@@ -1,5 +1,3 @@
-// File: /app/api/games/[gameId]/join/route.ts
-
 import { randomUUID } from 'crypto';
 import { NextResponse } from 'next/server';
 import {
@@ -12,6 +10,47 @@ const prisma = new PrismaClient();
 
 const JOINABLE_STATUSES = new Set(['SCHEDULED', 'LIVE']);
 const SESSION_DURATION_HOURS = 12;
+
+const ACTIVE_SESSION_STATUSES = [
+  TeamGameSessionStatus.ACTIVE,
+  TeamGameSessionStatus.RECONNECTING,
+  TeamGameSessionStatus.OFFLINE,
+] as const;
+
+type TeamSummary = {
+  id: string;
+  name: string;
+  pin: string | null;
+};
+
+type JoinFailure = {
+  ok: false;
+  error: string;
+  status: number;
+  code?: string;
+};
+
+type JoinSuccess = {
+  ok: true;
+  team: TeamSummary;
+  session: {
+    sessionToken: string;
+    deviceId: string;
+    status: TeamGameSessionStatus;
+    joinedAt: Date;
+    lastSeenAt: Date;
+    expiresAt: Date;
+  };
+};
+
+function fail(status: number, error: string, code?: string): JoinFailure {
+  return {
+    ok: false,
+    error,
+    status,
+    code,
+  };
+}
 
 function normalizeTeamName(value: unknown): string {
   return typeof value === 'string'
@@ -48,30 +87,6 @@ function buildSessionExpiry(from: Date): Date {
   return expiresAt;
 }
 
-// function canRepurposeCurrentDeviceTeam(args: {
-//   gameStatus: string;
-//   currentTeamGame:
-//   | {
-//     totalPts: number;
-//     _count: { answers: number };
-//   }
-//   | null;
-//   currentTeamHasPin: boolean;
-//   currentTeamGameCount: number;
-// }): boolean {
-//   const { gameStatus, currentTeamGame, currentTeamHasPin, currentTeamGameCount } =
-//     args;
-
-//   if (gameStatus !== 'SCHEDULED') return false;
-//   if (!currentTeamGame) return false;
-//   if (currentTeamHasPin) return false;
-//   if (currentTeamGameCount > 1) return false;
-//   if (currentTeamGame.totalPts > 0) return false;
-//   if (currentTeamGame._count.answers > 0) return false;
-
-//   return true;
-// }
-
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ gameId: string }> }
@@ -93,14 +108,17 @@ export async function POST(
 
     if (!teamName) {
       return NextResponse.json(
-        { error: 'Team name is required.' },
+        { error: 'Team name is required.', code: 'TEAM_NAME_REQUIRED' },
         { status: 400 }
       );
     }
 
     if (!isValidPin(pin)) {
       return NextResponse.json(
-        { error: 'PIN must be exactly 4 digits when provided.' },
+        {
+          error: 'PIN must be exactly 4 digits when provided.',
+          code: 'PIN_INVALID_FORMAT',
+        },
         { status: 400 }
       );
     }
@@ -115,12 +133,18 @@ export async function POST(
     });
 
     if (!game) {
-      return NextResponse.json({ error: 'Game not found.' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Game not found.', code: 'GAME_NOT_FOUND' },
+        { status: 404 }
+      );
     }
 
     if (!JOINABLE_STATUSES.has(game.status)) {
       return NextResponse.json(
-        { error: 'This game is not open for joining.' },
+        {
+          error: 'This game is not open for joining.',
+          code: 'GAME_NOT_JOINABLE',
+        },
         { status: 400 }
       );
     }
@@ -129,7 +153,10 @@ export async function POST(
 
     if (!siteId) {
       return NextResponse.json(
-        { error: 'Game is missing site information.' },
+        {
+          error: 'Game is missing site information.',
+          code: 'GAME_SITE_MISSING',
+        },
         { status: 400 }
       );
     }
@@ -137,374 +164,16 @@ export async function POST(
     const now = new Date();
     const expiresAt = buildSessionExpiry(now);
 
-    const result = await prisma.$transaction(async (tx) => {
-      await tx.teamGameSession.updateMany({
-        where: {
-          gameId,
-          status: {
-            not: TeamGameSessionStatus.CLOSED,
-          },
-          expiresAt: {
-            lte: now,
-          },
-        },
-        data: {
-          status: TeamGameSessionStatus.CLOSED,
-          socketId: null,
-          disconnectedAt: now,
-        },
-      });
-
-      const currentDeviceSession = await tx.teamGameSession.findFirst({
-        where: {
-          gameId,
-          deviceId,
-          status: {
-            in: [
-              TeamGameSessionStatus.ACTIVE,
-              TeamGameSessionStatus.RECONNECTING,
-              TeamGameSessionStatus.OFFLINE,
-            ],
-          },
-          expiresAt: {
-            gt: now,
-          },
-        },
-        orderBy: [{ lastSeenAt: 'desc' }, { joinedAt: 'desc' }],
-        include: {
-          team: {
-            select: {
-              id: true,
-              name: true,
-              pin: true,
-            },
-          },
-        },
-      });
-
-      const currentDeviceTeamGame = currentDeviceSession
-        ? await tx.teamGame.findUnique({
-          where: {
-            teamId_gameId: {
-              teamId: currentDeviceSession.teamId,
-              gameId,
-            },
-          },
-          select: {
-            id: true,
-            totalPts: true,
-            _count: {
-              select: {
-                answers: true,
-              },
-            },
-          },
-        })
-        : null;
-
-      // const currentDeviceTeamGameCount = currentDeviceSession
-      //   ? await tx.teamGame.count({
-      //     where: {
-      //       teamId: currentDeviceSession.teamId,
-      //     },
-      //   })
-      //   : 0;
-
-      const exactGlobalTeamMatch =
-        pin !== null
-          ? await tx.team.findFirst({
-            where: {
-              pin,
-              name: {
-                equals: teamName,
-                mode: 'insensitive',
-              },
-            },
-            select: {
-              id: true,
-              name: true,
-              pin: true,
-            },
-          })
-          : null;
-
-      const globalNameMatches = await tx.team.findMany({
-        where: {
-          name: {
-            equals: teamName,
-            mode: 'insensitive',
-          },
-        },
-        select: {
-          id: true,
-          name: true,
-          pin: true,
-        },
-      });
-
-      const siteTeamGames = await tx.teamGame.findMany({
-        where: {
-          siteId,
-        },
-        select: {
-          team: {
-            select: {
-              id: true,
-              name: true,
-              pin: true,
-            },
-          },
-        },
-      });
-
-      const siteTeamsById = new Map<
-        string,
-        {
-          id: string;
-          name: string;
-          pin: string | null;
-        }
-      >();
-
-      for (const row of siteTeamGames) {
-        siteTeamsById.set(row.team.id, row.team);
-      }
-
-      // const matchingSiteTeams = Array.from(siteTeamsById.values()).filter(
-      //   (candidate) => normalizeTeamNameKey(candidate.name) === teamNameKey
-      // );
-
-      let team:
-        | {
-          id: string;
-          name: string;
-          pin: string | null;
-        }
-        | null = null;
-
-      if (requestedTeamId) {
-        const teamById = await tx.team.findUnique({
-          where: { id: requestedTeamId },
-          select: {
-            id: true,
-            name: true,
-            pin: true,
-          },
-        });
-
-        if (!teamById) {
-          return {
-            error: 'Selected team could not be found.',
-            status: 404,
-          } as const;
-        }
-
-        if (normalizeTeamNameKey(teamById.name) !== teamNameKey) {
-          return {
-            error: 'Selected team does not match the entered team name.',
-            status: 400,
-          } as const;
-        }
-
-        if (teamById.pin && teamById.pin !== pin) {
-          return {
-            error: 'This team name is protected. Enter the correct PIN.',
-            status: 400,
-          } as const;
-        }
-
-        team = teamById;
-      }
-
-      if (!team && exactGlobalTeamMatch) {
-        team = exactGlobalTeamMatch;
-      }
-
-      if (!team) {
-  const exactPinMatch =
-    pin !== null
-      ? globalNameMatches.find((candidate) => candidate.pin === pin) ?? null
-      : null;
-
-  const currentDeviceTeamMatch =
-    currentDeviceSession &&
-    globalNameMatches.find(
-      (candidate) => candidate.id === currentDeviceSession.teamId
-    )
-      ? currentDeviceSession.team
-      : null;
-
-  const unprotectedTeam =
-    globalNameMatches.find((candidate) => !candidate.pin) ?? null;
-
-  const hasProtectedVersion = globalNameMatches.some(
-    (candidate) => !!candidate.pin
-  );
-
-  if (exactPinMatch) {
-    team = exactPinMatch;
-  } else if (currentDeviceTeamMatch) {
-    team = currentDeviceTeamMatch;
-  } else if (hasProtectedVersion) {
-    return {
-      error: 'This team name is protected. Enter the correct PIN.',
-      status: 400,
-    } as const;
-  } else if (unprotectedTeam) {
-    team = unprotectedTeam;
-  } else {
-    team = await tx.team.create({
-      data: pin
-        ? {
-            name: teamName,
-            pin,
-          }
-        : {
-            name: teamName,
-          },
-      select: {
-        id: true,
-        name: true,
-        pin: true,
-      },
-    });
-  }
-}
-
-      if (!team) {
-        return {
-          error: 'Failed to resolve a team for this join request.',
-          status: 500,
-        } as const;
-      }
-
-      const isSwitchingTeams =
-        Boolean(currentDeviceSession) && currentDeviceSession!.teamId !== team.id;
-
-      if (isSwitchingTeams) {
-        const canSwitchExistingDeviceTeam =
-          game.status === 'SCHEDULED' &&
-          currentDeviceTeamGame !== null &&
-          currentDeviceTeamGame.totalPts === 0 &&
-          currentDeviceTeamGame._count.answers === 0;
-
-        if (!canSwitchExistingDeviceTeam) {
-          return {
-            error: `This device is already joined as "${currentDeviceSession!.team.name}". Resume that team instead.`,
-            code: 'DEVICE_ALREADY_JOINED',
-            status: 409,
-          } as const;
-        }
-      }
-
-      const teamGame = await tx.teamGame.upsert({
-        where: {
-          teamId_gameId: {
-            teamId: team.id,
-            gameId,
-          },
-        },
-        update: {},
-        create: {
-          teamId: team.id,
-          gameId,
-          siteId,
-        },
-        select: {
-          id: true,
-          sessionControlMode: true,
-        },
-      });
-
-      if (teamGame.sessionControlMode === 'LOCKED') {
-        return {
-          error: 'This team has been locked by the host for this game.',
-          code: 'TEAM_LOCKED',
-          status: 423,
-        } as const;
-      }
-
-      if (teamGame.sessionControlMode === 'HOST_APPROVAL') {
-        await tx.teamGame.update({
-          where: {
-            teamId_gameId: {
-              teamId: team.id,
-              gameId,
-            },
-          },
-          data: {
-            pendingApprovalRequestedAt: now,
-            pendingApprovalDeviceId: deviceId,
-          },
-        });
-
-        return {
-          error: 'This team requires host approval before joining.',
-          code: 'HOST_APPROVAL_REQUIRED',
-          status: 403,
-        } as const;
-      }
-
-      await tx.teamGameSession.updateMany({
-        where: {
-          gameId,
-          teamId: team.id,
-          status: {
-            not: TeamGameSessionStatus.CLOSED,
-          },
-          expiresAt: {
-            lte: now,
-          },
-        },
-        data: {
-          status: TeamGameSessionStatus.CLOSED,
-          socketId: null,
-          disconnectedAt: now,
-        },
-      });
-
-      const existingSession = await tx.teamGameSession.findFirst({
-        where: {
-          gameId,
-          teamId: team.id,
-          status: {
-            in: [
-              TeamGameSessionStatus.ACTIVE,
-              TeamGameSessionStatus.RECONNECTING,
-              TeamGameSessionStatus.OFFLINE,
-            ],
-          },
-          expiresAt: {
-            gt: now,
-          },
-        },
-        orderBy: [{ lastSeenAt: 'desc' }, { joinedAt: 'desc' }],
-      });
-
-      if (existingSession && existingSession.deviceId !== deviceId) {
-        return {
-          error: 'This team is already claimed on another device for this game.',
-          status: 409,
-        } as const;
-      }
-
-      if (isSwitchingTeams) {
+    const result = await prisma.$transaction(
+      async (tx): Promise<JoinFailure | JoinSuccess> => {
         await tx.teamGameSession.updateMany({
           where: {
             gameId,
-            deviceId,
-            teamId: {
-              not: team.id,
-            },
             status: {
-              in: [
-                TeamGameSessionStatus.ACTIVE,
-                TeamGameSessionStatus.RECONNECTING,
-                TeamGameSessionStatus.OFFLINE,
-              ],
+              not: TeamGameSessionStatus.CLOSED,
             },
             expiresAt: {
-              gt: now,
+              lte: now,
             },
           },
           data: {
@@ -514,44 +183,420 @@ export async function POST(
             lastSeenAt: now,
           },
         });
-      }
 
-      const sessionToken = randomUUID();
-
-      const session = existingSession
-        ? await tx.teamGameSession.update({
-          where: { id: existingSession.id },
-          data: {
-            sessionToken,
-            status: TeamGameSessionStatus.ACTIVE,
-            socketId: null,
-            lastSeenAt: now,
-            disconnectedAt: null,
-            expiresAt,
-          },
-        })
-        : await tx.teamGameSession.create({
-          data: {
+        const currentDeviceSession = await tx.teamGameSession.findFirst({
+          where: {
             gameId,
-            teamId: team.id,
-            sessionToken,
             deviceId,
-            status: TeamGameSessionStatus.ACTIVE,
-            socketId: null,
-            lastSeenAt: now,
-            disconnectedAt: null,
-            expiresAt,
+            status: {
+              in: [...ACTIVE_SESSION_STATUSES],
+            },
+            expiresAt: {
+              gt: now,
+            },
+          },
+          orderBy: [{ lastSeenAt: 'desc' }, { joinedAt: 'desc' }],
+          include: {
+            team: {
+              select: {
+                id: true,
+                name: true,
+                pin: true,
+              },
+            },
           },
         });
 
-      return { team, session } as const;
-    });
+        const currentDeviceTeamGame = currentDeviceSession
+          ? await tx.teamGame.findUnique({
+              where: {
+                teamId_gameId: {
+                  teamId: currentDeviceSession.teamId,
+                  gameId,
+                },
+              },
+              select: {
+                id: true,
+                totalPts: true,
+                _count: {
+                  select: {
+                    answers: true,
+                  },
+                },
+              },
+            })
+          : null;
 
-    if ('error' in result) {
+        const currentGameTeamRows = await tx.teamGame.findMany({
+          where: {
+            gameId,
+          },
+          select: {
+            team: {
+              select: {
+                id: true,
+                name: true,
+                pin: true,
+              },
+            },
+          },
+        });
+
+        const currentGameTeamsById = new Map<string, TeamSummary>();
+        for (const row of currentGameTeamRows) {
+          currentGameTeamsById.set(row.team.id, row.team);
+        }
+
+        const currentGameNameMatches = Array.from(
+          currentGameTeamsById.values()
+        ).filter(
+          (candidate) => normalizeTeamNameKey(candidate.name) === teamNameKey
+        );
+
+        const siteTeamRows = await tx.teamGame.findMany({
+          where: {
+            siteId,
+          },
+          select: {
+            team: {
+              select: {
+                id: true,
+                name: true,
+                pin: true,
+              },
+            },
+          },
+        });
+
+        const siteTeamsById = new Map<string, TeamSummary>();
+        for (const row of siteTeamRows) {
+          siteTeamsById.set(row.team.id, row.team);
+        }
+
+        const siteNameMatches = Array.from(siteTeamsById.values()).filter(
+          (candidate) => normalizeTeamNameKey(candidate.name) === teamNameKey
+        );
+
+        let team: TeamSummary | null = null;
+
+        // Rule set for teams already in the current game:
+        // - same-device resume is allowed
+        // - wrong PIN is a hard stop
+        // - new joins for the same current-game team name are rejected
+        if (currentGameNameMatches.length > 0) {
+          const currentGameRequestedMatch = requestedTeamId
+            ? currentGameNameMatches.find(
+                (candidate) => candidate.id === requestedTeamId
+              ) ?? null
+            : null;
+
+          const currentGameDeviceMatch =
+            currentDeviceSession &&
+            currentGameNameMatches.find(
+              (candidate) => candidate.id === currentDeviceSession.teamId
+            )
+              ? currentDeviceSession.team
+              : null;
+
+          const exactCurrentGamePinMatch =
+            pin !== null
+              ? currentGameNameMatches.find(
+                  (candidate) => candidate.pin === pin
+                ) ?? null
+              : null;
+
+          const hasProtectedCurrentGameVersion = currentGameNameMatches.some(
+            (candidate) => !!candidate.pin
+          );
+
+          if (hasProtectedCurrentGameVersion && !exactCurrentGamePinMatch) {
+            return fail(
+              400,
+              'Incorrect PIN for this team.',
+              'PIN_INVALID'
+            );
+          }
+
+          if (
+            currentDeviceMatchExists(currentGameDeviceMatch, teamNameKey)
+          ) {
+            team = currentGameDeviceMatch;
+          } else if (currentGameRequestedMatch && currentDeviceSession?.teamId === currentGameRequestedMatch.id) {
+            team = currentGameRequestedMatch;
+          } else {
+            return fail(
+              409,
+              'This team is already in the game. Resume it on the original device or ask the host to transfer it.',
+              'TEAM_ALREADY_IN_GAME'
+            );
+          }
+        }
+
+        // No current-game team with this name yet. Reuse an existing selected/site team if valid.
+        if (!team && requestedTeamId) {
+          const teamById = await tx.team.findUnique({
+            where: { id: requestedTeamId },
+            select: {
+              id: true,
+              name: true,
+              pin: true,
+            },
+          });
+
+          if (!teamById) {
+            return fail(
+              404,
+              'Selected team could not be found.',
+              'TEAM_NOT_FOUND'
+            );
+          }
+
+          if (normalizeTeamNameKey(teamById.name) !== teamNameKey) {
+            return fail(
+              400,
+              'Selected team does not match the entered team name.',
+              'TEAM_NAME_MISMATCH'
+            );
+          }
+
+          if (teamById.pin && teamById.pin !== pin) {
+            return fail(
+              400,
+              'Incorrect PIN for this team.',
+              'PIN_INVALID'
+            );
+          }
+
+          team = teamById;
+        }
+
+        if (!team) {
+          const exactSitePinMatch =
+            pin !== null
+              ? siteNameMatches.find((candidate) => candidate.pin === pin) ??
+                null
+              : null;
+
+          const unprotectedSiteMatch =
+            siteNameMatches.find((candidate) => !candidate.pin) ?? null;
+
+          const hasProtectedSiteVersion = siteNameMatches.some(
+            (candidate) => !!candidate.pin
+          );
+
+          if (exactSitePinMatch) {
+            team = exactSitePinMatch;
+          } else if (hasProtectedSiteVersion) {
+            return fail(
+              400,
+              'Incorrect PIN for this team.',
+              'PIN_INVALID'
+            );
+          } else if (unprotectedSiteMatch) {
+            team = unprotectedSiteMatch;
+          } else {
+            team = await tx.team.create({
+              data: pin
+                ? {
+                    name: teamName,
+                    pin,
+                  }
+                : {
+                    name: teamName,
+                  },
+              select: {
+                id: true,
+                name: true,
+                pin: true,
+              },
+            });
+          }
+        }
+
+        if (!team) {
+          return fail(
+            500,
+            'Failed to resolve a team for this join request.',
+            'TEAM_RESOLUTION_FAILED'
+          );
+        }
+
+        const isSwitchingTeams =
+          Boolean(currentDeviceSession) && currentDeviceSession!.teamId !== team.id;
+
+        if (isSwitchingTeams) {
+          const canSwitchExistingDeviceTeam =
+            game.status === 'SCHEDULED' &&
+            currentDeviceTeamGame !== null &&
+            currentDeviceTeamGame.totalPts === 0 &&
+            currentDeviceTeamGame._count.answers === 0;
+
+          if (!canSwitchExistingDeviceTeam) {
+            return fail(
+              409,
+              `This device is already joined as "${currentDeviceSession!.team.name}". Resume that team instead.`,
+              'DEVICE_ALREADY_JOINED'
+            );
+          }
+        }
+
+        const teamGame = await tx.teamGame.upsert({
+          where: {
+            teamId_gameId: {
+              teamId: team.id,
+              gameId,
+            },
+          },
+          update: {},
+          create: {
+            teamId: team.id,
+            gameId,
+            siteId,
+          },
+          select: {
+            id: true,
+            sessionControlMode: true,
+          },
+        });
+
+        if (teamGame.sessionControlMode === 'LOCKED') {
+          return fail(
+            423,
+            'This team has been locked by the host for this game.',
+            'TEAM_LOCKED'
+          );
+        }
+
+        if (teamGame.sessionControlMode === 'HOST_APPROVAL') {
+          await tx.teamGame.update({
+            where: {
+              teamId_gameId: {
+                teamId: team.id,
+                gameId,
+              },
+            },
+            data: {
+              pendingApprovalRequestedAt: now,
+              pendingApprovalDeviceId: deviceId,
+            },
+          });
+
+          return fail(
+            403,
+            'This team requires host approval before joining.',
+            'HOST_APPROVAL_REQUIRED'
+          );
+        }
+
+        await tx.teamGameSession.updateMany({
+          where: {
+            gameId,
+            teamId: team.id,
+            status: {
+              not: TeamGameSessionStatus.CLOSED,
+            },
+            expiresAt: {
+              lte: now,
+            },
+          },
+          data: {
+            status: TeamGameSessionStatus.CLOSED,
+            socketId: null,
+            disconnectedAt: now,
+            lastSeenAt: now,
+          },
+        });
+
+        const existingSession = await tx.teamGameSession.findFirst({
+          where: {
+            gameId,
+            teamId: team.id,
+            status: {
+              in: [...ACTIVE_SESSION_STATUSES],
+            },
+            expiresAt: {
+              gt: now,
+            },
+          },
+          orderBy: [{ lastSeenAt: 'desc' }, { joinedAt: 'desc' }],
+        });
+
+        if (existingSession && existingSession.deviceId !== deviceId) {
+          return fail(
+            409,
+            'This team is already claimed on another device for this game.',
+            'TEAM_ALREADY_CLAIMED'
+          );
+        }
+
+        if (isSwitchingTeams) {
+          await tx.teamGameSession.updateMany({
+            where: {
+              gameId,
+              deviceId,
+              teamId: {
+                not: team.id,
+              },
+              status: {
+                in: [...ACTIVE_SESSION_STATUSES],
+              },
+              expiresAt: {
+                gt: now,
+              },
+            },
+            data: {
+              status: TeamGameSessionStatus.CLOSED,
+              socketId: null,
+              disconnectedAt: now,
+              lastSeenAt: now,
+            },
+          });
+        }
+
+        const sessionToken = randomUUID();
+
+        const session = existingSession
+          ? await tx.teamGameSession.update({
+              where: { id: existingSession.id },
+              data: {
+                sessionToken,
+                status: TeamGameSessionStatus.ACTIVE,
+                socketId: null,
+                lastSeenAt: now,
+                disconnectedAt: null,
+                expiresAt,
+              },
+            })
+          : await tx.teamGameSession.create({
+              data: {
+                gameId,
+                teamId: team.id,
+                sessionToken,
+                deviceId,
+                status: TeamGameSessionStatus.ACTIVE,
+                socketId: null,
+                lastSeenAt: now,
+                disconnectedAt: null,
+                expiresAt,
+              },
+            });
+
+        return {
+          ok: true,
+          team,
+          session,
+        };
+      },
+      {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      }
+    );
+
+    if (!result.ok) {
       return NextResponse.json(
         {
           error: result.error,
-          code: 'code' in result ? result.code : undefined,
+          code: result.code,
         },
         { status: result.status }
       );
@@ -580,9 +625,7 @@ export async function POST(
       },
     });
   } catch (error: unknown) {
-    const message =
-      error instanceof Error ? error.message : String(error);
-
+    const message = error instanceof Error ? error.message : String(error);
     const stack = error instanceof Error ? error.stack : undefined;
 
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
@@ -616,8 +659,16 @@ export async function POST(
           process.env.NODE_ENV === 'development'
             ? `Failed to join game: ${message}`
             : 'Failed to join game.',
+        code: 'JOIN_FAILED',
       },
       { status: 500 }
     );
   }
+}
+
+function currentDeviceMatchExists(
+  team: TeamSummary | null,
+  teamNameKey: string
+): team is TeamSummary {
+  return !!team && normalizeTeamNameKey(team.name) === teamNameKey;
 }

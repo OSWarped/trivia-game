@@ -544,7 +544,7 @@ export default function LobbyPage(): JSX.Element {
   }
 
   return (
-    <AppBackground variant="hero" className="flex min-h-screen items-center justify-center px-6 py-12">
+    <AppBackground variant="hero" className="flex min-h-screen items-start justify-center px-6 pt-10 pb-12">
       <div className="w-full max-w-3xl space-y-6">
         <div className="rounded-3xl border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur-sm">
           <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-300">
@@ -559,11 +559,7 @@ export default function LobbyPage(): JSX.Element {
             <p>
               <span className="font-semibold text-white">Location:</span>{' '}
               {game.site?.name ?? 'TBD'}
-            </p>
-            <p>
-              <span className="font-semibold text-white">Address:</span>{' '}
-              {game.site?.address ?? 'Unknown'}
-            </p>
+            </p>            
             <p>
               <span className="font-semibold text-white">Start Time:</span>{' '}
               {scheduledDisplay}
@@ -572,7 +568,7 @@ export default function LobbyPage(): JSX.Element {
 
           {teamName ? (
             <p className="mt-4 text-sm text-slate-300">
-              Joined as:{' '}
+              Team:{' '}
               <span className="font-semibold text-white">{teamName}</span>
             </p>
           ) : null}

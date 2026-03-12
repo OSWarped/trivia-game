@@ -80,6 +80,15 @@ export interface SeasonSummary {
   lastScheduledFor: string | null;
 }
 
+export interface SeasonStandingRow {
+  rank: number;
+  teamId: string;
+  team: string;
+  gamesPlayed: number;
+  points: number;
+  averagePoints: number;
+}
+
 export interface UserRow {
   id: string;
   email: string;
@@ -140,13 +149,4 @@ export interface SeasonDetail {
       name: string;
     };
   };
-}
-
-export interface SeasonStandingRow {
-  rank: number;
-  teamId: string;
-  team: string;
-  gamesPlayed: number;
-  points: number;
-  averagePoints: number;
 }

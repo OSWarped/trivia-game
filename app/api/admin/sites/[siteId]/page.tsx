@@ -1,21 +1,25 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useParams, usePathname } from 'next/navigation';
+import { use, useCallback, useEffect, useMemo, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import AdminPageHeader from '../../_components/AdminPageHeader';
 import AdminSectionCard from '../../_components/AdminSectionCard';
 import Breadcrumbs from '../../_components/Breadcrumbs';
 import GamesTable from '../../_components/GamesTable';
 import LoadingCard from '../../_components/LoadingCard';
 import RecordTabs from '../../_components/RecordTabs';
+import StatCard from '../../_components/StatCard';
 import type { GameRow, SiteGroup, SiteRow } from '../../_lib/types';
 import { flattenGames } from '../../_lib/utils';
 
-export default function AdminSiteDetailPage() {
-  const params = useParams<{ siteId: string }>();
+type SitePageProps = {
+  params: Promise<{ siteId: string }>;
+};
+
+export default function AdminSiteDetailPage({ params }: SitePageProps) {
+  const { siteId } = use(params);
   const pathname = usePathname();
-  const siteId = params.siteId;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -39,9 +43,10 @@ export default function AdminSiteDetailPage() {
       const siteRows = (await sitesRes.json()) as SiteRow[];
       const siteGroups = (await gamesRes.json()) as SiteGroup[];
       const foundSite = siteRows.find((candidate) => candidate.id === siteId) ?? null;
+      const siteGames = flattenGames(siteGroups).filter((game) => game.siteId === siteId);
 
       setSite(foundSite);
-      setGames(flattenGames(siteGroups).filter((game) => game.siteId === siteId));
+      setGames(siteGames);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Failed to load site.');
     } finally {
@@ -99,33 +104,44 @@ export default function AdminSiteDetailPage() {
         eyebrow="Site Workspace"
         title={site.name}
         description={site.address ?? 'No address on file'}
+        actions={[{ href: '/admin/games', label: 'Open Games', tone: 'primary' }]}
       />
 
       <RecordTabs tabs={tabs} currentPath={pathname} />
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <StatCard label="Games" value={games.length} hint="Games tied to this site" />
+        <StatCard label="Events" value={events.length} hint="Event containers at this site" />
+        <StatCard
+          label="Address"
+          value={site.address ? 'On file' : 'Missing'}
+          hint={site.address ?? 'No address saved'}
+        />
+      </div>
 
       <div className="grid gap-6 xl:grid-cols-[0.72fr_1.28fr]">
         <AdminSectionCard
           title="Events at this Site"
           description="These event containers stay available, but they no longer block the path to game work."
         >
-          <div className="space-y-3">
-            {events.map((event) => (
-              <Link
-                key={event.id}
-                href={`/admin/events/${event.id}`}
-                className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 transition hover:bg-slate-50"
-              >
-                <span className="font-medium text-slate-900">{event.name}</span>
-                <span>{event.count} games</span>
-              </Link>
-            ))}
-
-            {events.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500">
-                No events are attached to this site yet.
-              </div>
-            ) : null}
-          </div>
+          {events.length > 0 ? (
+            <div className="space-y-3">
+              {events.map((event) => (
+                <Link
+                  key={event.id}
+                  href={`/admin/events/${event.id}`}
+                  className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 transition hover:bg-slate-50"
+                >
+                  <span className="font-medium text-slate-900">{event.name}</span>
+                  <span>{event.count} games</span>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500">
+              No events are attached to this site yet.
+            </div>
+          )}
         </AdminSectionCard>
 
         <AdminSectionCard

@@ -42,15 +42,15 @@ export default function GamesTable({
               <td className="rounded-l-2xl px-3 py-3 text-slate-600">
                 {formatDateTime(game.scheduledFor)}
               </td>
-              <td className="px-3 py-3 font-medium">{game.title}</td>
-              <td className="px-3 py-3">{game.siteName}</td>
-              <td className="px-3 py-3">{game.eventName}</td>
-              <td className="px-3 py-3">{game.seasonName}</td>
+              <td className="px-3 py-3 font-medium text-slate-900">{game.title}</td>
+              <td className="px-3 py-3 text-slate-600">{game.siteName}</td>
+              <td className="px-3 py-3 text-slate-600">{game.eventName}</td>
+              <td className="px-3 py-3 text-slate-600">{game.seasonName}</td>
               <td className="px-3 py-3">
                 <StatusBadge status={game.status} />
               </td>
-              <td className="px-3 py-3">{game.hostName ?? 'Unassigned'}</td>
-              <td className="px-3 py-3">{game.joinCode ?? '—'}</td>
+              <td className="px-3 py-3 text-slate-600">{game.hostName ?? 'Unassigned'}</td>
+              <td className="px-3 py-3 text-slate-600">{game.joinCode ?? '—'}</td>
               <td className="rounded-r-2xl px-3 py-3">
                 <div className="flex flex-wrap gap-2">
                   <Link

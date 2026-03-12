@@ -1,21 +1,24 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useParams, usePathname } from 'next/navigation';
-import AdminPageHeader from '../_components/AdminPageHeader';
-import AdminSectionCard from '../_components/AdminSectionCard';
-import Breadcrumbs from '../_components/Breadcrumbs';
-import GamesTable from '../_components/GamesTable';
-import LoadingCard from '../_components/LoadingCard';
-import RecordTabs from '../_components/RecordTabs';
-import StatCard from '../_components/StatCard';
-import type { GameRow, SeasonDetail, SeasonStandingRow } from '../_lib/types';
-import { formatDate } from '../_lib/utils';
+import { use, useCallback, useEffect, useMemo, useState } from 'react';
+import { usePathname } from 'next/navigation';
+import AdminPageHeader from '../../_components/AdminPageHeader';
+import AdminSectionCard from '../../_components/AdminSectionCard';
+import Breadcrumbs from '../../_components/Breadcrumbs';
+import GamesTable from '../../_components/GamesTable';
+import LoadingCard from '../../_components/LoadingCard';
+import RecordTabs from '../../_components/RecordTabs';
+import StatCard from '../../_components/StatCard';
+import type { GameRow, SeasonDetail, SeasonStandingRow } from '../../_lib/types';
+import { formatDate } from '../../_lib/utils';
 
-export default function AdminSeasonDetailPage() {
-  const params = useParams<{ id: string }>();
+type SeasonPageProps = {
+  params: Promise<{ id: string }>;
+};
+
+export default function AdminSeasonDetailPage({ params }: SeasonPageProps) {
+  const { id: seasonId } = use(params);
   const pathname = usePathname();
-  const seasonId = params.id;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -161,15 +164,9 @@ export default function AdminSeasonDetailPage() {
                       <td className="px-3 py-3">
                         <div className="font-medium text-slate-900">{row.team}</div>
                       </td>
-                      <td className="px-3 py-3 text-right text-slate-700">
-                        {row.gamesPlayed}
-                      </td>
-                      <td className="px-3 py-3 text-right font-semibold text-slate-900">
-                        {row.points}
-                      </td>
-                      <td className="px-3 py-3 text-right text-slate-700">
-                        {row.averagePoints.toFixed(2)}
-                      </td>
+                      <td className="px-3 py-3 text-right text-slate-700">{row.gamesPlayed}</td>
+                      <td className="px-3 py-3 text-right font-semibold text-slate-900">{row.points}</td>
+                      <td className="px-3 py-3 text-right text-slate-700">{row.averagePoints.toFixed(2)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -187,10 +184,7 @@ export default function AdminSeasonDetailPage() {
         title="Games"
         description="Season views are still game-first: every row keeps the primary game actions."
       >
-        <GamesTable
-          games={games}
-          emptyMessage="No games have been created for this season yet."
-        />
+        <GamesTable games={games} emptyMessage="No games have been created for this season yet." />
       </AdminSectionCard>
     </div>
   );

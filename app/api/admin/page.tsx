@@ -152,11 +152,7 @@ export default function AdminOverviewPage() {
             filteredSearchResults.length > 0 ? (
               <div className="grid gap-3 lg:grid-cols-2">
                 {filteredSearchResults.map((game) => (
-                  <CompactGameCard
-                    key={game.id}
-                    game={game}
-                    subtitle="Quick match"
-                  />
+                  <CompactGameCard key={game.id} game={game} subtitle="Quick match" />
                 ))}
               </div>
             ) : (
@@ -213,11 +209,7 @@ export default function AdminOverviewPage() {
           {draftGames.length > 0 ? (
             <div className="grid gap-3 md:grid-cols-2">
               {draftGames.map((game) => (
-                <CompactGameCard
-                  key={game.id}
-                  game={game}
-                  subtitle="Resume content work"
-                />
+                <CompactGameCard key={game.id} game={game} subtitle="Resume content work" />
               ))}
             </div>
           ) : (
@@ -241,13 +233,7 @@ export default function AdminOverviewPage() {
   );
 }
 
-function QuickLinkCard({
-  href,
-  children,
-}: {
-  href: string;
-  children: ReactNode;
-}) {
+function QuickLinkCard({ href, children }: { href: string; children: ReactNode }) {
   return (
     <Link
       href={href}
@@ -266,13 +252,7 @@ function EmptyState({ message }: { message: string }) {
   );
 }
 
-function CompactGameCard({
-  game,
-  subtitle,
-}: {
-  game: GameRow;
-  subtitle?: string;
-}) {
+function CompactGameCard({ game, subtitle }: { game: GameRow; subtitle?: string }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
       {subtitle ? (
@@ -283,9 +263,7 @@ function CompactGameCard({
 
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="truncate text-base font-semibold text-slate-900">
-            {game.title}
-          </h3>
+          <h3 className="truncate text-base font-semibold text-slate-900">{game.title}</h3>
           <p className="mt-1 text-sm text-slate-600">
             {game.siteName} • {game.eventName} • {game.seasonName}
           </p>
@@ -327,9 +305,7 @@ function UpcomingGameRow({ game }: { game: GameRow }) {
 
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-base font-semibold text-slate-900">
-                {game.title}
-              </h3>
+              <h3 className="text-base font-semibold text-slate-900">{game.title}</h3>
               <StatusBadge status={game.status} />
             </div>
 
@@ -339,9 +315,7 @@ function UpcomingGameRow({ game }: { game: GameRow }) {
 
             <p className="mt-2 text-sm text-slate-600">
               Host:{' '}
-              <span className="font-medium text-slate-800">
-                {game.hostName ?? 'Unassigned'}
-              </span>
+              <span className="font-medium text-slate-800">{game.hostName ?? 'Unassigned'}</span>
             </p>
           </div>
         </div>
@@ -364,11 +338,7 @@ function NeedsAttentionCard({ game }: { game: GameRow }) {
           <div className="text-xs font-semibold uppercase tracking-[0.12em] text-amber-700">
             {buildAttentionHeadline(reasons)}
           </div>
-
-          <h3 className="mt-1 text-base font-semibold text-slate-900">
-            {game.title}
-          </h3>
-
+          <h3 className="mt-1 text-base font-semibold text-slate-900">{game.title}</h3>
           <p className="mt-1 text-sm text-slate-700">
             {game.siteName} • {game.eventName} • {game.seasonName}
           </p>
@@ -437,11 +407,9 @@ function buildAttentionReasons(game: GameRow): string[] {
   if (game.status.toUpperCase() === 'DRAFT') {
     reasons.push('Draft');
   }
-
   if (!game.scheduledFor) {
     reasons.push('Unscheduled');
   }
-
   if (!game.hostName) {
     reasons.push('Missing host');
   }
@@ -453,15 +421,12 @@ function buildAttentionHeadline(reasons: string[]): string {
   if (reasons.includes('Draft') && reasons.includes('Unscheduled')) {
     return 'Game setup incomplete';
   }
-
   if (reasons.includes('Missing host')) {
     return 'Host assignment needed';
   }
-
   if (reasons.includes('Unscheduled')) {
     return 'Schedule needed';
   }
-
   if (reasons.includes('Draft')) {
     return 'Draft ready to finish';
   }
@@ -473,7 +438,6 @@ function formatSchedule(value: string | null): string {
   if (!value) {
     return 'Unscheduled';
   }
-
   return new Date(value).toLocaleString();
 }
 
@@ -481,7 +445,6 @@ function formatMonthDay(value: string | null): string {
   if (!value) {
     return 'No date';
   }
-
   return new Date(value).toLocaleDateString(undefined, {
     month: 'short',
     day: 'numeric',
@@ -492,7 +455,6 @@ function formatTime(value: string | null): string {
   if (!value) {
     return 'TBD';
   }
-
   return new Date(value).toLocaleTimeString(undefined, {
     hour: 'numeric',
     minute: '2-digit',

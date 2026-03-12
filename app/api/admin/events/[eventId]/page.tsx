@@ -1,21 +1,25 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useParams, usePathname } from 'next/navigation';
+import { use, useCallback, useEffect, useMemo, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import AdminPageHeader from '../../_components/AdminPageHeader';
 import AdminSectionCard from '../../_components/AdminSectionCard';
 import Breadcrumbs from '../../_components/Breadcrumbs';
 import GamesTable from '../../_components/GamesTable';
 import LoadingCard from '../../_components/LoadingCard';
 import RecordTabs from '../../_components/RecordTabs';
+import StatCard from '../../_components/StatCard';
 import type { EventDetail, GameRow, SiteGroup } from '../../_lib/types';
 import { flattenGames } from '../../_lib/utils';
 
-export default function AdminEventDetailPage() {
-  const params = useParams<{ eventId: string }>();
+type EventPageProps = {
+  params: Promise<{ eventId: string }>;
+};
+
+export default function AdminEventDetailPage({ params }: EventPageProps) {
+  const { eventId } = use(params);
   const pathname = usePathname();
-  const eventId = params.eventId;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -101,9 +105,16 @@ export default function AdminEventDetailPage() {
         eyebrow="Event Workspace"
         title={event.name}
         description={`${event.site.name}${event.site.address ? ` • ${event.site.address}` : ''}`}
+        actions={[{ href: '/admin/games', label: 'Open Games', tone: 'primary' }]}
       />
 
       <RecordTabs tabs={tabs} currentPath={pathname} />
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <StatCard label="Games" value={games.length} hint="Games tied to this event" />
+        <StatCard label="Seasons" value={seasonGroups.length} hint="Season containers in this event" />
+        <StatCard label="Site" value={event.site.name} hint={event.site.address ?? 'No address saved'} />
+      </div>
 
       <div className="grid gap-6 xl:grid-cols-[0.75fr_1.25fr]">
         <AdminSectionCard

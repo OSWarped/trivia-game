@@ -1,8 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { use, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useParams, usePathname } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import AdminPageHeader from '../../_components/AdminPageHeader';
 import AdminSectionCard from '../../_components/AdminSectionCard';
 import Breadcrumbs from '../../_components/Breadcrumbs';
@@ -14,10 +14,13 @@ import type { GameDetail, UserRow } from '../../_lib/types';
 import { toDateTimeLocal } from '../../_lib/utils';
 import GameJsonImportPanel from './components/GameJsonImportPanel';
 
-export default function AdminGameWorkspacePage() {
-  const params = useParams<{ id: string }>();
+type AdminGameWorkspacePageProps = {
+  params: Promise<{ id: string }>;
+};
+
+export default function AdminGameWorkspacePage({ params }: AdminGameWorkspacePageProps) {
+  const { id: gameId } = use(params);
   const pathname = usePathname();
-  const gameId = params.id;
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

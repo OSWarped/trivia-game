@@ -1,6 +1,6 @@
 'use client';
 
-import React, { JSX, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { JSX, useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { GameStatus } from '@prisma/client';
 import AppBackground from '@/components/AppBackground';
@@ -493,10 +493,10 @@ export default function AnswerRevealPage(): JSX.Element {
     };
   }, [socket, gameId, teamId, teamName]);
 
-  const scheduledDisplay = useMemo(() => {
-    if (!game?.scheduledFor) return 'TBD';
-    return new Date(game.scheduledFor).toLocaleString();
-  }, [game?.scheduledFor]);
+//   const scheduledDisplay = useMemo(() => {
+//     if (!game?.scheduledFor) return 'TBD';
+//     return new Date(game.scheduledFor).toLocaleString();
+//   }, [game?.scheduledFor]);
 
   if (loading) {
     return (
@@ -571,14 +571,7 @@ export default function AnswerRevealPage(): JSX.Element {
               <span className="font-semibold text-white">Location:</span>{' '}
               {game.site?.name ?? 'TBD'}
             </p>
-            <p>
-              <span className="font-semibold text-white">Address:</span>{' '}
-              {game.site?.address ?? 'Unknown'}
-            </p>
-            <p>
-              <span className="font-semibold text-white">Start Time:</span>{' '}
-              {scheduledDisplay}
-            </p>
+           
           </div>
 
           {teamName ? (

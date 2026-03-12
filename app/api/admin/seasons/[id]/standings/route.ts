@@ -1,4 +1,3 @@
-// app/api/admin/seasons/[seasonId]/standings/route.ts
 import { PrismaClient } from '@prisma/client';
 import { NextResponse } from 'next/server';
 
@@ -8,33 +7,65 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ seasonId: string }> }
 ) {
-  const { seasonId } = await params;            // ✅ await
+  const { seasonId } = await params;
+
   try {
-    // aggregate totals by team across games in this season
     const standings = await prisma.teamGame.groupBy({
       by: ['teamId'],
-      where: { game: { seasonId: seasonId } },
-      _sum: { totalPts: true },
-      _count: { _all: true },
-      orderBy: { _sum: { totalPts: 'desc' } },
+      where: {
+        game: {
+          seasonId,
+          status: 'CLOSED',
+        },
+      },
+      _sum: {
+        totalPts: true,
+      },
+      _count: {
+        gameId: true,
+      },
+      orderBy: {
+        _sum: {
+          totalPts: 'desc',
+        },
+      },
     });
 
-    // join team names
-    const withNames = await Promise.all(
-      standings.map(async s => ({
-        teamId:  s.teamId,
-        games:   s._count._all,
-        points:  s._sum.totalPts,
-        team:    await prisma.team.findUnique({
-          where:{ id: s.teamId },
-          select:{ name:true },
-        }).then(t => t?.name ?? 'Unknown'),
-      })),
-    );
+    const teamIds = standings.map((row) => row.teamId);
 
-    return NextResponse.json(withNames);
+    const teams = await prisma.team.findMany({
+      where: {
+        id: { in: teamIds },
+      },
+      select: {
+        id: true,
+        name: true,
+      },
+    });
+
+    const teamNameMap = new Map(teams.map((team) => [team.id, team.name]));
+
+    const results = standings.map((row, index) => {
+      const points = row._sum?.totalPts ?? 0;
+      const gamesPlayed = row._count?.gameId ?? 0;
+
+      return {
+        rank: index + 1,
+        teamId: row.teamId,
+        team: teamNameMap.get(row.teamId) ?? 'Unknown',
+        gamesPlayed,
+        points,
+        averagePoints:
+          gamesPlayed > 0 ? Number((points / gamesPlayed).toFixed(2)) : 0,
+      };
+    });
+
+    return NextResponse.json(results);
   } catch (err) {
     console.error('Error fetching standings:', err);
-    return NextResponse.json({ error: 'Failed' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to fetch standings.' },
+      { status: 500 }
+    );
   }
 }

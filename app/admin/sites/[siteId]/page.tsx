@@ -9,17 +9,17 @@ import Breadcrumbs from '../../_components/Breadcrumbs';
 import GamesTable from '../../_components/GamesTable';
 import LoadingCard from '../../_components/LoadingCard';
 import RecordTabs from '../../_components/RecordTabs';
-import type { EventDetail, GameRow, SiteGroup } from '../../_lib/types';
+import type { GameRow, SiteGroup, SiteRow } from '../../_lib/types';
 import { flattenGames } from '../../_lib/utils';
 
-export default function AdminEventDetailPage() {
-  const params = useParams<{ eventId: string }>();
+export default function AdminSiteDetailPage() {
+  const params = useParams<{ siteId: string }>();
   const pathname = usePathname();
-  const eventId = params.eventId;
+  const siteId = params.siteId;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [event, setEvent] = useState<EventDetail | null>(null);
+  const [site, setSite] = useState<SiteRow | null>(null);
   const [games, setGames] = useState<GameRow[]>([]);
 
   const loadData = useCallback(async (): Promise<void> => {
@@ -27,43 +27,41 @@ export default function AdminEventDetailPage() {
       setLoading(true);
       setError(null);
 
-      const [eventRes, gamesRes] = await Promise.all([
-        fetch(`/api/admin/events/${eventId}`, { cache: 'no-store' }),
+      const [sitesRes, gamesRes] = await Promise.all([
+        fetch('/api/admin/sites', { cache: 'no-store' }),
         fetch('/api/admin/games', { cache: 'no-store' }),
       ]);
 
-      if (!eventRes.ok || !gamesRes.ok) {
-        throw new Error('Failed to load event workspace.');
+      if (!sitesRes.ok || !gamesRes.ok) {
+        throw new Error('Failed to load site workspace.');
       }
 
-      const eventData = (await eventRes.json()) as EventDetail;
+      const siteRows = (await sitesRes.json()) as SiteRow[];
       const siteGroups = (await gamesRes.json()) as SiteGroup[];
-      const eventGames = flattenGames(siteGroups).filter((game) => game.eventId === eventId);
+      const foundSite = siteRows.find((candidate) => candidate.id === siteId) ?? null;
 
-      setEvent(eventData);
-      setGames(eventGames);
+      setSite(foundSite);
+      setGames(flattenGames(siteGroups).filter((game) => game.siteId === siteId));
     } catch (loadError) {
-      setError(
-        loadError instanceof Error ? loadError.message : 'Failed to load event.'
-      );
+      setError(loadError instanceof Error ? loadError.message : 'Failed to load site.');
     } finally {
       setLoading(false);
     }
-  }, [eventId]);
+  }, [siteId]);
 
   useEffect(() => {
     void loadData();
   }, [loadData]);
 
-  const seasonGroups = useMemo(() => {
+  const events = useMemo(() => {
     const map = new Map<string, { id: string; name: string; count: number }>();
 
     for (const game of games) {
-      const existing = map.get(game.seasonId);
+      const existing = map.get(game.eventId);
       if (existing) {
-        map.set(game.seasonId, { ...existing, count: existing.count + 1 });
+        map.set(game.eventId, { ...existing, count: existing.count + 1 });
       } else {
-        map.set(game.seasonId, { id: game.seasonId, name: game.seasonName, count: 1 });
+        map.set(game.eventId, { id: game.eventId, name: game.eventName, count: 1 });
       }
     }
 
@@ -71,18 +69,18 @@ export default function AdminEventDetailPage() {
   }, [games]);
 
   const tabs = useMemo(
-    () => [{ label: 'Overview', href: `/admin/events/${eventId}` }],
-    [eventId]
+    () => [{ label: 'Overview', href: `/admin/sites/${siteId}` }],
+    [siteId]
   );
 
   if (loading) {
-    return <LoadingCard label="Loading event..." />;
+    return <LoadingCard label="Loading site..." />;
   }
 
-  if (error || !event) {
+  if (error || !site) {
     return (
       <div className="rounded-3xl border border-red-200 bg-red-50 p-5 text-red-700 shadow-sm">
-        {error ?? 'Unable to load event.'}
+        {error ?? 'Unable to load site.'}
       </div>
     );
   }
@@ -92,49 +90,49 @@ export default function AdminEventDetailPage() {
       <Breadcrumbs
         items={[
           { label: 'Admin', href: '/admin' },
-          { label: 'Events', href: '/admin/events' },
-          { label: event.name },
+          { label: 'Sites', href: '/admin/sites' },
+          { label: site.name },
         ]}
       />
 
       <AdminPageHeader
-        eyebrow="Event Workspace"
-        title={event.name}
-        description={`${event.site.name}${event.site.address ? ` • ${event.site.address}` : ''}`}
+        eyebrow="Site Workspace"
+        title={site.name}
+        description={site.address ?? 'No address on file'}
       />
 
       <RecordTabs tabs={tabs} currentPath={pathname} />
 
-      <div className="grid gap-6 xl:grid-cols-[0.75fr_1.25fr]">
+      <div className="grid gap-6 xl:grid-cols-[0.72fr_1.28fr]">
         <AdminSectionCard
-          title="Seasons"
-          description="Seasons organize the event, but every season still leads back to a direct game workflow."
+          title="Events at this Site"
+          description="These event containers stay available, but they no longer block the path to game work."
         >
           <div className="space-y-3">
-            {seasonGroups.map((season) => (
+            {events.map((event) => (
               <Link
-                key={season.id}
-                href={`/admin/seasons/${season.id}`}
+                key={event.id}
+                href={`/admin/events/${event.id}`}
                 className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 transition hover:bg-slate-50"
               >
-                <span className="font-medium text-slate-900">{season.name}</span>
-                <span>{season.count} games</span>
+                <span className="font-medium text-slate-900">{event.name}</span>
+                <span>{event.count} games</span>
               </Link>
             ))}
 
-            {seasonGroups.length === 0 ? (
+            {events.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500">
-                No seasons found for this event yet.
+                No events are attached to this site yet.
               </div>
             ) : null}
           </div>
         </AdminSectionCard>
 
         <AdminSectionCard
-          title="Games"
-          description="Even inside the event workspace, the game table keeps the fast actions front and center."
+          title="Games at this Site"
+          description="This keeps the site workspace useful without forcing you through multiple pages before editing a game."
         >
-          <GamesTable games={games} emptyMessage="No games are attached to this event yet." />
+          <GamesTable games={games} emptyMessage="No games exist for this site yet." />
         </AdminSectionCard>
       </div>
     </div>

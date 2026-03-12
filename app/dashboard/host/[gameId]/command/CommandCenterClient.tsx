@@ -88,6 +88,7 @@ export default function CommandCenterClient({ gameId }: Props): JSX.Element {
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected'>('connected');
   const [joinUrl, setJoinUrl] = useState('');
   const [copied, setCopied] = useState(false);
+  const [startGameMessage, setStartGameMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && game?.joinCode) {
@@ -150,6 +151,12 @@ export default function CommandCenterClient({ gameId }: Props): JSX.Element {
       socket.off('host:liveTeams', handleLiveTeams);
     };
   }, [socket, gameId]);
+
+  useEffect(() => {
+    if (teams.length > 0 && startGameMessage) {
+      setStartGameMessage(null);
+    }
+  }, [teams.length, startGameMessage]);
 
   const connectedCount = useMemo(
     () => teams.filter((team) => team.status === 'ACTIVE').length,
@@ -368,16 +375,33 @@ export default function CommandCenterClient({ gameId }: Props): JSX.Element {
                     <button
                       type="button"
                       onClick={async () => {
-                        try {
-                          const startRes = await fetch(
-                            `/api/host/games/${gameId}/start`,
-                            {
-                              method: 'PATCH',
-                            }
+                        setStartGameMessage(null);
+
+                        if (teams.length === 0) {
+                          setStartGameMessage(
+                            'You cannot start the game until at least one team has joined the lobby.'
                           );
+                          return;
+                        }
+
+                        try {
+                          const startRes = await fetch(`/api/host/games/${gameId}/start`, {
+                            method: 'PATCH',
+                          });
 
                           if (!startRes.ok) {
-                            throw new Error('Failed to start game');
+                            let errorMessage = 'Failed to start game.';
+                            try {
+                              const errorData = (await startRes.json()) as { error?: string };
+                              if (errorData?.error) {
+                                errorMessage = errorData.error;
+                              }
+                            } catch {
+                              // ignore JSON parse errors and fall back to generic message
+                            }
+
+                            setStartGameMessage(errorMessage);
+                            throw new Error(errorMessage);
                           }
 
                           const displayModeRes = await fetch(
@@ -390,9 +414,9 @@ export default function CommandCenterClient({ gameId }: Props): JSX.Element {
                           );
 
                           if (!displayModeRes.ok) {
-                            throw new Error(
-                              'Failed to set display mode to QUESTION'
-                            );
+                            const errorMessage = 'Failed to set display mode to QUESTION.';
+                            setStartGameMessage(errorMessage);
+                            throw new Error(errorMessage);
                           }
 
                           socket?.emit('host:gameStarted', { gameId });
@@ -409,6 +433,11 @@ export default function CommandCenterClient({ gameId }: Props): JSX.Element {
                       Start Game
                     </button>
                   )}
+                  {startGameMessage ? (
+                    <div className="mt-4 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                      {startGameMessage}
+                    </div>
+                  ) : null}
                 </div>
               </section>
             </main>

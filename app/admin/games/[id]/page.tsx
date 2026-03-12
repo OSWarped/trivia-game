@@ -1,62 +1,30 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
-import { ChevronLeft } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
-import AppBackground from '@/components/AppBackground';
+import { useParams, usePathname } from 'next/navigation';
+import AdminPageHeader from '../../_components/AdminPageHeader';
+import AdminSectionCard from '../../_components/AdminSectionCard';
+import Breadcrumbs from '../../_components/Breadcrumbs';
+import LoadingCard from '../../_components/LoadingCard';
+import RecordTabs from '../../_components/RecordTabs';
+import StatCard from '../../_components/StatCard';
+import StatusBadge from '../../_components/StatusBadge';
+import type { GameDetail, UserRow } from '../../_lib/types';
+import { toDateTimeLocal } from '../../_lib/utils';
 import GameJsonImportPanel from './components/GameJsonImportPanel';
 
-interface User {
-  id: string;
-  name: string;
-}
+export default function AdminGameWorkspacePage() {
+  const params = useParams<{ id: string }>();
+  const pathname = usePathname();
+  const gameId = params.id;
 
-interface GameDetail {
-  id: string;
-  title: string;
-  joinCode: string;
-  special: boolean;
-  tag: string | null;
-  status: string;
-  scheduledFor: string | null;
-  startedAt: string | null;
-  endedAt: string | null;
-  host: User | null;
-  season: {
-    id: string;
-    name: string;
-    event: {
-      id: string;
-      name: string;
-      site: {
-        id: string;
-        name: string;
-      };
-    };
-  };
-}
-
-function toDateTimeLocal(value: string | null): string {
-  if (!value) return '';
-  const date = new Date(value);
-  const offsetMs = date.getTimezoneOffset() * 60 * 1000;
-  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
-}
-
-export default function EditGamePage() {
-  const router = useRouter();
-  const { id: gameId } = useParams<{ id: string }>();
-  const { isAdmin, loading: authLoading } = useAuth();
-
-  const [authChecked, setAuthChecked] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
+  const [notice, setNotice] = useState<string | null>(null);
   const [game, setGame] = useState<GameDetail | null>(null);
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<UserRow[]>([]);
 
   const [title, setTitle] = useState('');
   const [scheduledFor, setScheduledFor] = useState('');
@@ -65,18 +33,7 @@ export default function EditGamePage() {
   const [tag, setTag] = useState('');
   const [status, setStatus] = useState('DRAFT');
 
-  useEffect(() => {
-    if (authLoading) return;
-
-    if (!isAdmin) {
-      router.push('/login');
-      return;
-    }
-
-    setAuthChecked(true);
-  }, [authLoading, isAdmin, router]);
-
-  const loadPage = useCallback(async () => {
+  const loadData = useCallback(async (): Promise<void> => {
     try {
       setLoading(true);
       setError(null);
@@ -86,50 +43,53 @@ export default function EditGamePage() {
         fetch('/api/admin/users', { cache: 'no-store' }),
       ]);
 
-      if (!gameRes.ok) {
-        const data = (await gameRes.json()) as { error?: string };
-        throw new Error(data.error ?? 'Failed to load game.');
-      }
-
-      if (!usersRes.ok) {
-        const data = (await usersRes.json()) as { error?: string };
-        throw new Error(data.error ?? 'Failed to load users.');
+      if (!gameRes.ok || !usersRes.ok) {
+        throw new Error('Failed to load game workspace.');
       }
 
       const gameData = (await gameRes.json()) as GameDetail;
-      const usersData = (await usersRes.json()) as User[];
+      const userRows = (await usersRes.json()) as UserRow[];
 
       setGame(gameData);
-      setUsers(usersData);
-
+      setUsers(userRows);
       setTitle(gameData.title);
       setScheduledFor(toDateTimeLocal(gameData.scheduledFor));
       setHostId(gameData.host?.id ?? '');
       setSpecial(gameData.special);
       setTag(gameData.tag ?? '');
       setStatus(gameData.status);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong.');
+    } catch (loadError) {
+      setError(
+        loadError instanceof Error ? loadError.message : 'Failed to load game.'
+      );
     } finally {
       setLoading(false);
     }
   }, [gameId]);
 
   useEffect(() => {
-    if (!authChecked) return;
-    void loadPage();
-  }, [authChecked, loadPage]);
+    void loadData();
+  }, [loadData]);
 
-  async function handleSaveChanges(): Promise<void> {
+  const tabs = useMemo(
+    () => [
+      { label: 'Overview', href: `/admin/games/${gameId}` },
+      { label: 'Content', href: `/admin/games/${gameId}/editor` },
+    ],
+    [gameId]
+  );
+
+  async function handleSave(): Promise<void> {
     if (!title.trim()) {
-      window.alert('Game title is required.');
+      setNotice('Game title is required.');
       return;
     }
 
     try {
       setSaving(true);
+      setNotice(null);
 
-      const res = await fetch(`/api/admin/games/${gameId}`, {
+      const response = await fetch(`/api/admin/games/${gameId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -137,233 +97,216 @@ export default function EditGamePage() {
           scheduledFor: scheduledFor || null,
           hostId: hostId || null,
           special,
-          tag: special ? tag.trim() || null : null,
+          tag: tag.trim() || null,
           status,
         }),
       });
 
-      const data = (await res.json()) as { id?: string; error?: string };
-
-      if (!res.ok) {
-        throw new Error(data.error ?? 'Failed to update game.');
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(data?.error ?? 'Failed to save game.');
       }
 
-      router.push(`/admin/games/${data.id ?? gameId}`);
-    } catch (err) {
-      window.alert(err instanceof Error ? err.message : 'Failed to save changes.');
+      setNotice('Game details saved.');
+      await loadData();
+    } catch (saveError) {
+      setNotice(
+        saveError instanceof Error ? saveError.message : 'Failed to save game.'
+      );
     } finally {
       setSaving(false);
     }
   }
 
-  if (!authChecked || loading) {
-    return (
-      <AppBackground variant="dashboard">
-        <div className="min-h-screen px-4 py-6 md:px-8 md:py-8">
-          <div className="mx-auto max-w-6xl rounded-2xl border border-white/10 bg-white/80 p-6 shadow-xl backdrop-blur-sm">
-            Loading game...
-          </div>
-        </div>
-      </AppBackground>
-    );
+  if (loading) {
+    return <LoadingCard label="Loading game workspace..." />;
   }
 
   if (error || !game) {
     return (
-      <AppBackground variant="dashboard">
-        <div className="min-h-screen px-4 py-6 md:px-8 md:py-8">
-          <div className="mx-auto max-w-6xl space-y-4">
-            <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700 shadow-sm">
-              {error ?? 'Unable to load game.'}
-            </div>
-          </div>
-        </div>
-      </AppBackground>
+      <div className="rounded-3xl border border-red-200 bg-red-50 p-5 text-red-700 shadow-sm">
+        {error ?? 'Unable to load game.'}
+      </div>
     );
   }
 
   return (
-    <AppBackground variant="dashboard">
-      <div className="min-h-screen px-4 py-6 md:px-8 md:py-8">
-        <div className="mx-auto max-w-6xl space-y-6">
-          <div>
-            <Link
-              href={`/admin/seasons/${game.season.id}`}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white/80 px-4 py-2 text-sm font-medium text-slate-700 shadow-sm backdrop-blur-sm transition hover:bg-white"
-            >
-              <ChevronLeft size={18} />
-              Back to Season
-            </Link>
-          </div>
+    <div className="space-y-6">
+      <Breadcrumbs
+        items={[
+          { label: 'Admin', href: '/admin' },
+          { label: 'Games', href: '/admin/games' },
+          { label: game.title },
+        ]}
+      />
 
-          <header className="rounded-3xl border border-white/10 bg-white/80 px-6 py-6 shadow-xl backdrop-blur-sm">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div>
-                <div className="mb-1 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-                  Game Management
-                </div>
+      <AdminPageHeader
+        eyebrow="Game Workspace"
+        title={game.title}
+        description={`${game.season.event.site.name} • ${game.season.event.name} • ${game.season.name}`}
+        actions={[
+          { href: `/admin/games/${gameId}/editor`, label: 'Edit Content', tone: 'primary' },
+          { href: `/dashboard/host/${gameId}/command`, label: 'Host View' },
+        ]}
+      />
 
-                <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
-                  {game.title}
-                </h1>
+      <RecordTabs tabs={tabs} currentPath={pathname} />
 
-                <p className="mt-2 text-sm text-slate-600">
-                  Season: <span className="font-medium text-slate-800">{game.season.name}</span>
-                </p>
-                <p className="mt-1 text-sm text-slate-600">
-                  Event: <span className="font-medium text-slate-800">{game.season.event.name}</span>
-                </p>
-                <p className="mt-1 text-sm text-slate-600">
-                  Site: <span className="font-medium text-slate-800">{game.season.event.site.name}</span>
-                </p>
-                <p className="mt-1 text-sm text-slate-600">
-                  Join Code:{' '}
-                  <span className="font-mono font-medium text-slate-800">
-                    {game.joinCode}
-                  </span>
-                </p>
-              </div>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Status" value={game.status} />
+        <StatCard label="Join Code" value={game.joinCode} />
+        <StatCard label="Host" value={game.host?.name ?? 'Unassigned'} />
+        <StatCard
+          label="Schedule"
+          value={game.scheduledFor ? new Date(game.scheduledFor).toLocaleString() : 'Unscheduled'}
+        />
+      </div>
 
-              <div className="flex flex-wrap gap-3">
-                <Link
-                  href={`/admin/games/${game.id}/editor`}
-                  className="inline-flex items-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
-                >
-                  Open Rounds / Questions Editor
-                </Link>
-              </div>
-            </div>
-          </header>
-
-          <section className="rounded-3xl border border-white/10 bg-white/80 p-6 shadow-xl backdrop-blur-sm">
-            <div className="mb-5">
-              <h2 className="text-xl font-semibold text-slate-900">Edit Game Details</h2>
-              <p className="mt-1 text-sm text-slate-600">
-                Update scheduling, status, host assignment, and special game settings.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="md:col-span-2">
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Game Title
-                </label>
+      <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+        <AdminSectionCard
+          title="Game Details"
+          description="This page is the game home. Use it for metadata and jump to the editor for content work."
+        >
+          <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="grid gap-2 text-sm font-medium text-slate-700">
+                Title
                 <input
                   type="text"
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={title}
-                  onChange={(e) => setTitle(e.target.value)}
+                  onChange={(event) => setTitle(event.target.value)}
+                  className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
                 />
-              </div>
+              </label>
 
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Scheduled For
-                </label>
+              <label className="grid gap-2 text-sm font-medium text-slate-700">
+                Scheduled For
                 <input
                   type="datetime-local"
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={scheduledFor}
-                  onChange={(e) => setScheduledFor(e.target.value)}
+                  onChange={(event) => setScheduledFor(event.target.value)}
+                  className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
                 />
-              </div>
+              </label>
+            </div>
 
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Status
-                </label>
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="grid gap-2 text-sm font-medium text-slate-700">
+                Host
                 <select
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value)}
-                >
-                  <option value="DRAFT">DRAFT</option>
-                  <option value="SCHEDULED">SCHEDULED</option>
-                  <option value="LIVE">LIVE</option>
-                  <option value="CLOSED">CLOSED</option>
-                  <option value="CANCELED">CANCELED</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Host
-                </label>
-                <select
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={hostId}
-                  onChange={(e) => setHostId(e.target.value)}
+                  onChange={(event) => setHostId(event.target.value)}
+                  className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
                 >
-                  <option value="">No Host Assigned</option>
+                  <option value="">Unassigned</option>
                   {users.map((user) => (
                     <option key={user.id} value={user.id}>
-                      {user.name}
+                      {user.name || user.email}
                     </option>
                   ))}
                 </select>
-              </div>
+              </label>
 
-              <div className="flex items-center gap-3 pt-7">
-                <input
-                  id="special"
-                  type="checkbox"
-                  checked={special}
-                  onChange={(e) => setSpecial(e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-400"
-                />
-                <label htmlFor="special" className="text-sm font-medium text-slate-700">
-                  Special Game
-                </label>
-              </div>
-
-              {special ? (
-                <div className="md:col-span-2">
-                  <label className="mb-2 block text-sm font-medium text-slate-700">
-                    Special Tag
-                  </label>
-                  <input
-                    type="text"
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={tag}
-                    onChange={(e) => setTag(e.target.value)}
-                    placeholder="Championship"
-                  />
-                </div>
-              ) : null}
+              <label className="grid gap-2 text-sm font-medium text-slate-700">
+                Status
+                <select
+                  value={status}
+                  onChange={(event) => setStatus(event.target.value)}
+                  className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
+                >
+                  <option value="DRAFT">Draft</option>
+                  <option value="SCHEDULED">Scheduled</option>
+                  <option value="LIVE">Live</option>
+                  <option value="CLOSED">Closed</option>
+                  <option value="CANCELED">Canceled</option>
+                </select>
+              </label>
             </div>
 
-            <div className="mt-6 flex flex-wrap justify-end gap-3">
-              <Link
-                href={`/admin/seasons/${game.season.id}`}
-                className="inline-flex items-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-              >
-                Cancel
-              </Link>
+            <label className="grid gap-2 text-sm font-medium text-slate-700">
+              Tag
+              <input
+                type="text"
+                value={tag}
+                onChange={(event) => setTag(event.target.value)}
+                className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
+              />
+            </label>
+
+            <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={special}
+                onChange={(event) => setSpecial(event.target.checked)}
+                className="h-4 w-4 rounded border-slate-300"
+              />
+              Special game
+            </label>
+
+            {notice ? (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                {notice}
+              </div>
+            ) : null}
+
+            <div className="flex flex-wrap gap-3">
               <button
                 type="button"
-                className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                onClick={() => {
-                  void handleSaveChanges();
-                }}
+                onClick={() => void handleSave()}
                 disabled={saving}
+                className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
               >
-                {saving ? 'Saving...' : 'Save Changes'}
+                {saving ? 'Saving...' : 'Save Details'}
               </button>
+              <Link
+                href={`/admin/games/${gameId}/editor`}
+                className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              >
+                Open Content Editor
+              </Link>
             </div>
-          </section>
+          </div>
+        </AdminSectionCard>
 
-          <section className="rounded-3xl border border-white/10 bg-white/80 p-6 shadow-xl backdrop-blur-sm">
-            <div className="mb-5">
-              <h2 className="text-xl font-semibold text-slate-900">Game Content Import</h2>
-              <p className="mt-1 text-sm text-slate-600">
-                Import structured game content into this game.
-              </p>
+        <div className="space-y-6">
+          <AdminSectionCard
+            title="Context"
+            description="Hierarchy stays visible here without slowing down day-to-day navigation."
+          >
+            <div className="space-y-3 text-sm text-slate-700">
+              <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                <span>Site</span>
+                <Link href={`/admin/sites/${game.season.event.site.id}`} className="font-medium text-slate-900 transition hover:underline">
+                  {game.season.event.site.name}
+                </Link>
+              </div>
+              <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                <span>Event</span>
+                <Link href={`/admin/events/${game.season.event.id}`} className="font-medium text-slate-900 transition hover:underline">
+                  {game.season.event.name}
+                </Link>
+              </div>
+              <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                <span>Season</span>
+                <Link href={`/admin/seasons/${game.season.id}`} className="font-medium text-slate-900 transition hover:underline">
+                  {game.season.name}
+                </Link>
+              </div>
+              <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                <span>Status</span>
+                <StatusBadge status={game.status} />
+              </div>
             </div>
+          </AdminSectionCard>
 
+          <AdminSectionCard
+            title="JSON Tools"
+            description="Preserve the working import workflow while the rest of the admin area gets cleaned up."
+          >
             <GameJsonImportPanel gameId={gameId} />
-          </section>
+          </AdminSectionCard>
         </div>
       </div>
-    </AppBackground>
+    </div>
   );
 }

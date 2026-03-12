@@ -1,246 +1,277 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/context/AuthContext';
-import { ChevronLeft } from 'lucide-react';
+import AdminPageHeader from '../_components/AdminPageHeader';
+import AdminSectionCard from '../_components/AdminSectionCard';
+import LoadingCard from '../_components/LoadingCard';
+import type { GameRow, SiteGroup, SiteRow } from '../_lib/types';
+import { buildSiteSummaries, flattenGames, includesText } from '../_lib/utils';
 
-/* ───────────────────────────── Types ──────────────────────────── */
-interface Site {
-  id: string;
-  name: string;
-  address: string | null;
-}
+export default function AdminSitesPage() {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [sites, setSites] = useState<SiteRow[]>([]);
+  const [games, setGames] = useState<GameRow[]>([]);
+  const [search, setSearch] = useState('');
 
-/* ─────────────────────────── Component ────────────────────────── */
-export default function ManageSites() {
-  const router = useRouter();
-  const { isAdmin, loading } = useAuth();
+  const [nameInput, setNameInput] = useState('');
+  const [addressInput, setAddressInput] = useState('');
+  const [editingSiteId, setEditingSiteId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  const [authChecked, setAuthChecked] = useState(false);
-  const [sites, setSites] = useState<Site[]>([]);
-  const [editSite, setEdit] = useState<Site | null>(null);
-  const [nameInput, setName] = useState('');
-  const [addressInput, setAddress] = useState('');
-  const [uiLoading, setUiLoading] = useState(false);
+  async function loadData(): Promise<void> {
+    try {
+      setLoading(true);
+      setError(null);
 
-  // 🔐 Auth gate: redirect if not admin
-  useEffect(() => {
-    if (loading) return;
-  
-    if (!isAdmin) {
-      router.push('/login');
-    } else {
-      setAuthChecked(true);
+      const [sitesRes, gamesRes] = await Promise.all([
+        fetch('/api/admin/sites', { cache: 'no-store' }),
+        fetch('/api/admin/games', { cache: 'no-store' }),
+      ]);
+
+      if (!sitesRes.ok || !gamesRes.ok) {
+        throw new Error('Failed to load sites.');
+      }
+
+      const siteRows = (await sitesRes.json()) as SiteRow[];
+      const siteGroups = (await gamesRes.json()) as SiteGroup[];
+
+      setSites(siteRows);
+      setGames(flattenGames(siteGroups));
+    } catch (loadError) {
+      setError(
+        loadError instanceof Error ? loadError.message : 'Failed to load sites.'
+      );
+    } finally {
+      setLoading(false);
     }
-  }, [isAdmin, loading, router]);
+  }
 
-  // ✅ Fetch data only after auth check
   useEffect(() => {
-    if (!authChecked) return;
+    void loadData();
+  }, []);
 
-    (async () => {
-      const res = await fetch('/api/admin/sites');
-      const data = await res.json();
-      setSites(data as Site[]);
-    })();
-  }, [authChecked]);
+  const summarizedSites = useMemo(() => {
+    const records = buildSiteSummaries(sites, games);
 
-  const startEdit = (s: Site) => {
-    setEdit(s);
-    setName(s.name);
-    setAddress(s.address ?? '');
-  };
+    if (!search.trim()) {
+      return records;
+    }
 
-  const saveEdit = async () => {
-    if (!editSite) return;
-    setUiLoading(true);
-    const res = await fetch(`/api/admin/sites/${editSite.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: nameInput, address: addressInput }),
-    });
-    if (res.ok) {
-      const updated: Site = await res.json();
-      setSites(arr => arr.map(s => (s.id === updated.id ? updated : s)));
-      cancelEdit();
-    } else alert('Failed to update site');
-    setUiLoading(false);
-  };
+    return records.filter((site) =>
+      includesText(`${site.name} ${site.address ?? ''}`, search)
+    );
+  }, [games, search, sites]);
 
-  const cancelEdit = () => {
-    setEdit(null);
-    setName('');
-    setAddress('');
-  };
+  function startEdit(site: SiteRow): void {
+    setEditingSiteId(site.id);
+    setNameInput(site.name);
+    setAddressInput(site.address ?? '');
+  }
 
-  const deleteSite = async (id: string) => {
-    if (!confirm('Delete this site?')) return;
-    const res = await fetch(`/api/admin/sites/${id}`, { method: 'DELETE' });
-    if (res.ok) setSites(arr => arr.filter(s => s.id !== id));
-  };
+  function resetForm(): void {
+    setEditingSiteId(null);
+    setNameInput('');
+    setAddressInput('');
+  }
 
-  const addSite = async () => {
-    setUiLoading(true);
-    const res = await fetch('/api/admin/sites', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: nameInput, address: addressInput }),
-    });
-    if (res.ok) {
-      const created: Site = await res.json();
-      setSites(arr => [...arr, created]);
-      setName('');
-      setAddress('');
-    } else alert('Failed to create site');
-    setUiLoading(false);
-  };
+  async function saveSite(): Promise<void> {
+    if (!nameInput.trim()) {
+      setError('Site name is required.');
+      return;
+    }
 
-  if (!authChecked) return null;
+    try {
+      setSaving(true);
+      setError(null);
+
+      const endpoint = editingSiteId
+        ? `/api/admin/sites/${editingSiteId}`
+        : '/api/admin/sites';
+      const method = editingSiteId ? 'PUT' : 'POST';
+
+      const response = await fetch(endpoint, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: nameInput.trim(),
+          address: addressInput.trim() || null,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(data?.error ?? 'Failed to save site.');
+      }
+
+      resetForm();
+      await loadData();
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Failed to save site.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteSite(siteId: string): Promise<void> {
+    if (!window.confirm('Delete this site?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/admin/sites/${siteId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete site.');
+      }
+
+      if (editingSiteId === siteId) {
+        resetForm();
+      }
+
+      await loadData();
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error ? deleteError.message : 'Failed to delete site.'
+      );
+    }
+  }
+
+  if (loading) {
+    return <LoadingCard label="Loading sites..." />;
+  }
 
   return (
-    <div className="p-6 bg-gray-100 min-h-screen">
-      <Link
-        href="/admin/workspace"
-        className="mb-4 flex items-center text-blue-600 hover:underline"
-      >
-        <ChevronLeft className="mr-1" size={18} />
-        Back to Admin Panel
-      </Link>
+    <div className="space-y-6">
+      <AdminPageHeader
+        eyebrow="Structure"
+        title="Sites"
+        description="Sites need less day-to-day attention, but still need a clean home for venue setup and navigation into events."
+      />
 
-      <h1 className="text-2xl font-bold mb-6">Manage Sites</h1>
+      {error ? (
+        <div className="rounded-3xl border border-red-200 bg-red-50 p-5 text-red-700 shadow-sm">
+          {error}
+        </div>
+      ) : null}
 
-      <section className="mb-6">
-        <h2 className="text-xl font-semibold mb-4">Sites</h2>
-        <ul className="space-y-2">
-          {sites.map(site => (
-            <li
-              key={site.id}
-              className="flex justify-between items-center bg-white p-3 rounded shadow"
-            >
-              <span className="text-gray-700">
-                {site.name} — {site.address ?? 'N/A'}
-              </span>
+      <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+        <AdminSectionCard
+          title="Venue List"
+          description="Search venues, open a site workspace, or manage the basic site record."
+        >
+          <div className="space-y-4">
+            <input
+              type="text"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search sites..."
+              className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none"
+            />
 
-              <div className="flex space-x-3">
-                <Link
-                  href={`/admin/sites/${site.id}/events`}
-                  className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
+            <div className="space-y-3">
+              {summarizedSites.map((site) => (
+                <div
+                  key={site.id}
+                  className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm md:flex-row md:items-center md:justify-between"
                 >
-                  Manage&nbsp;Events
-                </Link>
+                  <div>
+                    <div className="text-lg font-semibold text-slate-900">{site.name}</div>
+                    <div className="mt-1 text-sm text-slate-600">
+                      {site.address ?? 'No address'}
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-3 text-xs font-medium uppercase tracking-[0.12em] text-slate-500">
+                      <span>{site.eventCount} events</span>
+                      <span>{site.gameCount} games</span>
+                      <span>{site.upcomingCount} upcoming</span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Link
+                      href={`/admin/sites/${site.id}`}
+                      className="rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                    >
+                      Open Site
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => startEdit(site)}
+                      className="rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void deleteSite(site.id)}
+                      className="rounded-2xl border border-rose-300 bg-rose-50 px-4 py-2 text-sm font-medium text-rose-700 transition hover:bg-rose-100"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+              {summarizedSites.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500">
+                  No sites matched that search.
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </AdminSectionCard>
+
+        <AdminSectionCard
+          title={editingSiteId ? 'Edit Site' : 'Add Site'}
+          description="Basic site setup can stay simple while games remain the center of daily admin work."
+        >
+          <div className="space-y-4">
+            <label className="grid gap-2 text-sm font-medium text-slate-700">
+              Site Name
+              <input
+                type="text"
+                value={nameInput}
+                onChange={(event) => setNameInput(event.target.value)}
+                className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
+              />
+            </label>
+
+            <label className="grid gap-2 text-sm font-medium text-slate-700">
+              Address
+              <textarea
+                value={addressInput}
+                onChange={(event) => setAddressInput(event.target.value)}
+                rows={4}
+                className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
+              />
+            </label>
+
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => void saveSite()}
+                disabled={saving}
+                className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+              >
+                {saving ? 'Saving...' : editingSiteId ? 'Save Site' : 'Create Site'}
+              </button>
+
+              {(editingSiteId || nameInput || addressInput) ? (
                 <button
-                  className="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600"
-                  onClick={() => startEdit(site)}
+                  type="button"
+                  onClick={resetForm}
+                  className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                 >
-                  Edit
+                  Clear
                 </button>
-                <button
-                  className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
-                  onClick={() => deleteSite(site.id)}
-                >
-                  Delete
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      {editSite && (
-        <EditOrAddForm
-          title="Edit Site"
-          name={nameInput}
-          address={addressInput}
-          setName={setName}
-          setAddress={setAddress}
-          primaryLabel="Save"
-          onPrimary={saveEdit}
-          onCancel={cancelEdit}
-          loading={uiLoading}
-        />
-      )}
-
-      {!editSite && (
-        <EditOrAddForm
-          title="Add New Site"
-          name={nameInput}
-          address={addressInput}
-          setName={setName}
-          setAddress={setAddress}
-          primaryLabel="Add Site"
-          onPrimary={addSite}
-          onCancel={() => {
-            setName('');
-            setAddress('');
-          }}
-          loading={uiLoading}
-        />
-      )}
+              ) : null}
+            </div>
+          </div>
+        </AdminSectionCard>
+      </div>
     </div>
-  );
-}
-
-/* ───────────── Re‑usable Form component ───────────── */
-function EditOrAddForm({
-  title,
-  name,
-  address,
-  setName,
-  setAddress,
-  primaryLabel,
-  onPrimary,
-  onCancel,
-  loading,
-}: {
-  title: string;
-  name: string;
-  address: string;
-  setName: (v: string) => void;
-  setAddress: (v: string) => void;
-  primaryLabel: string;
-  onPrimary: () => void;
-  onCancel: () => void;
-  loading: boolean;
-}) {
-  return (
-    <section className="bg-white p-6 rounded shadow mb-6">
-      <h2 className="text-xl font-semibold mb-4">{title}</h2>
-      <div className="space-y-4">
-        <div>
-          <label className="block font-medium mb-1">Name</label>
-          <input
-            className="border border-gray-300 p-2 rounded w-full"
-            value={name}
-            onChange={e => setName(e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="block font-medium mb-1">Address</label>
-          <input
-            className="border border-gray-300 p-2 rounded w-full"
-            value={address}
-            onChange={e => setAddress(e.target.value)}
-          />
-        </div>
-      </div>
-      <div className="flex space-x-4 mt-4">
-        <button
-          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:opacity-50"
-          onClick={onPrimary}
-          disabled={loading}
-        >
-          {primaryLabel}
-        </button>
-        <button
-          className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
-          onClick={onCancel}
-          disabled={loading}
-        >
-          Cancel
-        </button>
-      </div>
-    </section>
   );
 }

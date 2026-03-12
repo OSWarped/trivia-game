@@ -1,316 +1,315 @@
-"use client";
+'use client';
 
-import { ChevronLeft, Plus } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from 'react';
+import AdminPageHeader from '../_components/AdminPageHeader';
+import AdminSectionCard from '../_components/AdminSectionCard';
+import LoadingCard from '../_components/LoadingCard';
+import type { UserRow } from '../_lib/types';
+import { includesText } from '../_lib/utils';
 
-interface User {
-  id: string;
-  email: string;
-  name?: string;
-  role: string;
-}
+type ModalMode = 'add' | 'edit' | null;
 
-type ModalMode = "add" | "edit" | null;
-
-export default function ManageUsers() {
-  const router = useRouter();
-  const [users, setUsers] = useState<User[]>([]);
+export default function AdminUsersPage() {
+  const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
 
   const [modalMode, setModalMode] = useState<ModalMode>(null);
-  const [editUserModal, setEditUserModal] = useState<User | null>(null);
-
-  const [editedName, setEditedName] = useState("");
-  const [editedEmail, setEditedEmail] = useState("");
-  const [editedRole, setEditedRole] = useState<string>("HOST");
+  const [selectedUser, setSelectedUser] = useState<UserRow | null>(null);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState('HOST');
+  const [password, setPassword] = useState('');
   const [saving, setSaving] = useState(false);
-  const [editedPassword, setEditedPassword] = useState('');
+
+  async function loadUsers(): Promise<void> {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const response = await fetch('/api/admin/users', { cache: 'no-store' });
+      if (!response.ok) {
+        throw new Error('Failed to fetch users.');
+      }
+
+      const rows = (await response.json()) as UserRow[];
+      setUsers(rows);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : 'Failed to load users.');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    async function fetchUsers() {
-      try {
-        const res = await fetch("/api/admin/users");
-        if (!res.ok) throw new Error("Failed to fetch users");
-        const data = await res.json();
-        setUsers(data);
-      } catch (err) {
-        console.error(err);
-        setError("Failed to load users.");
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchUsers();
+    void loadUsers();
   }, []);
 
-  function resetForm() {
-    setEditedName('');
-    setEditedEmail('');
-    setEditedRole('HOST');
-    setEditedPassword('');
-    setEditUserModal(null);
+  const filteredUsers = useMemo(() => {
+    if (!search.trim()) {
+      return users;
+    }
+
+    return users.filter((user) =>
+      includesText(`${user.name ?? ''} ${user.email} ${user.role}`, search)
+    );
+  }, [search, users]);
+
+  function openAdd(): void {
+    setModalMode('add');
+    setSelectedUser(null);
+    setName('');
+    setEmail('');
+    setRole('HOST');
+    setPassword('');
   }
 
-  function closeModal() {
+  function openEdit(user: UserRow): void {
+    setModalMode('edit');
+    setSelectedUser(user);
+    setName(user.name ?? '');
+    setEmail(user.email);
+    setRole(user.role || 'HOST');
+    setPassword('');
+  }
+
+  function closeModal(): void {
     setModalMode(null);
-    setEditUserModal(null);
-    resetForm();
+    setSelectedUser(null);
+    setName('');
+    setEmail('');
+    setRole('HOST');
+    setPassword('');
   }
 
-  function openAddModal() {
-    resetForm();
-    setModalMode("add");
-  }
-
-  function openEditModal(user: User) {
-    setEditUserModal(user);
-    setEditedName(user.name || "");
-    setEditedEmail(user.email);
-    setEditedRole(user.role || "HOST");
-    setModalMode("edit");
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
-    setSaving(true);
+  async function saveUser(event: React.FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
 
     try {
+      setSaving(true);
+      setError(null);
+
       const payload =
         modalMode === 'add'
           ? {
-            name: editedName.trim(),
-            email: editedEmail.trim(),
-            role: editedRole,
-            password: editedPassword,
-          }
+              name: name.trim(),
+              email: email.trim(),
+              role,
+              password,
+            }
           : {
-            name: editedName.trim(),
-            email: editedEmail.trim(),
-            role: editedRole,
-          };
+              name: name.trim(),
+              email: email.trim(),
+              role,
+            };
 
-      if (modalMode === "add") {
-        const res = await fetch("/api/admin/users", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
+      const endpoint =
+        modalMode === 'edit' && selectedUser
+          ? `/api/admin/users/${selectedUser.id}`
+          : '/api/admin/users';
+      const method = modalMode === 'edit' ? 'PUT' : 'POST';
 
-        if (!res.ok) {
-          const errorData = await res.json().catch(() => null);
-          throw new Error(errorData?.error || "Failed to create user");
-        }
+      const response = await fetch(endpoint, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
 
-        const newUser = await res.json();
-        setUsers((prev) => [...prev, newUser]);
-        closeModal();
-        return;
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(data?.error ?? 'Failed to save user.');
       }
 
-      if (modalMode === "edit" && editUserModal) {
-        const res = await fetch(`/api/admin/users/${editUserModal.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-
-        if (!res.ok) {
-          const errorData = await res.json().catch(() => null);
-          throw new Error(errorData?.error || "Failed to update user");
-        }
-
-        const updatedUser = await res.json();
-
-        setUsers((prev) =>
-          prev.map((user) => (user.id === updatedUser.id ? updatedUser : user))
-        );
-
-        closeModal();
-      }
-    } catch (err) {
-      console.error(err);
-      setError(err instanceof Error ? err.message : "Failed to save user.");
+      closeModal();
+      await loadUsers();
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Failed to save user.');
     } finally {
       setSaving(false);
     }
   }
 
-  async function handleDeleteUser(user: User) {
-    const confirmed = window.confirm(
-      `Are you sure you want to delete ${user.name || user.email}? This action cannot be undone.`
-    );
-
-    if (!confirmed) return;
+  async function deleteUser(user: UserRow): Promise<void> {
+    if (!window.confirm(`Delete ${user.name ?? user.email}?`)) {
+      return;
+    }
 
     try {
-      setError("");
-
-      const res = await fetch(`/api/admin/users/${user.id}`, {
-        method: "DELETE",
+      const response = await fetch(`/api/admin/users/${user.id}`, {
+        method: 'DELETE',
       });
 
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => null);
-        throw new Error(errorData?.error || "Failed to delete user");
+      if (!response.ok) {
+        throw new Error('Failed to delete user.');
       }
 
-      setUsers((prev) => prev.filter((u) => u.id !== user.id));
-
-      if (editUserModal?.id === user.id) {
+      if (selectedUser?.id === user.id) {
         closeModal();
       }
-    } catch (err) {
-      console.error(err);
-      setError(err instanceof Error ? err.message : "Failed to delete user.");
+
+      await loadUsers();
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : 'Failed to delete user.');
     }
   }
 
-  if (loading) return <div>Loading users...</div>;
+  if (loading) {
+    return <LoadingCard label="Loading users..." />;
+  }
 
   return (
-    <div>
-      <button
-        onClick={() => router.push("/admin/workspace")}
-        className="mb-4 flex items-center text-blue-600 hover:underline"
-      >
-        <ChevronLeft className="mr-1" size={18} />
-        Back to Admin Panel
-      </button>
+    <div className="space-y-6">
+      <AdminPageHeader
+        eyebrow="Access"
+        title="Users"
+        description="User administration stays available here, but the rest of the admin experience now stays centered on game work."
+      />
 
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Manage Users</h1>
+      {error ? (
+        <div className="rounded-3xl border border-red-200 bg-red-50 p-5 text-red-700 shadow-sm">
+          {error}
+        </div>
+      ) : null}
 
-        <button
-          onClick={openAddModal}
-          className="flex items-center gap-2 rounded bg-green-600 px-4 py-2 text-white hover:bg-green-700"
+      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+        <AdminSectionCard
+          title="User Directory"
+          description="Search by name, email, or role."
         >
-          <Plus size={18} />
-          Add User
-        </button>
-      </div>
-
-      {error && <div className="mb-4 text-red-500">{error}</div>}
-
-      <table className="w-full border-collapse border border-gray-300">
-        <thead>
-          <tr className="bg-gray-100">
-            <th className="border border-gray-300 px-4 py-2 text-left">Name</th>
-            <th className="border border-gray-300 px-4 py-2 text-left">Email</th>
-            <th className="border border-gray-300 px-4 py-2 text-left">Role</th>
-            <th className="border border-gray-300 px-4 py-2 text-left">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {users.map((user) => (
-            <tr key={user.id} className="hover:bg-gray-50">
-              <td className="border border-gray-300 px-4 py-2">{user.name || "N/A"}</td>
-              <td className="border border-gray-300 px-4 py-2">{user.email}</td>
-              <td className="border border-gray-300 px-4 py-2">
-                {user.role ?? "No role"}
-              </td>
-              <td className="border border-gray-300 px-4 py-2">
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => openEditModal(user)}
-                    className="rounded bg-blue-500 px-3 py-1 text-white hover:bg-blue-600"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDeleteUser(user)}
-                    className="rounded bg-red-600 px-3 py-1 text-white hover:bg-red-700"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      {modalMode && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="w-full max-w-md rounded bg-white p-6 shadow-lg">
-            <h2 className="mb-4 text-xl font-bold">
-              {modalMode === "add" ? "Add User" : "Edit User"}
-            </h2>
-
-            <form onSubmit={handleSubmit}>
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-3">
               <input
                 type="text"
-                placeholder="Name"
-                value={editedName}
-                onChange={(e) => setEditedName(e.target.value)}
-                className="mb-4 w-full border p-2"
-                required
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search users..."
+                className="min-w-[260px] flex-1 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none"
               />
+              <button
+                type="button"
+                onClick={openAdd}
+                className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-slate-800"
+              >
+                Add User
+              </button>
+            </div>
 
+            <div className="overflow-x-auto">
+              <table className="min-w-full border-separate border-spacing-y-2">
+                <thead>
+                  <tr className="text-left text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    <th className="px-3 py-2">Name</th>
+                    <th className="px-3 py-2">Email</th>
+                    <th className="px-3 py-2">Role</th>
+                    <th className="px-3 py-2">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredUsers.map((user) => (
+                    <tr key={user.id} className="bg-slate-50 text-sm text-slate-800">
+                      <td className="rounded-l-2xl px-3 py-3 font-medium">
+                        {user.name || 'Unnamed user'}
+                      </td>
+                      <td className="px-3 py-3">{user.email}</td>
+                      <td className="px-3 py-3">{user.role}</td>
+                      <td className="rounded-r-2xl px-3 py-3">
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openEdit(user)}
+                            className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void deleteUser(user)}
+                            className="rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700 transition hover:bg-rose-100"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </AdminSectionCard>
+
+        <AdminSectionCard
+          title={modalMode === 'edit' ? 'Edit User' : 'Add User'}
+          description="Keep the form close by so user administration does not feel like a separate application."
+        >
+          <form className="space-y-4" onSubmit={(event) => void saveUser(event)}>
+            <label className="grid gap-2 text-sm font-medium text-slate-700">
+              Name
+              <input
+                type="text"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
+              />
+            </label>
+
+            <label className="grid gap-2 text-sm font-medium text-slate-700">
+              Email
               <input
                 type="email"
-                placeholder="Email"
-                value={editedEmail}
-                onChange={(e) => setEditedEmail(e.target.value)}
-                className="mb-4 w-full border p-2"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
                 required
               />
+            </label>
 
-              {modalMode === "add" && (
+            <label className="grid gap-2 text-sm font-medium text-slate-700">
+              Role
+              <select
+                value={role}
+                onChange={(event) => setRole(event.target.value)}
+                className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
+              >
+                <option value="HOST">HOST</option>
+                <option value="ADMIN">ADMIN</option>
+                <option value="PLAYER">PLAYER</option>
+              </select>
+            </label>
+
+            {modalMode === 'add' ? (
+              <label className="grid gap-2 text-sm font-medium text-slate-700">
+                Password
                 <input
                   type="password"
-                  placeholder="Temporary Password"
-                  value={editedPassword}
-                  onChange={(e) => setEditedPassword(e.target.value)}
-                  className="mb-4 w-full border p-2"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
                   required
-                  minLength={8}
                 />
-              )}
+              </label>
+            ) : null}
 
-              <div className="mb-4">
-                <label className="mb-2 block font-medium">Role</label>
-                <select
-                  value={editedRole}
-                  onChange={(e) => setEditedRole(e.target.value)}
-                  className="w-full border p-2"
-                >
-                  <option value="ADMIN">Admin</option>
-                  <option value="HOST">Host</option>
-                  <option value="PLAYER">Player</option>
-                </select>
-              </div>
-
-              <div className="flex justify-end space-x-2">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  className="rounded bg-gray-500 px-4 py-2 text-white"
-                  disabled={saving}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600 disabled:opacity-50"
-                  disabled={saving}
-                >
-                  {saving
-                    ? modalMode === "add"
-                      ? "Creating..."
-                      : "Saving..."
-                    : modalMode === "add"
-                      ? "Create User"
-                      : "Save Changes"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="submit"
+                disabled={saving}
+                className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+              >
+                {saving ? 'Saving...' : modalMode === 'edit' ? 'Save User' : 'Create User'}
+              </button>
+              <button
+                type="button"
+                onClick={closeModal}
+                className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              >
+                Clear
+              </button>
+            </div>
+          </form>
+        </AdminSectionCard>
+      </div>
     </div>
   );
 }

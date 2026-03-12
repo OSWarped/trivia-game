@@ -100,7 +100,7 @@ model Game {
   special      Boolean    @default(false)
   tag          String?
   status       GameStatus @default(DRAFT)
-  displayMode  String     @default("QUESTION")
+  displayMode  String     @default("LOBBY")
   startedAt    DateTime?
   endedAt      DateTime?
   createdAt    DateTime   @default(now())

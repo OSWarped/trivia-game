@@ -148,6 +148,7 @@ export default function AdminSeasonDetailPage({ params }: SeasonPageProps) {
                   <tr className="text-left text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
                     <th className="px-3 py-3">Rank</th>
                     <th className="px-3 py-3">Team</th>
+                    <th className="px-3 py-3">Wins</th>
                     <th className="px-3 py-3 text-right">Games</th>
                     <th className="px-3 py-3 text-right">Points</th>
                     <th className="px-3 py-3 text-right">Avg / Game</th>
@@ -163,6 +164,9 @@ export default function AdminSeasonDetailPage({ params }: SeasonPageProps) {
                       </td>
                       <td className="px-3 py-3">
                         <div className="font-medium text-slate-900">{row.team}</div>
+                      </td>
+                      <td className="px-3 py-3">
+                        <div className="font-medium text-slate-900">{row.wins}</div>
                       </td>
                       <td className="px-3 py-3 text-right text-slate-700">{row.gamesPlayed}</td>
                       <td className="px-3 py-3 text-right font-semibold text-slate-900">{row.points}</td>

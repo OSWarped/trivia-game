@@ -26,60 +26,46 @@ export async function GET(
 ) {
   const { gameId } = await params;
 
-  const [teamGames, groupedScores, sessions] = await Promise.all([
-    prisma.teamGame.findMany({
-      where: { gameId },
-      select: {
-        id: true,
-        sessionControlMode: true,
-        pendingApprovalRequestedAt: true,
-        pendingApprovalDeviceId: true,
-        team: {
-          select: {
-            id: true,
-            name: true,
-          },
+  const [teamGames, sessions] = await Promise.all([
+  prisma.teamGame.findMany({
+    where: { gameId },
+    select: {
+      id: true,
+      totalPts: true,
+      sessionControlMode: true,
+      pendingApprovalRequestedAt: true,
+      pendingApprovalDeviceId: true,
+      team: {
+        select: {
+          id: true,
+          name: true,
         },
       },
-    }),
+    },
+  }),
 
-    prisma.answer.groupBy({
-      by: ['teamGameId'],
-      where: {
-        teamGame: { gameId },
-        isCorrect: true,
+  prisma.teamGameSession.findMany({
+    where: {
+      gameId,
+      status: {
+        in: [
+          TeamGameSessionStatus.ACTIVE,
+          TeamGameSessionStatus.RECONNECTING,
+          TeamGameSessionStatus.OFFLINE,
+        ],
       },
-      _sum: {
-        awardedPoints: true,
-      },
-    }),
-
-    prisma.teamGameSession.findMany({
-      where: {
-        gameId,
-        status: {
-          in: [
-            TeamGameSessionStatus.ACTIVE,
-            TeamGameSessionStatus.RECONNECTING,
-            TeamGameSessionStatus.OFFLINE,
-          ],
-        },
-      },
-      orderBy: [{ teamId: 'asc' }, { joinedAt: 'desc' }],
-      select: {
-        id: true,
-        teamId: true,
-        status: true,
-        deviceId: true,
-        lastSeenAt: true,
-        joinedAt: true,
-      },
-    }),
-  ]);
-
-  const scoreMap = new Map<string, number>(
-    groupedScores.map((row) => [row.teamGameId, row._sum.awardedPoints ?? 0])
-  );
+    },
+    orderBy: [{ teamId: 'asc' }, { joinedAt: 'desc' }],
+    select: {
+      id: true,
+      teamId: true,
+      status: true,
+      deviceId: true,
+      lastSeenAt: true,
+      joinedAt: true,
+    },
+  }),
+]); 
 
   const latestOpenSessionByTeamId = new Map<
     string,
@@ -116,7 +102,7 @@ export async function GET(
       return {
         id: teamGame.team.id,
         name: teamGame.team.name,
-        score: scoreMap.get(teamGame.id) ?? 0,
+        score: teamGame.totalPts,
         submitted: false,
         connectionState: mapSessionStatusToConnectionState(
           latestOpenSession?.status

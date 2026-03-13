@@ -84,6 +84,7 @@ export interface SeasonStandingRow {
   rank: number;
   teamId: string;
   team: string;
+  wins: number;
   gamesPlayed: number;
   points: number;
   averagePoints: number;

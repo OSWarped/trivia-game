@@ -61,7 +61,15 @@ function formatPointsDelta(points: number): string {
   return `${points}`;
 }
 
-function isListQuestion(answer: AnswerResult): boolean {
+function isListItemQuestion(answer: AnswerResult): boolean {
+  return answer.questionType === 'LIST';
+}
+
+// function isOrderedQuestion(answer: AnswerResult): boolean {
+//   return answer.questionType === 'ORDERED';
+// }
+
+function hasPartBreakdown(answer: AnswerResult): boolean {
   return answer.questionType === 'ORDERED' || answer.questionType === 'LIST';
 }
 
@@ -314,14 +322,16 @@ export default function ResultsPage(): JSX.Element {
 
             <div className="space-y-4">
               {sortedAnswers.map((answer) => {
-                const listQuestion = isListQuestion(answer);
+                const listItemQuestion = isListItemQuestion(answer);
+                //const orderedQuestion = isOrderedQuestion(answer);
+                const partBreakdownQuestion = hasPartBreakdown(answer);
                 const correctParts = getPartiallyCorrectCount(answer.parts);
                 const totalParts = answer.parts?.length ?? 0;
                 const correctAnswerParts =
                   answer.correctAnswer
                     ?.split('|')
                     .map((part) => part.trim())
-                    .filter(Boolean) ?? []
+                    .filter(Boolean) ?? [];
 
                 return (
                   <div
@@ -331,14 +341,15 @@ export default function ResultsPage(): JSX.Element {
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div className="min-w-0 flex-1">
                         <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                          Round {answer.roundNumber} • Question {answer.questionNumber}
+                          Round {answer.roundNumber} • Question{' '}
+                          {answer.questionNumber}
                         </div>
 
                         <h3 className="text-base font-semibold text-slate-900">
                           {answer.text}
                         </h3>
 
-                        {!listQuestion ? (
+                        {!partBreakdownQuestion ? (
                           <>
                             <div className="mt-4">
                               <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
@@ -367,34 +378,51 @@ export default function ResultsPage(): JSX.Element {
                             </div>
 
                             <div className="overflow-hidden rounded-2xl border border-slate-200">
-                              <div className="grid grid-cols-1 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 md:grid-cols-[80px_minmax(0,1fr)_120px]">
+                              <div
+                                className={`grid grid-cols-1 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 ${
+                                  listItemQuestion
+                                    ? 'md:grid-cols-[80px_minmax(0,1fr)_120px]'
+                                    : 'md:grid-cols-[80px_minmax(0,1fr)]'
+                                }`}
+                              >
                                 <div>Part</div>
                                 <div>Your Answer</div>
-                                <div>Status</div>
+                                {listItemQuestion ? <div>Status</div> : null}
                               </div>
 
                               <div className="divide-y divide-slate-200">
                                 {(answer.parts ?? []).map((part) => (
                                   <div
                                     key={`${answer.questionId}-${part.index}`}
-                                    className="grid grid-cols-1 gap-2 px-4 py-3 text-sm md:grid-cols-[80px_minmax(0,1fr)_120px] md:items-center"
+                                    className={`grid grid-cols-1 gap-2 px-4 py-3 text-sm ${
+                                      listItemQuestion
+                                        ? 'md:grid-cols-[80px_minmax(0,1fr)_120px] md:items-center'
+                                        : 'md:grid-cols-[80px_minmax(0,1fr)] md:items-center'
+                                    }`}
                                   >
-                                    <div className="font-medium text-slate-500">#{part.index}</div>
+                                    <div className="font-medium text-slate-500">
+                                      #{part.index}
+                                    </div>
 
                                     <div className="text-slate-800">
                                       {part.submitted || '—'}
                                     </div>
 
-                                    <div>
-                                      <span
-                                        className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${part.isCorrect
-                                            ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                                            : 'border-rose-300 bg-rose-50 text-rose-700'
+                                    {listItemQuestion ? (
+                                      <div>
+                                        <span
+                                          className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
+                                            part.isCorrect
+                                              ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                                              : 'border-rose-300 bg-rose-50 text-rose-700'
                                           }`}
-                                      >
-                                        {part.isCorrect ? 'Correct' : 'Incorrect'}
-                                      </span>
-                                    </div>
+                                        >
+                                          {part.isCorrect
+                                            ? 'Correct'
+                                            : 'Incorrect'}
+                                        </span>
+                                      </div>
+                                    ) : null}
                                   </div>
                                 ))}
                               </div>
@@ -423,28 +451,30 @@ export default function ResultsPage(): JSX.Element {
                       </div>
 
                       <div className="flex shrink-0 flex-wrap gap-2 lg:justify-end">
-                        {listQuestion ? (
+                        {listItemQuestion ? (
                           <span className="inline-flex items-center rounded-full border border-blue-300 bg-blue-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-blue-700">
                             {correctParts} of {totalParts} correct
                           </span>
                         ) : (
                           <span
-                            className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${answer.isCorrect
-                              ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                              : 'border-rose-300 bg-rose-50 text-rose-700'
-                              }`}
+                            className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
+                              answer.isCorrect
+                                ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                                : 'border-rose-300 bg-rose-50 text-rose-700'
+                            }`}
                           >
                             {answer.isCorrect ? 'Correct' : 'Incorrect'}
                           </span>
                         )}
 
                         <span
-                          className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${answer.pointsDelta > 0
-                            ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                            : answer.pointsDelta < 0
+                          className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
+                            answer.pointsDelta > 0
+                              ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                              : answer.pointsDelta < 0
                               ? 'border-rose-300 bg-rose-50 text-rose-700'
                               : 'border-slate-300 bg-slate-50 text-slate-700'
-                            }`}
+                          }`}
                         >
                           {formatPointsDelta(answer.pointsDelta)} pts
                         </span>

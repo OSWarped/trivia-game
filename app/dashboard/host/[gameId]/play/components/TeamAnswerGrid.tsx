@@ -15,7 +15,7 @@ export interface TeamAnswer {
   given: string;
   isCorrect: boolean | null;
   awardedPoints: number;
-  pointsUsed: number;
+  pointsUsed: number | null;
   favorite: boolean;
   items?: ListItem[];
 }
@@ -84,13 +84,13 @@ function getStatusPill(answer: TeamAnswerWithFavorite) {
 
 function renderAnswerContent(given: string) {
   try {
-    const parsed = JSON.parse(given);
+    const parsed: unknown = JSON.parse(given);
 
     if (Array.isArray(parsed)) {
       return (
         <ol className="ml-5 list-decimal space-y-1 text-sm text-slate-800">
-          {parsed.map((item: string, index: number) => (
-            <li key={index}>{item}</li>
+          {parsed.map((item, index) => (
+            <li key={`${String(item)}-${index}`}>{String(item)}</li>
           ))}
         </ol>
       );
@@ -124,7 +124,7 @@ export default function TeamAnswerGrid({
 
   return (
     <div className="grid gap-4 pb-24 md:grid-cols-2 xl:grid-cols-3">
-      {teamAnswers.map((answer) => {
+      {teamAnswers.map((answer, answerIndex) => {
         const displayPoints =
           answer.awardedPoints ||
           (currentRound?.pointSystem === 'FLAT'
@@ -132,10 +132,11 @@ export default function TeamAnswerGrid({
             : 0);
 
         const isList = Array.isArray(answer.items);
+        const answerKey = `${answer.id}-${answer.teamId}-${answer.questionId}-${answerIndex}`;
 
         return (
           <article
-            key={answer.id}
+            key={answerKey}
             className={`rounded-2xl border p-4 shadow-sm transition hover:shadow-md ${getCardClasses(
               answer
             )}`}
@@ -186,7 +187,7 @@ export default function TeamAnswerGrid({
                     <div className="space-y-2">
                       {answer.items?.map((item, index) => (
                         <div
-                          key={index}
+                          key={`${answer.id}-${item.submitted}-${index}`}
                           className="rounded-xl border border-slate-200 bg-slate-50/80 p-3"
                         >
                           <div className="flex flex-col gap-3">

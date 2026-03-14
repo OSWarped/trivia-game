@@ -1,16 +1,23 @@
 //api/host/answers/[answerId]/route.ts
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import jwt from 'jsonwebtoken';
+import { jwtVerify, errors, type JWTPayload } from 'jose';
 import { cookies } from 'next/headers';
 
 const prisma = new PrismaClient();
 const SECRET_KEY = process.env.JWT_SECRET || 'your_secret_key';
+const SECRET_KEY_BUFFER = new TextEncoder().encode(SECRET_KEY);
+
+interface DecodedToken extends JWTPayload {
+  userId?: string;
+  roles?: string[];
+  role?: string;
+}
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-  const gameId     = searchParams.get('gameId');
-  const teamId     = searchParams.get('teamId');
+  const gameId = searchParams.get('gameId');
+  const teamId = searchParams.get('teamId');
   const questionId = searchParams.get('questionId');
 
   if (!gameId || !teamId || !questionId) {
@@ -48,7 +55,7 @@ export async function GET(req: Request) {
     if (!answerRow) return NextResponse.json({ answer: null });
 
     const answer = {
-      teamId:   teamGame.team.id,
+      teamId: teamGame.team.id,
       teamName: teamGame.team.name,
       questionId,
       given: answerRow.given,
@@ -76,7 +83,8 @@ export async function POST(req: Request) {
     }
 
     // Verify the token
-    const user = jwt.verify(token, SECRET_KEY) as { id: string; roles: string[] };
+    const { payload } = await jwtVerify(token, SECRET_KEY_BUFFER);
+    const user = payload as { id: string; roles: string[] };
 
     if (!user.roles.includes('HOST')) {
       return NextResponse.json(
@@ -116,10 +124,12 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error('Error fetching answer:', error);
 
-    if (error instanceof jwt.JsonWebTokenError) {
+    if (
+      error instanceof errors.JWTInvalid ||
+      error instanceof errors.JWSSignatureVerificationFailed
+    ) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
-
     return NextResponse.json(
       { error: 'Failed to fetch answer' },
       { status: 500 }

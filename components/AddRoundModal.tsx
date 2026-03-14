@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useState, useEffect } from 'react';
+import { Fragment, useState } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { X } from 'lucide-react';
 
@@ -40,13 +40,16 @@ export default function AddRoundModal({
   const [pointPool, setPointPool] = useState<number[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
 
-  useEffect(() => {
-    if (roundType !== 'POINT_BASED') {
+  function handleRoundTypeChange(nextRoundType: RoundType) {
+    setRoundType(nextRoundType);
+
+    if (nextRoundType !== 'POINT_BASED') {
       setPointSystem('FLAT');
       setPointValue(1);
       setPointPool([]);
+      setPoolInput('');
     }
-  }, [roundType]);
+  }
 
   function addPoolNumber() {
     const num = parseInt(poolInput, 10);
@@ -185,7 +188,9 @@ export default function AddRoundModal({
                     </label>
                     <select
                       value={roundType}
-                      onChange={(e) => setRoundType(e.target.value as RoundType)}
+                      onChange={(e) =>
+                        handleRoundTypeChange(e.target.value as RoundType)
+                      }
                       className="block w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="POINT_BASED">Point-based</option>

@@ -5,9 +5,10 @@ const prisma = new PrismaClient();
 
 export async function GET(
   _req: Request,
-  { params }: { params: Promise<{ seasonId: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const { seasonId } = await params;
+  const { id } = await params;
+  const seasonId = id;
 
   try {
     const [standings, winCounts] = await Promise.all([
@@ -15,7 +16,7 @@ export async function GET(
         by: ['teamId'],
         where: {
           game: {
-            seasonId,
+            seasonId: id,
             status: GameStatus.CLOSED,
           },
         },

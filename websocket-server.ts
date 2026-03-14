@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { Server, Socket } from 'socket.io';
 import { PrismaClient, TeamGameSessionStatus } from '@prisma/client';
 import { setIo } from './lib/socket.js';

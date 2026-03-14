@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient, UserRole } from '@prisma/client';
-import jwt from 'jsonwebtoken';
+import { getUserFromProvidedToken } from '@/utils/auth';
 
 const prisma = new PrismaClient();
-const JWT_SECRET = process.env.JWT_SECRET!
 
 type RouteContext = {
   params: Promise<{
@@ -43,7 +42,10 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json(updatedUser);
   } catch (error) {
-    console.error('Error updating user:', error instanceof Error ? error.message : error);
+    console.error(
+      'Error updating user:',
+      error instanceof Error ? error.message : error
+    );
 
     return NextResponse.json(
       { error: 'Failed to update user' },
@@ -56,33 +58,22 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params;
 
-    const token = request.cookies.get('token')?.value;
+    const token = request.cookies.get('token')?.value ?? null;
 
     if (!token) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    let decoded: { userId: string; email: string; role: string };
+    const currentUser = await getUserFromProvidedToken(token);
 
-    try {
-      decoded = jwt.verify(token, JWT_SECRET) as {
-        userId: string;
-        email: string;
-        role: string;
-      };
-    } catch {
+    if (!currentUser) {
       return NextResponse.json(
         { error: 'Invalid or expired token' },
         { status: 401 }
       );
     }
 
-    const currentUserId = decoded.userId;
-
-    if (currentUserId === id) {
+    if (currentUser.userId === id) {
       return NextResponse.json(
         { error: 'You cannot delete your own account' },
         { status: 403 }
@@ -98,10 +89,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     });
 
     if (!targetUser) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
     if (targetUser.role === UserRole.ADMIN) {
@@ -125,7 +113,10 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       message: 'User deleted successfully',
     });
   } catch (error) {
-    console.error('Error deleting user:', error instanceof Error ? error.message : error);
+    console.error(
+      'Error deleting user:',
+      error instanceof Error ? error.message : error
+    );
 
     return NextResponse.json(
       { error: 'Failed to delete user' },

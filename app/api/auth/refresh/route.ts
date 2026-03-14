@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
+import { jwtVerify, SignJWT, type JWTPayload } from 'jose';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || 'your_secret_key';
+const JWT_SECRET_KEY = new TextEncoder().encode(JWT_SECRET);
+
+interface DecodedToken extends JWTPayload {
+  userId?: string;
+  roles?: string[];
+  role?: string;
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -16,7 +23,8 @@ export async function GET(req: NextRequest) {
 
     try {
       // Decode the token without verifying the expiration (to get userId)
-      const decoded = jwt.decode(token) as jwt.JwtPayload;
+      const { payload } = await jwtVerify(token, JWT_SECRET_KEY);
+      const decoded = payload as DecodedToken;
 
       if (!decoded || !decoded.userId) {
         return NextResponse.json({ success: false, message: 'Invalid token' }, { status: 401 });
@@ -32,9 +40,14 @@ export async function GET(req: NextRequest) {
       }
 
       // Generate a new token
-      const newToken = jwt.sign({ userId: user.id, roles: user.role }, JWT_SECRET, {
-        expiresIn: '4h',
-      });
+      const newToken = await new SignJWT({
+        userId: user.id,
+        roles: [user.role],
+      })
+        .setProtectedHeader({ alg: 'HS256' })
+        .setIssuedAt()
+        .setExpirationTime('4h')
+        .sign(JWT_SECRET_KEY);
 
       // Set the new token as an HTTP-only cookie
       const cookie = `token=${newToken}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=14400`;

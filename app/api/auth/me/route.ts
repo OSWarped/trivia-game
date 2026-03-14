@@ -2,9 +2,10 @@
 // app/api/auth/me/route.ts
 import { NextResponse }    from 'next/server'
 import { cookies }         from 'next/headers'
-import jwt                 from 'jsonwebtoken'
+import { jwtVerify, } from 'jose';
 
-const JWT_SECRET = process.env.JWT_SECRET!
+const JWT_SECRET = process.env.JWT_SECRET! || 'your_secret_key';
+
 
 export async function GET() {
   // 1) await the cookie store
@@ -17,11 +18,7 @@ export async function GET() {
 
   // 2) verify token
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as {
-      userId: string
-      email:  string
-      role:   string
-    }
+    const { payload } = await jwtVerify(token, new TextEncoder().encode(JWT_SECRET));
     return NextResponse.json({ user: payload })
   } catch (err) {
     return NextResponse.json({ user: null }, { status: 401 })

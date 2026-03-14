@@ -2,13 +2,13 @@
 
 import React, {
   createContext,
+  useCallback,
   useContext,
   useEffect,
-  useRef,
+  useMemo,
   useState,
-  PropsWithChildren,
+  type PropsWithChildren,
 } from 'react';
-import { usePathname } from 'next/navigation';
 
 /* ─────────────────────────────────── Types ────────────────────────────────── */
 
@@ -36,55 +36,45 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: PropsWithChildren) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
-  const pathname = usePathname();
-  const hasFetchedRef = useRef(false);
 
-  /* ---- Fetch and store user --------------------------------------------- */
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async () => {
     try {
       const res = await fetch('/api/auth/me', {
         credentials: 'include',
         redirect: 'manual',
       });
 
-      const data = await res.json();
-      setUser(res.ok ? data.user : null);
+      const data = (await res.json()) as { user?: AuthUser };
+      setUser(res.ok ? (data.user ?? null) : null);
     } catch {
       setUser(null);
     }
-  };
+  }, []);
 
-  /* ---- Fetch on initial load ------------------------------------------- */
   useEffect(() => {
-    if (hasFetchedRef.current) return;
-    hasFetchedRef.current = true;
-
-    setLoading(true);
-
-    refreshUser().finally(() => {
-      setLoading(false);
+    queueMicrotask(() => {
+      void refreshUser().finally(() => {
+        setLoading(false);
+      });
     });
-  }, [pathname]);
+  }, [refreshUser]);
 
-  /* ---- Derived roles --------------------------------------------------- */
   const isAdmin = user?.role === 'ADMIN';
   const isHost = user?.role === 'HOST' || isAdmin;
 
-  /* ---- Context value --------------------------------------------------- */
-  const value: AuthContextType = {
-    user,
-    isHost,
-    isAdmin,
-    loading,
-    setUser,
-    refreshUser,
-  };
-
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
+  const value = useMemo<AuthContextType>(
+    () => ({
+      user,
+      isHost,
+      isAdmin,
+      loading,
+      setUser,
+      refreshUser,
+    }),
+    [user, isHost, isAdmin, loading, refreshUser]
   );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 /* ──────────────────────────────── Hook ──────────────────────────────────── */

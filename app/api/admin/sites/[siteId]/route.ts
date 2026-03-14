@@ -3,15 +3,15 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
-    const { id } = await params;
+export async function DELETE(req: Request, { params }: { params: Promise<{ siteId: string }> }) {
+    const { siteId } = await params;
   
     try {
-      console.log(`Received DELETE request for site ID: ${id}`);
+      console.log(`Received DELETE request for site ID: ${siteId}`);
   
       // Delete the HostingSite (dependent records are removed automatically)
       const deletedSite = await prisma.site.delete({
-        where: { id },
+        where: { id: siteId },
       });
   
       return NextResponse.json(
@@ -29,8 +29,9 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     }
   }
 
-export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
-    const { id } = await params;
+export async function PUT(req: Request, { params }: { params: Promise<{ siteId: string }> }) {
+    const { siteId } = await params;
+    const id = siteId
     const { name, address } = await req.json();
   
     try {

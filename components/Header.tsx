@@ -1,25 +1,22 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
 import { Menu, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useState } from 'react';
 
 export default function Header() {
-  const { user, setUser, loading } = useAuth(); // ⬅️ include loading
+  const { user, setUser, loading } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
-  const [open, setOpen] = useState(false); 
-  const [isTeamView, setIsTeamView] = useState(false);
+  const [open, setOpen] = useState(false);
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const teamId = localStorage.getItem('teamId');
-      setIsTeamView(!!teamId);
-    }
-  }, [pathname]);
+  const isTeamView =
+    pathname.startsWith('/games/') ||
+    pathname.startsWith('/leaderboard') ||
+    pathname.startsWith('/transition');
 
   const isAdmin = user?.role === 'ADMIN';
   const isHost = user?.role === 'HOST' || isAdmin;
@@ -44,21 +41,19 @@ export default function Header() {
     </Link>
   );
 
-  // 🛑 Avoid showing incorrect login/logout UI before auth is ready
   if (loading) return null;
 
   return (
-    <header className="bg-blue-600 text-white p-4 shadow-md">
-      <div className="flex justify-between items-center">
-        {/* logo / title */}
+    <header className="bg-blue-600 p-4 text-white shadow-md">
+      <div className="flex items-center justify-between">
         {isTeamView ? (
-          <div className="flex items-center cursor-default">
+          <div className="flex cursor-default items-center">
             <Image
               src="/Quizam_Logo.png"
               alt="Quizam logo"
               width={160}
               height={50}
-              className="h-auto w-auto max-h-12"
+              className="h-auto max-h-12 w-auto"
               priority
             />
           </div>
@@ -69,40 +64,38 @@ export default function Header() {
               alt="Quizam logo"
               width={160}
               height={50}
-              className="h-auto w-auto max-h-12"
+              className="h-auto max-h-12 w-auto"
               priority
             />
           </Link>
         )}
 
-        {/* hamburger for mobile */}
         {!isTeamView && (
           <button
-            className="block md:hidden text-white"
+            className="block text-white md:hidden"
             onClick={() => setOpen(!open)}
           >
             {open ? <X size={28} /> : <Menu size={28} />}
           </button>
         )}
 
-        {/* desktop nav */}
         {!isTeamView && (
           <nav className="hidden md:block">
-            <ul className="flex space-x-6 items-center">            
+            <ul className="flex items-center space-x-6">
               {isAdmin && navLink('/admin/workspace', 'Admin Panel')}
               {isHost && navLink('/dashboard/host', 'Host Dashboard')}
 
               {user ? (
                 <button
                   onClick={handleLogout}
-                  className="ml-4 bg-red-500 px-4 py-2 rounded hover:bg-red-600"
+                  className="ml-4 rounded bg-red-500 px-4 py-2 hover:bg-red-600"
                 >
                   Logout
                 </button>
               ) : (
                 <Link
                   href="/login"
-                  className="ml-4 px-4 py-2 bg-green-500 rounded hover:bg-green-600"
+                  className="ml-4 rounded bg-green-500 px-4 py-2 hover:bg-green-600"
                 >
                   Login
                 </Link>
@@ -112,10 +105,9 @@ export default function Header() {
         )}
       </div>
 
-      {/* mobile menu */}
       {!isTeamView && open && (
-        <nav className="md:hidden mt-2 bg-blue-700 p-4 rounded-lg">
-          <ul className="flex flex-col space-y-4">           
+        <nav className="mt-2 rounded-lg bg-blue-700 p-4 md:hidden">
+          <ul className="flex flex-col space-y-4">
             {isAdmin && navLink('/admin/workspace', 'Admin Panel')}
             {isHost && navLink('/dashboard/host', 'Host Dashboard')}
             <li>
@@ -123,16 +115,16 @@ export default function Header() {
                 <button
                   onClick={() => {
                     setOpen(false);
-                    handleLogout();
+                    void handleLogout();
                   }}
-                  className="w-full bg-red-500 px-4 py-2 rounded hover:bg-red-600"
+                  className="w-full rounded bg-red-500 px-4 py-2 hover:bg-red-600"
                 >
                   Logout
                 </button>
               ) : (
                 <Link
                   href="/login"
-                  className="block w-full text-center px-4 py-2 bg-green-500 rounded hover:bg-green-600"
+                  className="block w-full rounded bg-green-500 px-4 py-2 text-center hover:bg-green-600"
                   onClick={() => setOpen(false)}
                 >
                   Login

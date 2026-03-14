@@ -1,18 +1,19 @@
 'use client';
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+
+import { createContext, useContext, useState, type ReactNode } from 'react';
 import { getSocket } from '@/lib/socket-client';
 import type { Socket } from 'socket.io-client';
 
 const SocketContext = createContext<Socket | null>(null);
 
 export function SocketProvider({ children }: { children: ReactNode }) {
-  const [socket, setSocket] = useState<Socket | null>(null);
+  const [socket] = useState<Socket | null>(() => {
+    if (typeof window === 'undefined') {
+      return null;
+    }
 
-  useEffect(() => {
-    const s = getSocket();
-    setSocket(s);
-    // (no cleanup: keep the connection for the life of the tab)
-  }, []);
+    return getSocket();
+  });
 
   return (
     <SocketContext.Provider value={socket}>{children}</SocketContext.Provider>

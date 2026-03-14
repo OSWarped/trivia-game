@@ -1,4 +1,4 @@
-import { PrismaClient, GameStatus } from '@prisma/client';
+import { GameStatus, PrismaClient } from '@prisma/client';
 import { NextResponse } from 'next/server';
 
 const prisma = new PrismaClient();
@@ -31,6 +31,47 @@ async function generateUniqueJoinCode(): Promise<string> {
   throw new Error('Failed to generate a unique join code.');
 }
 
+function toGameRow(game: {
+  id: string;
+  title: string;
+  joinCode: string;
+  status: string;
+  scheduledFor: Date | null;
+  special: boolean;
+  tag: string | null;
+  host: { id: string; name: string | null } | null;
+  season: {
+    id: string;
+    name: string;
+    event: {
+      id: string;
+      name: string;
+      site: {
+        id: string;
+        name: string;
+      };
+    };
+  };
+}) {
+  return {
+    id: game.id,
+    title: game.title,
+    siteId: game.season.event.site.id,
+    siteName: game.season.event.site.name,
+    eventId: game.season.event.id,
+    eventName: game.season.event.name,
+    seasonId: game.season.id,
+    seasonName: game.season.name,
+    scheduledFor: game.scheduledFor ? game.scheduledFor.toISOString() : null,
+    status: game.status,
+    hostId: game.host?.id ?? null,
+    hostName: game.host?.name ?? null,
+    joinCode: game.joinCode,
+    special: game.special,
+    tag: game.tag,
+  };
+}
+
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -49,13 +90,34 @@ export async function GET(
         tag: true,
         status: true,
         scheduledFor: true,
-        startedAt: true,
-        endedAt: true,
-        createdAt: true,
+        host: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        season: {
+          select: {
+            id: true,
+            name: true,
+            event: {
+              select: {
+                id: true,
+                name: true,
+                site: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
+        },
       },
     });
 
-    return NextResponse.json(games);
+    return NextResponse.json(games.map(toGameRow));
   } catch (err) {
     console.error(
       'Error fetching season games:',
@@ -91,9 +153,18 @@ export async function POST(
       where: { id: seasonId },
       select: {
         id: true,
+        name: true,
         event: {
           select: {
+            id: true,
+            name: true,
             siteId: true,
+            site: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
           },
         },
       },
@@ -112,7 +183,7 @@ export async function POST(
         title,
         joinCode,
         special: body.special ?? false,
-        tag,
+        tag: body.special ? tag : null,
         hostId: body.hostId ?? null,
         status: body.scheduledFor ? GameStatus.SCHEDULED : GameStatus.DRAFT,
         scheduledFor: body.scheduledFor ? new Date(body.scheduledFor) : null,
@@ -125,13 +196,34 @@ export async function POST(
         tag: true,
         status: true,
         scheduledFor: true,
-        startedAt: true,
-        endedAt: true,
-        createdAt: true,
+        host: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        season: {
+          select: {
+            id: true,
+            name: true,
+            event: {
+              select: {
+                id: true,
+                name: true,
+                site: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
+        },
       },
     });
 
-    return NextResponse.json(created, { status: 201 });
+    return NextResponse.json(toGameRow(created), { status: 201 });
   } catch (err) {
     console.error(
       'Error creating game for season:',

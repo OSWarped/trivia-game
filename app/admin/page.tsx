@@ -7,13 +7,8 @@ import AdminSectionCard from './_components/AdminSectionCard';
 import LoadingCard from './_components/LoadingCard';
 import StatCard from './_components/StatCard';
 import StatusBadge from './_components/StatusBadge';
-import type { GameRow, SiteGroup, SiteRow, UserRow } from './_lib/types';
-import {
-  buildEventSummaries,
-  filterGames,
-  flattenGames,
-  sortGamesBySchedule,
-} from './_lib/utils';
+import type { EventSummary, GameRow, SiteGroup, SiteRow, UserRow } from './_lib/types';
+import { filterGames, flattenGames, sortGamesBySchedule } from './_lib/utils';
 
 export default function AdminOverviewPage() {
   const [loading, setLoading] = useState(true);
@@ -22,6 +17,7 @@ export default function AdminOverviewPage() {
   const [games, setGames] = useState<GameRow[]>([]);
   const [sites, setSites] = useState<SiteRow[]>([]);
   const [users, setUsers] = useState<UserRow[]>([]);
+  const [events, setEvents] = useState<EventSummary[]>([]);
 
   useEffect(() => {
     async function loadData(): Promise<void> {
@@ -29,23 +25,26 @@ export default function AdminOverviewPage() {
         setLoading(true);
         setError(null);
 
-        const [gamesRes, sitesRes, usersRes] = await Promise.all([
+        const [gamesRes, sitesRes, usersRes, eventsRes] = await Promise.all([
           fetch('/api/admin/games', { cache: 'no-store' }),
           fetch('/api/admin/sites', { cache: 'no-store' }),
           fetch('/api/admin/users', { cache: 'no-store' }),
+          fetch('/api/admin/events', { cache: 'no-store' }),
         ]);
 
-        if (!gamesRes.ok || !sitesRes.ok || !usersRes.ok) {
+        if (!gamesRes.ok || !sitesRes.ok || !usersRes.ok || !eventsRes.ok) {
           throw new Error('Failed to load admin overview data.');
         }
 
         const gameGroups = (await gamesRes.json()) as SiteGroup[];
         const siteRows = (await sitesRes.json()) as SiteRow[];
         const userRows = (await usersRes.json()) as UserRow[];
+        const eventRows = (await eventsRes.json()) as EventSummary[];
 
         setGames(sortGamesBySchedule(flattenGames(gameGroups)));
         setSites(siteRows);
         setUsers(userRows);
+        setEvents(eventRows);
       } catch (loadError) {
         setError(
           loadError instanceof Error
@@ -96,8 +95,6 @@ export default function AdminOverviewPage() {
       .slice(0, 8);
   }, [games]);
 
-  const eventCount = useMemo(() => buildEventSummaries(games).length, [games]);
-
   const liveCount = useMemo(
     () => games.filter((game) => game.status.toUpperCase() === 'LIVE').length,
     [games]
@@ -131,7 +128,7 @@ export default function AdminOverviewPage() {
         <StatCard label="Games" value={games.length} hint="All known games" />
         <StatCard label="Live" value={liveCount} hint="Currently active" />
         <StatCard label="Sites" value={sites.length} hint="Venue count" />
-        <StatCard label="Events" value={eventCount} hint="Distinct event containers" />
+        <StatCard label="Events" value={events.length} hint="Distinct event containers" />
         <StatCard label="Users" value={users.length} hint="Admin and host access" />
       </div>
 
@@ -260,30 +257,25 @@ function CompactGameCard({ game, subtitle }: { game: GameRow; subtitle?: string 
           {subtitle}
         </div>
       ) : null}
-
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="truncate text-base font-semibold text-slate-900">{game.title}</h3>
-          <p className="mt-1 text-sm text-slate-600">
+        <div>
+          <div className="text-base font-semibold text-slate-900">{game.title}</div>
+          <div className="mt-1 text-sm text-slate-600">
             {game.siteName} • {game.eventName} • {game.seasonName}
-          </p>
+          </div>
         </div>
         <StatusBadge status={game.status} />
       </div>
-
-      <div className="mt-3 space-y-1 text-sm text-slate-600">
-        <div>
-          <span className="font-medium text-slate-700">Scheduled:</span>{' '}
-          {formatSchedule(game.scheduledFor)}
-        </div>
-        <div>
-          <span className="font-medium text-slate-700">Host:</span>{' '}
-          {game.hostName ?? 'Unassigned'}
-        </div>
+      <div className="mt-3 text-sm text-slate-600">
+        Join code: <span className="font-medium text-slate-900">{game.joinCode ?? '—'}</span>
       </div>
-
-      <div className="mt-4">
-        <GameActionButtons game={game} />
+      <div className="mt-4 flex gap-2">
+        <Link
+          href={`/admin/games/${game.id}`}
+          className="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+        >
+          Open Game
+        </Link>
       </div>
     </div>
   );
@@ -291,172 +283,60 @@ function CompactGameCard({ game, subtitle }: { game: GameRow; subtitle?: string 
 
 function UpcomingGameRow({ game }: { game: GameRow }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-start gap-4">
-          <div className="min-w-[90px] rounded-2xl border border-slate-200 bg-white px-3 py-3 text-center shadow-sm">
-            <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-              {formatMonthDay(game.scheduledFor)}
-            </div>
-            <div className="mt-1 text-sm font-medium text-slate-800">
-              {formatTime(game.scheduledFor)}
-            </div>
-          </div>
-
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-base font-semibold text-slate-900">{game.title}</h3>
-              <StatusBadge status={game.status} />
-            </div>
-
-            <p className="mt-1 text-sm text-slate-600">
-              {game.siteName} • {game.eventName} • {game.seasonName}
-            </p>
-
-            <p className="mt-2 text-sm text-slate-600">
-              Host:{' '}
-              <span className="font-medium text-slate-800">{game.hostName ?? 'Unassigned'}</span>
-            </p>
-          </div>
-        </div>
-
-        <div className="lg:min-w-[320px]">
-          <GameActionButtons game={game} />
+    <Link
+      href={`/admin/games/${game.id}`}
+      className="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white px-4 py-4 text-sm transition hover:bg-slate-50"
+    >
+      <div>
+        <div className="font-semibold text-slate-900">{game.title}</div>
+        <div className="mt-1 text-slate-600">
+          {game.siteName} • {game.eventName} • {game.seasonName}
         </div>
       </div>
-    </div>
+      <div className="text-right">
+        <div className="font-medium text-slate-900">
+          {game.scheduledFor ? new Date(game.scheduledFor).toLocaleString() : 'Unscheduled'}
+        </div>
+        <div className="mt-1 text-slate-500">{game.hostName ?? 'No host assigned'}</div>
+      </div>
+    </Link>
   );
 }
 
 function NeedsAttentionCard({ game }: { game: GameRow }) {
-  const reasons = buildAttentionReasons(game);
+  const missing: string[] = [];
+
+  if (!game.scheduledFor) {
+    missing.push('No date');
+  }
+
+  if (!game.hostName) {
+    missing.push('No host');
+  }
+
+  if (game.status.toUpperCase() === 'DRAFT') {
+    missing.push('Draft');
+  }
 
   return (
-    <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-xs font-semibold uppercase tracking-[0.12em] text-amber-700">
-            {buildAttentionHeadline(reasons)}
-          </div>
-          <h3 className="mt-1 text-base font-semibold text-slate-900">{game.title}</h3>
-          <p className="mt-1 text-sm text-slate-700">
-            {game.siteName} • {game.eventName} • {game.seasonName}
-          </p>
+    <Link
+      href={`/admin/games/${game.id}`}
+      className="block rounded-2xl border border-slate-200 bg-white p-4 transition hover:bg-slate-50"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="font-semibold text-slate-900">{game.title}</div>
+          <div className="mt-1 text-sm text-slate-600">{game.siteName}</div>
         </div>
-
         <StatusBadge status={game.status} />
       </div>
-
-      <div className="mt-3 flex flex-wrap gap-2">
-        {reasons.map((reason) => (
-          <span
-            key={`${game.id}-${reason}`}
-            className="rounded-full border border-amber-300 bg-white px-2.5 py-1 text-xs font-medium text-amber-800"
-          >
-            {reason}
+      <div className="mt-3 flex flex-wrap gap-2 text-xs font-medium uppercase tracking-[0.12em] text-amber-700">
+        {missing.map((item) => (
+          <span key={item} className="rounded-full bg-amber-50 px-3 py-1">
+            {item}
           </span>
         ))}
       </div>
-
-      <div className="mt-3 space-y-1 text-sm text-slate-700">
-        <div>
-          <span className="font-medium text-slate-800">Scheduled:</span>{' '}
-          {formatSchedule(game.scheduledFor)}
-        </div>
-        <div>
-          <span className="font-medium text-slate-800">Host:</span>{' '}
-          {game.hostName ?? 'Unassigned'}
-        </div>
-      </div>
-
-      <div className="mt-4">
-        <GameActionButtons game={game} />
-      </div>
-    </div>
+    </Link>
   );
-}
-
-function GameActionButtons({ game }: { game: GameRow }) {
-  return (
-    <div className="flex flex-wrap gap-2">
-      <Link
-        href={`/admin/games/${game.id}/editor`}
-        className="rounded-xl bg-slate-900 px-3 py-2 text-xs font-medium text-white transition hover:bg-slate-800"
-      >
-        Edit Content
-      </Link>
-      <Link
-        href={`/admin/games/${game.id}`}
-        className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
-      >
-        Open Game
-      </Link>
-      <Link
-        href={`/dashboard/host/${game.id}/command`}
-        className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
-      >
-        Host View
-      </Link>
-    </div>
-  );
-}
-
-function buildAttentionReasons(game: GameRow): string[] {
-  const reasons: string[] = [];
-
-  if (game.status.toUpperCase() === 'DRAFT') {
-    reasons.push('Draft');
-  }
-  if (!game.scheduledFor) {
-    reasons.push('Unscheduled');
-  }
-  if (!game.hostName) {
-    reasons.push('Missing host');
-  }
-
-  return reasons;
-}
-
-function buildAttentionHeadline(reasons: string[]): string {
-  if (reasons.includes('Draft') && reasons.includes('Unscheduled')) {
-    return 'Game setup incomplete';
-  }
-  if (reasons.includes('Missing host')) {
-    return 'Host assignment needed';
-  }
-  if (reasons.includes('Unscheduled')) {
-    return 'Schedule needed';
-  }
-  if (reasons.includes('Draft')) {
-    return 'Draft ready to finish';
-  }
-
-  return 'Needs attention';
-}
-
-function formatSchedule(value: string | null): string {
-  if (!value) {
-    return 'Unscheduled';
-  }
-  return new Date(value).toLocaleString();
-}
-
-function formatMonthDay(value: string | null): string {
-  if (!value) {
-    return 'No date';
-  }
-  return new Date(value).toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-  });
-}
-
-function formatTime(value: string | null): string {
-  if (!value) {
-    return 'TBD';
-  }
-  return new Date(value).toLocaleTimeString(undefined, {
-    hour: 'numeric',
-    minute: '2-digit',
-  });
 }

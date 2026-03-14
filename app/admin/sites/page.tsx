@@ -5,14 +5,15 @@ import Link from 'next/link';
 import AdminPageHeader from '../_components/AdminPageHeader';
 import AdminSectionCard from '../_components/AdminSectionCard';
 import LoadingCard from '../_components/LoadingCard';
-import type { GameRow, SiteGroup, SiteRow } from '../_lib/types';
-import { buildSiteSummaries, flattenGames, includesText } from '../_lib/utils';
+import type { EventSummary, GameRow, SiteGroup, SiteRow } from '../_lib/types';
+import { flattenGames, includesText } from '../_lib/utils';
 
 export default function AdminSitesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sites, setSites] = useState<SiteRow[]>([]);
   const [games, setGames] = useState<GameRow[]>([]);
+  const [events, setEvents] = useState<EventSummary[]>([]);
   const [search, setSearch] = useState('');
 
   const [nameInput, setNameInput] = useState('');
@@ -25,20 +26,23 @@ export default function AdminSitesPage() {
       setLoading(true);
       setError(null);
 
-      const [sitesRes, gamesRes] = await Promise.all([
+      const [sitesRes, gamesRes, eventsRes] = await Promise.all([
         fetch('/api/admin/sites', { cache: 'no-store' }),
         fetch('/api/admin/games', { cache: 'no-store' }),
+        fetch('/api/admin/events', { cache: 'no-store' }),
       ]);
 
-      if (!sitesRes.ok || !gamesRes.ok) {
+      if (!sitesRes.ok || !gamesRes.ok || !eventsRes.ok) {
         throw new Error('Failed to load sites.');
       }
 
       const siteRows = (await sitesRes.json()) as SiteRow[];
       const siteGroups = (await gamesRes.json()) as SiteGroup[];
+      const eventRows = (await eventsRes.json()) as EventSummary[];
 
       setSites(siteRows);
       setGames(flattenGames(siteGroups));
+      setEvents(eventRows);
     } catch (loadError) {
       setError(
         loadError instanceof Error ? loadError.message : 'Failed to load sites.'
@@ -53,7 +57,21 @@ export default function AdminSitesPage() {
   }, []);
 
   const summarizedSites = useMemo(() => {
-    const records = buildSiteSummaries(sites, games);
+    const records = sites
+      .map((site) => {
+        const siteGames = games.filter((game) => game.siteId === site.id);
+        const siteEvents = events.filter((event) => event.siteId === site.id);
+
+        return {
+          ...site,
+          eventCount: siteEvents.length,
+          gameCount: siteGames.length,
+          upcomingCount: siteGames.filter(
+            (game) => !!game.scheduledFor && new Date(game.scheduledFor) >= new Date()
+          ).length,
+        };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
 
     if (!search.trim()) {
       return records;
@@ -62,7 +80,7 @@ export default function AdminSitesPage() {
     return records.filter((site) =>
       includesText(`${site.name} ${site.address ?? ''}`, search)
     );
-  }, [games, search, sites]);
+  }, [events, games, search, sites]);
 
   function startEdit(site: SiteRow): void {
     setEditingSiteId(site.id);

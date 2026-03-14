@@ -43,18 +43,21 @@ export async function GET(req: Request) {
     /* fetch THAT team's answer for THAT question */
     const answerRow = await prisma.answer.findFirst({
       where: { teamGameId: teamGame.id, questionId },
-      orderBy: { createdAt: 'desc' },          // in case of resubmissions
+      orderBy: { createdAt: 'desc' },
       select: {
+        id: true,
         given: true,
         awardedPoints: true,
         isCorrect: true,
         pointsUsed: true,
+        favorite: true,
       },
     });
 
     if (!answerRow) return NextResponse.json({ answer: null });
 
     const answer = {
+      id: answerRow.id,
       teamId: teamGame.team.id,
       teamName: teamGame.team.name,
       questionId,
@@ -62,6 +65,7 @@ export async function GET(req: Request) {
       awardedPoints: answerRow.awardedPoints,
       isCorrect: answerRow.isCorrect,
       pointsUsed: answerRow.pointsUsed,
+      favorite: answerRow.favorite,
     };
 
     return NextResponse.json({ answer });

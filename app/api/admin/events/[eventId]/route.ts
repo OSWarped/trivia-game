@@ -3,175 +3,127 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-export async function GET(
-  _req: Request,
-  { params }: { params: Promise<{ eventId: string }> },
-) {
-  const { eventId } = await params;
+type RouteContext = {
+  params: Promise<{ eventId: string }>;
+};
 
-  if (!eventId) {
-    return NextResponse.json({ error: 'Missing eventId' }, { status: 400 });
-  }
-
+export async function GET(_req: Request, { params }: RouteContext) {
   try {
+    const { eventId } = await params;
+
     const event = await prisma.event.findUnique({
       where: { id: eventId },
-      include: {
+      select: {
+        id: true,
+        name: true,
         site: {
           select: {
             id: true,
             name: true,
-          },
-        },
-        seasons: {
-          orderBy: [
-            { active: 'desc' },
-            { startsAt: 'desc' },
-          ],
-          select: {
-            id: true,
-            name: true,
-            startsAt: true,
-            endsAt: true,
-            active: true,
-            _count: {
-              select: {
-                games: true,
-              },
-            },
-            games: {
-              orderBy: [
-                { scheduledFor: 'desc' },
-                { createdAt: 'desc' },
-              ],
-              take: 3,
-              select: {
-                id: true,
-                title: true,
-                scheduledFor: true,
-                status: true,
-              },
-            },
+            address: true,
           },
         },
       },
     });
 
     if (!event) {
-      return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Event not found.' }, { status: 404 });
     }
 
-    return NextResponse.json({
-      id: event.id,
-      name: event.name,
-      site: {
-        id: event.site.id,
-        name: event.site.name,
-      },
-      seasons: event.seasons.map((season) => ({
-        id: season.id,
-        name: season.name,
-        startsAt: season.startsAt,
-        endsAt: season.endsAt,
-        active: season.active,
-        gameCount: season._count.games,
-        games: season.games,
-      })),
-    });
-  } catch (err) {
-    console.error(
-      'Error fetching event overview:',
-      err instanceof Error ? err.message : err
-    );
-
-    return NextResponse.json(
-      { error: 'Failed to load event' },
-      { status: 500 },
-    );
+    return NextResponse.json(event);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to load event.';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
-export async function PUT(
-  req: Request,
-  { params }: { params: Promise<{ eventId: string }> },
-) {
-  const { eventId } = await params;
-  const body = (await req.json()) as {
-    name?: string;
-    siteId?: string | null;
-  };
-
-  const name = body.name?.trim();
-  const siteId = body.siteId?.trim() ?? null;
-
-  if (!name) {
-    return NextResponse.json({ error: 'Name required' }, { status: 400 });
-  }
-
-  if (!siteId) {
-    return NextResponse.json({ error: 'Site required' }, { status: 400 });
-  }
-
+export async function PUT(req: Request, { params }: RouteContext) {
   try {
-    const site = await prisma.site.findUnique({
-      where: { id: siteId },
-      select: { id: true },
-    });
+    const { eventId } = await params;
+    const body = (await req.json()) as {
+      siteId?: string;
+      name?: string;
+    };
 
-    if (!site) {
-      return NextResponse.json(
-        { error: 'Selected site not found' },
-        { status: 404 }
-      );
+    const siteId = body.siteId?.trim();
+    const name = body.name?.trim();
+
+    if (!siteId) {
+      return NextResponse.json({ error: 'Site is required.' }, { status: 400 });
+    }
+
+    if (!name) {
+      return NextResponse.json({ error: 'Event name is required.' }, { status: 400 });
     }
 
     const updated = await prisma.event.update({
       where: { id: eventId },
       data: {
-        name,
         siteId,
+        name,
       },
-      include: {
-        site: true,
-        schedules: true,
+      select: {
+        id: true,
+        name: true,
+        site: {
+          select: {
+            id: true,
+            name: true,
+            address: true,
+          },
+        },
       },
     });
 
     return NextResponse.json(updated);
-  } catch (err) {
-    console.error('Error updating event:', err);
-    return NextResponse.json(
-      { error: 'Failed to update event' },
-      { status: 500 }
-    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to update event.';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
-export async function DELETE(
-  _req: Request,
-  { params }: { params: Promise<{ eventId: string }> },
-) {
-  const { eventId } = await params;
-
+export async function DELETE(_req: Request, { params }: RouteContext) {
   try {
-    const seasonCount = await prisma.season.count({
-      where: { eventId },
+    const { eventId } = await params;
+
+    const event = await prisma.event.findUnique({
+      where: { id: eventId },
+      select: {
+        _count: {
+          select: {
+            seasons: true,
+            teamEvents: true,
+            schedules: true,
+          },
+        },
+      },
     });
 
-    if (seasonCount > 0) {
+    if (!event) {
+      return NextResponse.json({ error: 'Event not found.' }, { status: 404 });
+    }
+
+    if (event._count.seasons > 0 || event._count.teamEvents > 0) {
       return NextResponse.json(
-        { error: 'Cannot delete an event that still has seasons' },
+        {
+          error:
+            'This event cannot be deleted yet because it still has seasons or team history attached.',
+        },
         { status: 400 }
       );
     }
 
-    await prisma.event.delete({
-      where: { id: eventId },
+    await prisma.$transaction(async (tx) => {
+      if (event._count.schedules > 0) {
+        await tx.eventSchedule.deleteMany({ where: { eventId } });
+      }
+
+      await tx.event.delete({ where: { id: eventId } });
     });
 
     return NextResponse.json({ ok: true });
-  } catch (err) {
-    console.error('Error deleting event:', err);
-    return NextResponse.json({ error: 'Failed' }, { status: 500 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to delete event.';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

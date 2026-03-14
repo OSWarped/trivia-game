@@ -190,11 +190,19 @@ export function useHostAnswers({
       );
 
       setTeamAnswers((prev) => {
-        const existingIndex = prev.findIndex((answer) => answer.id === nextAnswer.id);
+        const existingIndex = prev.findIndex(
+          (answer) =>
+            answer.id === nextAnswer.id ||
+            (answer.teamId === nextAnswer.teamId &&
+              answer.questionId === nextAnswer.questionId)
+        );
 
         if (existingIndex >= 0) {
           const next = [...prev];
-          next[existingIndex] = nextAnswer;
+          next[existingIndex] = {
+            ...next[existingIndex],
+            ...nextAnswer,
+          };
           return next;
         }
 
@@ -239,7 +247,7 @@ export function useHostAnswers({
       reliableEmit(
         'host:scoreUpdate',
         { gameId, teamId, newScore },
-        () => {},
+        () => { },
         (err) => {
           console.error('ScoreUpdate delivery failed', err);
         }
@@ -297,7 +305,7 @@ export function useHostAnswers({
       reliableEmit(
         'host:scoreUpdate',
         { gameId, teamId, newScore },
-        () => {},
+        () => { },
         (err) => {
           console.error('ScoreUpdate delivery failed', err);
         }

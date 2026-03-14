@@ -5,11 +5,12 @@ import { usePathname } from 'next/navigation';
 import AdminPageHeader from '../../_components/AdminPageHeader';
 import AdminSectionCard from '../../_components/AdminSectionCard';
 import Breadcrumbs from '../../_components/Breadcrumbs';
+import GameCreatePanel from '../../_components/GameCreatePanel';
 import GamesTable from '../../_components/GamesTable';
 import LoadingCard from '../../_components/LoadingCard';
 import RecordTabs from '../../_components/RecordTabs';
 import StatCard from '../../_components/StatCard';
-import type { GameRow, SeasonDetail, SeasonStandingRow } from '../../_lib/types';
+import type { GameRow, SeasonDetail, SeasonStandingRow, SeasonSummary, UserRow } from '../../_lib/types';
 import { formatDate } from '../../_lib/utils';
 
 type SeasonPageProps = {
@@ -25,29 +26,33 @@ export default function AdminSeasonDetailPage({ params }: SeasonPageProps) {
   const [season, setSeason] = useState<SeasonDetail | null>(null);
   const [games, setGames] = useState<GameRow[]>([]);
   const [standings, setStandings] = useState<SeasonStandingRow[]>([]);
+  const [users, setUsers] = useState<UserRow[]>([]);
 
   const loadData = useCallback(async (): Promise<void> => {
     try {
       setLoading(true);
       setError(null);
 
-      const [seasonRes, gamesRes, standingsRes] = await Promise.all([
+      const [seasonRes, gamesRes, standingsRes, usersRes] = await Promise.all([
         fetch(`/api/admin/seasons/${seasonId}`, { cache: 'no-store' }),
         fetch(`/api/admin/seasons/${seasonId}/games`, { cache: 'no-store' }),
         fetch(`/api/admin/seasons/${seasonId}/standings`, { cache: 'no-store' }),
+        fetch('/api/admin/users', { cache: 'no-store' }),
       ]);
 
-      if (!seasonRes.ok || !gamesRes.ok || !standingsRes.ok) {
+      if (!seasonRes.ok || !gamesRes.ok || !standingsRes.ok || !usersRes.ok) {
         throw new Error('Failed to load season workspace.');
       }
 
       const seasonData = (await seasonRes.json()) as SeasonDetail;
       const gameRows = (await gamesRes.json()) as GameRow[];
       const standingsRows = (await standingsRes.json()) as SeasonStandingRow[];
+      const userRows = (await usersRes.json()) as UserRow[];
 
       setSeason(seasonData);
       setGames(gameRows);
       setStandings(standingsRows);
+      setUsers(userRows);
     } catch (loadError) {
       setError(
         loadError instanceof Error ? loadError.message : 'Failed to load season.'
@@ -69,6 +74,21 @@ export default function AdminSeasonDetailPage({ params }: SeasonPageProps) {
   const leader = standings[0] ?? null;
   const teamCount = standings.length;
   const totalSeasonPoints = standings.reduce((sum, row) => sum + row.points, 0);
+  const seasonOption: SeasonSummary[] = season
+    ? [{
+        id: season.id,
+        name: season.name,
+        eventId: season.event.id,
+        eventName: season.event.name,
+        siteId: season.event.site.id,
+        siteName: season.event.site.name,
+        gameCount: games.length,
+        upcomingCount: 0,
+        liveCount: 0,
+        firstScheduledFor: season.startsAt,
+        lastScheduledFor: season.endsAt,
+      }]
+    : [];
 
   if (loading) {
     return <LoadingCard label="Loading season..." />;
@@ -112,6 +132,19 @@ export default function AdminSeasonDetailPage({ params }: SeasonPageProps) {
           hint={leader ? `${leader.points} pts` : 'No standings yet'}
         />
       </div>
+
+      <AdminSectionCard
+        title="Add Game to this Season"
+        description="This is the fastest place to expand a season schedule while staying in context."
+      >
+        <GameCreatePanel
+          seasons={seasonOption}
+          users={users}
+          presetSeasonId={season.id}
+          onCreated={loadData}
+          submitLabel="Add Game to Season"
+        />
+      </AdminSectionCard>
 
       <div className="grid gap-6 xl:grid-cols-[0.7fr_1.3fr]">
         <AdminSectionCard
@@ -186,7 +219,7 @@ export default function AdminSeasonDetailPage({ params }: SeasonPageProps) {
 
       <AdminSectionCard
         title="Games"
-        description="Season views are still game-first: every row keeps the primary game actions."
+        description="Season views stay game-first, but now you can create the next one right here too."
       >
         <GamesTable games={games} emptyMessage="No games have been created for this season yet." />
       </AdminSectionCard>

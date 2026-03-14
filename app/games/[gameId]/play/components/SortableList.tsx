@@ -146,11 +146,7 @@ const OrderedQuestion: React.FC<OrderedQuestionProps> = ({
   onChange,
 }) => {
   const [items, setItems] = useState<Option[]>(() => shuffleArray(options));
-
-  useEffect(() => {
-    setItems(shuffleArray(options));
-  }, [options]);
-
+ 
   useEffect(() => {
     onChange(items);
   }, [items, onChange]);

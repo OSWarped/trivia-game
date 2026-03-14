@@ -6,11 +6,12 @@ import { usePathname } from 'next/navigation';
 import AdminPageHeader from '../../_components/AdminPageHeader';
 import AdminSectionCard from '../../_components/AdminSectionCard';
 import Breadcrumbs from '../../_components/Breadcrumbs';
+import GameCreatePanel from '../../_components/GameCreatePanel';
 import GamesTable from '../../_components/GamesTable';
 import LoadingCard from '../../_components/LoadingCard';
 import RecordTabs from '../../_components/RecordTabs';
 import StatCard from '../../_components/StatCard';
-import type { GameRow, SiteGroup, SiteRow } from '../../_lib/types';
+import type { EventSummary, GameRow, SeasonSummary, SiteGroup, SiteRow, UserRow } from '../../_lib/types';
 import { flattenGames } from '../../_lib/utils';
 
 type SitePageProps = {
@@ -25,28 +26,52 @@ export default function AdminSiteDetailPage({ params }: SitePageProps) {
   const [error, setError] = useState<string | null>(null);
   const [site, setSite] = useState<SiteRow | null>(null);
   const [games, setGames] = useState<GameRow[]>([]);
+  const [events, setEvents] = useState<EventSummary[]>([]);
+  const [seasons, setSeasons] = useState<SeasonSummary[]>([]);
+  const [users, setUsers] = useState<UserRow[]>([]);
 
   const loadData = useCallback(async (): Promise<void> => {
     try {
       setLoading(true);
       setError(null);
 
-      const [sitesRes, gamesRes] = await Promise.all([
+      const [sitesRes, gamesRes, eventsRes, seasonsRes, usersRes] = await Promise.all([
         fetch('/api/admin/sites', { cache: 'no-store' }),
         fetch('/api/admin/games', { cache: 'no-store' }),
+        fetch('/api/admin/events', { cache: 'no-store' }),
+        fetch('/api/admin/seasons', { cache: 'no-store' }),
+        fetch('/api/admin/users', { cache: 'no-store' }),
       ]);
 
-      if (!sitesRes.ok || !gamesRes.ok) {
+      if (!sitesRes.ok || !gamesRes.ok || !eventsRes.ok || !seasonsRes.ok || !usersRes.ok) {
         throw new Error('Failed to load site workspace.');
       }
 
       const siteRows = (await sitesRes.json()) as SiteRow[];
       const siteGroups = (await gamesRes.json()) as SiteGroup[];
+      const eventRows = (await eventsRes.json()) as EventSummary[];
+      const seasonRows = (await seasonsRes.json()) as SeasonSummary[];
+      const userRows = (await usersRes.json()) as UserRow[];
       const foundSite = siteRows.find((candidate) => candidate.id === siteId) ?? null;
       const siteGames = flattenGames(siteGroups).filter((game) => game.siteId === siteId);
 
       setSite(foundSite);
       setGames(siteGames);
+      setEvents(
+        eventRows
+          .filter((event) => event.siteId === siteId)
+          .sort((a, b) => a.name.localeCompare(b.name))
+      );
+      setSeasons(
+        seasonRows
+          .filter((season) => season.siteId === siteId)
+          .sort((a, b) => {
+            const eventCompare = a.eventName.localeCompare(b.eventName);
+            if (eventCompare !== 0) return eventCompare;
+            return a.name.localeCompare(b.name);
+          })
+      );
+      setUsers(userRows);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Failed to load site.');
     } finally {
@@ -57,21 +82,6 @@ export default function AdminSiteDetailPage({ params }: SitePageProps) {
   useEffect(() => {
     void loadData();
   }, [loadData]);
-
-  const events = useMemo(() => {
-    const map = new Map<string, { id: string; name: string; count: number }>();
-
-    for (const game of games) {
-      const existing = map.get(game.eventId);
-      if (existing) {
-        map.set(game.eventId, { ...existing, count: existing.count + 1 });
-      } else {
-        map.set(game.eventId, { id: game.eventId, name: game.eventName, count: 1 });
-      }
-    }
-
-    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [games]);
 
   const tabs = useMemo(
     () => [{ label: 'Overview', href: `/admin/sites/${siteId}` }],
@@ -119,6 +129,13 @@ export default function AdminSiteDetailPage({ params }: SitePageProps) {
         />
       </div>
 
+      <AdminSectionCard
+        title="Add Game at this Site"
+        description="Choose any season at this venue and create a new game without bouncing through multiple admin pages."
+      >
+        <GameCreatePanel seasons={seasons} users={users} onCreated={loadData} submitLabel="Add Game to Site" />
+      </AdminSectionCard>
+
       <div className="grid gap-6 xl:grid-cols-[0.72fr_1.28fr]">
         <AdminSectionCard
           title="Events at this Site"
@@ -133,7 +150,7 @@ export default function AdminSiteDetailPage({ params }: SitePageProps) {
                   className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 transition hover:bg-slate-50"
                 >
                   <span className="font-medium text-slate-900">{event.name}</span>
-                  <span>{event.count} games</span>
+                  <span>{event.gameCount} games</span>
                 </Link>
               ))}
             </div>

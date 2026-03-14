@@ -6,11 +6,12 @@ import { usePathname } from 'next/navigation';
 import AdminPageHeader from '../../_components/AdminPageHeader';
 import AdminSectionCard from '../../_components/AdminSectionCard';
 import Breadcrumbs from '../../_components/Breadcrumbs';
+import GameCreatePanel from '../../_components/GameCreatePanel';
 import GamesTable from '../../_components/GamesTable';
 import LoadingCard from '../../_components/LoadingCard';
 import RecordTabs from '../../_components/RecordTabs';
 import StatCard from '../../_components/StatCard';
-import type { EventDetail, GameRow, SiteGroup } from '../../_lib/types';
+import type { EventDetail, GameRow, SeasonSummary, SiteGroup, UserRow } from '../../_lib/types';
 import { flattenGames } from '../../_lib/utils';
 
 type EventPageProps = {
@@ -25,27 +26,39 @@ export default function AdminEventDetailPage({ params }: EventPageProps) {
   const [error, setError] = useState<string | null>(null);
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [games, setGames] = useState<GameRow[]>([]);
+  const [seasons, setSeasons] = useState<SeasonSummary[]>([]);
+  const [users, setUsers] = useState<UserRow[]>([]);
 
   const loadData = useCallback(async (): Promise<void> => {
     try {
       setLoading(true);
       setError(null);
 
-      const [eventRes, gamesRes] = await Promise.all([
+      const [eventRes, gamesRes, seasonsRes, usersRes] = await Promise.all([
         fetch(`/api/admin/events/${eventId}`, { cache: 'no-store' }),
         fetch('/api/admin/games', { cache: 'no-store' }),
+        fetch('/api/admin/seasons', { cache: 'no-store' }),
+        fetch('/api/admin/users', { cache: 'no-store' }),
       ]);
 
-      if (!eventRes.ok || !gamesRes.ok) {
+      if (!eventRes.ok || !gamesRes.ok || !seasonsRes.ok || !usersRes.ok) {
         throw new Error('Failed to load event workspace.');
       }
 
       const eventData = (await eventRes.json()) as EventDetail;
       const siteGroups = (await gamesRes.json()) as SiteGroup[];
       const eventGames = flattenGames(siteGroups).filter((game) => game.eventId === eventId);
+      const seasonRows = (await seasonsRes.json()) as SeasonSummary[];
+      const userRows = (await usersRes.json()) as UserRow[];
 
       setEvent(eventData);
       setGames(eventGames);
+      setSeasons(
+        seasonRows
+          .filter((season) => season.eventId === eventId)
+          .sort((a, b) => a.name.localeCompare(b.name))
+      );
+      setUsers(userRows);
     } catch (loadError) {
       setError(
         loadError instanceof Error ? loadError.message : 'Failed to load event.'
@@ -58,21 +71,6 @@ export default function AdminEventDetailPage({ params }: EventPageProps) {
   useEffect(() => {
     void loadData();
   }, [loadData]);
-
-  const seasonGroups = useMemo(() => {
-    const map = new Map<string, { id: string; name: string; count: number }>();
-
-    for (const game of games) {
-      const existing = map.get(game.seasonId);
-      if (existing) {
-        map.set(game.seasonId, { ...existing, count: existing.count + 1 });
-      } else {
-        map.set(game.seasonId, { id: game.seasonId, name: game.seasonName, count: 1 });
-      }
-    }
-
-    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [games]);
 
   const tabs = useMemo(
     () => [{ label: 'Overview', href: `/admin/events/${eventId}` }],
@@ -112,9 +110,16 @@ export default function AdminEventDetailPage({ params }: EventPageProps) {
 
       <div className="grid gap-4 md:grid-cols-3">
         <StatCard label="Games" value={games.length} hint="Games tied to this event" />
-        <StatCard label="Seasons" value={seasonGroups.length} hint="Season containers in this event" />
+        <StatCard label="Seasons" value={seasons.length} hint="Season containers in this event" />
         <StatCard label="Site" value={event.site.name} hint={event.site.address ?? 'No address saved'} />
       </div>
+
+      <AdminSectionCard
+        title="Add Game in this Event"
+        description="Pick any season in this event and create the next scheduled game without leaving the event workspace."
+      >
+        <GameCreatePanel seasons={seasons} users={users} onCreated={loadData} submitLabel="Add Game to Event" />
+      </AdminSectionCard>
 
       <div className="grid gap-6 xl:grid-cols-[0.75fr_1.25fr]">
         <AdminSectionCard
@@ -122,18 +127,18 @@ export default function AdminEventDetailPage({ params }: EventPageProps) {
           description="Seasons organize the event, but every season still leads back to a direct game workflow."
         >
           <div className="space-y-3">
-            {seasonGroups.map((season) => (
+            {seasons.map((season) => (
               <Link
                 key={season.id}
                 href={`/admin/seasons/${season.id}`}
                 className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 transition hover:bg-slate-50"
               >
                 <span className="font-medium text-slate-900">{season.name}</span>
-                <span>{season.count} games</span>
+                <span>{season.gameCount} games</span>
               </Link>
             ))}
 
-            {seasonGroups.length === 0 ? (
+            {seasons.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500">
                 No seasons found for this event yet.
               </div>

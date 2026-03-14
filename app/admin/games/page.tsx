@@ -3,11 +3,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import AdminPageHeader from '../_components/AdminPageHeader';
 import AdminSectionCard from '../_components/AdminSectionCard';
+import GameCreatePanel from '../_components/GameCreatePanel';
 import GamesFiltersBar from '../_components/GamesFiltersBar';
 import GamesTable from '../_components/GamesTable';
 import LoadingCard from '../_components/LoadingCard';
 import QuickFilterChips from '../_components/QuickFilterChips';
-import type { GameRow, SiteGroup, SiteRow } from '../_lib/types';
+import type { GameRow, SeasonSummary, SiteGroup, SiteRow, UserRow } from '../_lib/types';
 import { filterGames, flattenGames, sortGamesBySchedule } from '../_lib/utils';
 
 export default function AdminGamesPage() {
@@ -15,6 +16,8 @@ export default function AdminGamesPage() {
   const [error, setError] = useState<string | null>(null);
   const [games, setGames] = useState<GameRow[]>([]);
   const [sites, setSites] = useState<SiteRow[]>([]);
+  const [seasons, setSeasons] = useState<SeasonSummary[]>([]);
+  const [users, setUsers] = useState<UserRow[]>([]);
 
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('ALL');
@@ -23,35 +26,49 @@ export default function AdminGamesPage() {
     'UPCOMING' | 'PAST' | 'ALL' | 'LIVE' | 'NEXT_30'
   >('NEXT_30');
 
-  useEffect(() => {
-    async function loadData(): Promise<void> {
-      try {
-        setLoading(true);
-        setError(null);
+  async function loadData(): Promise<void> {
+    try {
+      setLoading(true);
+      setError(null);
 
-        const [gamesRes, sitesRes] = await Promise.all([
-          fetch('/api/admin/games', { cache: 'no-store' }),
-          fetch('/api/admin/sites', { cache: 'no-store' }),
-        ]);
+      const [gamesRes, sitesRes, seasonsRes, usersRes] = await Promise.all([
+        fetch('/api/admin/games', { cache: 'no-store' }),
+        fetch('/api/admin/sites', { cache: 'no-store' }),
+        fetch('/api/admin/seasons', { cache: 'no-store' }),
+        fetch('/api/admin/users', { cache: 'no-store' }),
+      ]);
 
-        if (!gamesRes.ok || !sitesRes.ok) {
-          throw new Error('Failed to load game index.');
-        }
-
-        const gameGroups = (await gamesRes.json()) as SiteGroup[];
-        const siteRows = (await sitesRes.json()) as SiteRow[];
-
-        setGames(sortGamesBySchedule(flattenGames(gameGroups)));
-        setSites(siteRows.sort((a, b) => a.name.localeCompare(b.name)));
-      } catch (loadError) {
-        setError(
-          loadError instanceof Error ? loadError.message : 'Failed to load games.'
-        );
-      } finally {
-        setLoading(false);
+      if (!gamesRes.ok || !sitesRes.ok || !seasonsRes.ok || !usersRes.ok) {
+        throw new Error('Failed to load game index.');
       }
-    }
 
+      const gameGroups = (await gamesRes.json()) as SiteGroup[];
+      const siteRows = (await sitesRes.json()) as SiteRow[];
+      const seasonRows = (await seasonsRes.json()) as SeasonSummary[];
+      const userRows = (await usersRes.json()) as UserRow[];
+
+      setGames(sortGamesBySchedule(flattenGames(gameGroups)));
+      setSites(siteRows.sort((a, b) => a.name.localeCompare(b.name)));
+      setSeasons(
+        [...seasonRows].sort((a, b) => {
+          const siteCompare = a.siteName.localeCompare(b.siteName);
+          if (siteCompare !== 0) return siteCompare;
+          const eventCompare = a.eventName.localeCompare(b.eventName);
+          if (eventCompare !== 0) return eventCompare;
+          return a.name.localeCompare(b.name);
+        })
+      );
+      setUsers(userRows);
+    } catch (loadError) {
+      setError(
+        loadError instanceof Error ? loadError.message : 'Failed to load games.'
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
     void loadData();
   }, []);
 
@@ -103,7 +120,7 @@ export default function AdminGamesPage() {
       <AdminPageHeader
         eyebrow="Game Operations"
         title="Games"
-        description="This is the primary admin work surface: search, filter, and jump straight into game editing."
+        description="This is the primary admin work surface: search, filter, create, and jump straight into game editing."
       />
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -132,6 +149,13 @@ export default function AdminGamesPage() {
           </div>
         </div>
       </div>
+
+      <AdminSectionCard
+        title="Create a Game"
+        description="Admins should not have to leave the main games workspace just to put a new game on the schedule."
+      >
+        <GameCreatePanel seasons={seasons} users={users} onCreated={loadData} />
+      </AdminSectionCard>
 
       <AdminSectionCard
         title="Find and Filter"

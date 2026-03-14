@@ -1,6 +1,7 @@
+// File: app/dashboard/host/[gameId]/play/components/TeamDrawer.tsx
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { JSX, useMemo, useState } from 'react';
 import type { HostTeamStatus, TeamTransferMode } from '../types/host-play.types';
 import TeamSidebarCard from './TeamSidebarCard';
 
@@ -17,6 +18,36 @@ interface TeamDrawerProps {
   onApproveJoinRequest: (teamId: string) => Promise<void>;
   onDenyJoinRequest: (teamId: string) => Promise<void>;
   onBootTeam: (teamId: string) => Promise<void>;
+}
+
+function summaryPill(
+  label: string,
+  count: number,
+  tone: 'slate' | 'amber' | 'rose' | 'blue'
+): JSX.Element {
+  const toneClasses: Record<typeof tone, string> = {
+    slate: 'border-slate-200 bg-slate-50 text-slate-700',
+    amber: 'border-amber-200 bg-amber-50 text-amber-700',
+    rose: 'border-rose-200 bg-rose-50 text-rose-700',
+    blue: 'border-blue-200 bg-blue-50 text-blue-700',
+  };
+
+  return (
+    <div
+      className={`rounded-2xl border px-3 py-2 text-xs font-semibold shadow-sm ${toneClasses[tone]}`}
+    >
+      <div className="uppercase tracking-wide opacity-80">{label}</div>
+      <div className="mt-1 text-lg leading-none">{count}</div>
+    </div>
+  );
+}
+
+function isFlaggedTeam(team: HostTeamStatus): boolean {
+  return (
+    team.highConcernThisQuestion === true ||
+    team.activitySeverity === 'MEDIUM' ||
+    team.activitySeverity === 'HIGH'
+  );
 }
 
 export default function TeamDrawer({
@@ -36,6 +67,15 @@ export default function TeamDrawer({
     const activeCount = teamStatus.filter(
       (team) => team.connectionState === 'ACTIVE'
     ).length;
+
+    const awayCount = teamStatus.filter((team) => team.isInactiveNow).length;
+
+    const flaggedCount = teamStatus.filter(isFlaggedTeam).length;
+
+    const approvalNeededCount = teamStatus.filter(
+      (team) => team.hasPendingApproval
+    ).length;
+
     const lockedCount = teamStatus.filter(
       (team) => team.transferMode === 'LOCKED'
     ).length;
@@ -43,6 +83,9 @@ export default function TeamDrawer({
     return {
       total: teamStatus.length,
       active: activeCount,
+      away: awayCount,
+      flagged: flaggedCount,
+      approvalNeeded: approvalNeededCount,
       locked: lockedCount,
     };
   }, [teamStatus]);
@@ -55,7 +98,7 @@ export default function TeamDrawer({
             onClick={() => setOpen(true)}
             className="flex-1 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 active:scale-[0.99]"
           >
-            Teams ({summary.total})
+            Team Sessions ({summary.total})
           </button>
 
           <button
@@ -66,8 +109,12 @@ export default function TeamDrawer({
           </button>
         </div>
 
-        <div className="mt-2 flex items-center gap-2 px-1 text-[11px] text-slate-500">
+        <div className="mt-2 flex flex-wrap items-center gap-2 px-1 text-[11px] text-slate-500">
           <span>{summary.active} active</span>
+          <span>•</span>
+          <span>{summary.away} away</span>
+          <span>•</span>
+          <span>{summary.flagged} flagged</span>
           <span>•</span>
           <span>{summary.locked} locked</span>
         </div>
@@ -99,13 +146,13 @@ export default function TeamDrawer({
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-                  Team Control
+                  Session Oversight
                 </div>
                 <h2 className="mt-1 text-lg font-semibold text-slate-900">
-                  Teams
+                  Team Sessions
                 </h2>
                 <p className="mt-1 text-xs text-slate-500">
-                  Status, locks, and live team activity
+                  Review team activity, join requests, and rejoin controls.
                 </p>
               </div>
 
@@ -117,6 +164,25 @@ export default function TeamDrawer({
               </button>
             </div>
 
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              {summaryPill('Away', summary.away, summary.away > 0 ? 'amber' : 'slate')}
+              {summaryPill(
+                'Review Activity',
+                summary.flagged,
+                summary.flagged > 0 ? 'rose' : 'slate'
+              )}
+              {summaryPill(
+                'Approval Needed',
+                summary.approvalNeeded,
+                summary.approvalNeeded > 0 ? 'blue' : 'slate'
+              )}
+              {summaryPill(
+                'Locked by Host',
+                summary.locked,
+                summary.locked > 0 ? 'rose' : 'slate'
+              )}
+            </div>
+
             <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
               <span className="rounded-full border border-slate-200 bg-white px-3 py-1 font-medium text-slate-600 shadow-sm">
                 {summary.total} teams
@@ -124,8 +190,11 @@ export default function TeamDrawer({
               <span className="rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 font-medium text-emerald-700">
                 {summary.active} active
               </span>
+              <span className="rounded-full border border-amber-300 bg-amber-50 px-3 py-1 font-medium text-amber-700">
+                {summary.away} away
+              </span>
               <span className="rounded-full border border-rose-300 bg-rose-50 px-3 py-1 font-medium text-rose-700">
-                {summary.locked} locked
+                {summary.flagged} flagged
               </span>
             </div>
           </div>
@@ -134,10 +203,10 @@ export default function TeamDrawer({
             {teamStatus.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-slate-300 bg-white/80 p-8 text-center shadow-sm">
                 <div className="text-sm font-medium text-slate-900">
-                  No teams to display
+                  No team sessions yet
                 </div>
                 <p className="mt-1 text-xs text-slate-500">
-                  Teams will appear here once they join the game.
+                  Teams will appear here as they join the game.
                 </p>
               </div>
             ) : (

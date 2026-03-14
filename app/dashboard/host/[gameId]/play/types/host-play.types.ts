@@ -60,13 +60,46 @@ export type TeamConnectionState =
   | 'OFFLINE'
   | 'PENDING_TRANSFER';
 
-export type TeamTransferMode = 'NORMAL' | 'HOST_APPROVAL' | 'LOCKED';
+export type TeamTransferMode =
+  | 'NORMAL'
+  | 'HOST_APPROVAL'
+  | 'LOCKED';
 
 export type TeamDisplayMode =
   | 'QUESTION'
   | 'ANSWER_REVEAL'
   | 'LEADERBOARD'
   | 'LOBBY';
+
+export type TeamActivityReason =
+  | 'TAB_HIDDEN'
+  | 'WINDOW_BLUR'
+  | 'APP_BACKGROUNDED'
+  | 'SOCKET_DISCONNECTED'
+  | 'HEARTBEAT_TIMEOUT'
+  | 'PAGE_UNLOADED'
+  | 'HOST_TRANSFER'
+  | 'HOST_REVOKED'
+  | 'UNKNOWN';
+
+export type TeamActivitySeverity =
+  | 'NONE'
+  | 'LOW'
+  | 'MEDIUM'
+  | 'HIGH';
+
+export interface TeamActivityEventSummary {
+  id: string;
+  startedAt: string;
+  endedAt: string | null;
+  durationMs: number | null;
+  reason: TeamActivityReason;
+  phase: TeamDisplayMode | 'UNKNOWN';
+  questionId: string | null;
+  beforeSubmission: boolean;
+  afterSubmission: boolean;
+  excused: boolean;
+}
 
 export interface FlatQuestion extends Question {
   roundId: string;
@@ -91,7 +124,27 @@ export interface HostTeamStatus {
   hasDispute?: boolean;
   activeSessionLabel?: string | null;
   pendingSessionLabel?: string | null;
-
   pendingApprovalRequestedAt?: string | null;
   hasPendingApproval?: boolean;
+
+  // activity monitor
+  isInactiveNow?: boolean;
+  inactiveStartedAt?: string | null;
+  inactiveDurationMsCurrent?: number;
+  lastSeenAt?: string | null;
+  lastRecoveredAt?: string | null;
+  lastInactiveReason?: TeamActivityReason | null;
+  activitySeverity?: TeamActivitySeverity;
+
+  inactiveEventCountThisQuestion?: number;
+  inactiveTotalMsThisQuestion?: number;
+  inactiveEventCountThisGame?: number;
+  inactiveTotalMsThisGame?: number;
+
+  inactiveDuringLiveQuestion?: boolean;
+  inactiveBeforeSubmission?: boolean;
+  inactiveAfterSubmission?: boolean;
+  highConcernThisQuestion?: boolean;
+
+  recentActivityEvents?: TeamActivityEventSummary[];
 }

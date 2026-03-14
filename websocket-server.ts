@@ -98,6 +98,8 @@ interface ResumeAckFailure {
   redirectTo?: string;
 }
 
+
+
 type ResumeAck = ResumeAckSuccess | ResumeAckFailure;
 
 const socketBindings = new Map<string, TeamSocketBinding>();
@@ -766,6 +768,152 @@ try {
       if (!resolvedGameId) return;
       emitSnapshotToSocket(socket, resolvedGameId);
     });
+
+    socket.on(
+      'team:visibilityChanged',
+      async ({
+        gameId,
+        teamId,
+        teamName,
+        visibilityState,
+        sessionToken,
+        deviceId,
+      }: {
+        gameId?: string;
+        teamId?: string;
+        teamName?: string;
+        visibilityState?: 'visible' | 'hidden';
+        sessionToken?: string | null;
+        deviceId?: string | null;
+      }) => {
+        const resolvedVisibility =
+          visibilityState === 'hidden' || visibilityState === 'visible'
+            ? visibilityState
+            : null;
+
+        if (!resolvedVisibility) {
+          return;
+        }
+
+        const resolvedGameId = normalizeString(gameId);
+        const resolvedTeamId = normalizeString(teamId);
+        const resolvedTeamName = normalizeString(teamName);
+        const resolvedSessionToken = normalizeString(sessionToken);
+        const resolvedDeviceId = normalizeString(deviceId);
+
+        try {
+          const now = new Date();
+          const binding = socketBindings.get(socket.id);
+
+          let targetGameId = binding?.gameId ?? resolvedGameId;
+          let targetTeamId = binding?.teamId ?? resolvedTeamId;
+          let targetTeamName =
+            binding?.teamName ??
+            resolvedTeamName ??
+            activeTeamsByGame.get(resolvedGameId ?? '')?.get(resolvedTeamId ?? '')
+              ?.name ??
+            'Team';
+
+          let sessionId = binding?.sessionId;
+
+          if (!sessionId) {
+            if (
+              !resolvedGameId ||
+              !resolvedTeamId ||
+              !resolvedSessionToken ||
+              !resolvedDeviceId
+            ) {
+              return;
+            }
+
+            const session = await prisma.teamGameSession.findFirst({
+              where: {
+                gameId: resolvedGameId,
+                teamId: resolvedTeamId,
+                sessionToken: resolvedSessionToken,
+                deviceId: resolvedDeviceId,
+                status: {
+                  not: TeamGameSessionStatus.CLOSED,
+                },
+              },
+              include: {
+                team: {
+                  select: {
+                    name: true,
+                  },
+                },
+              },
+            });
+
+            if (!session) {
+              return;
+            }
+
+            targetGameId = session.gameId;
+            targetTeamId = session.teamId;
+            targetTeamName = session.team.name;
+            sessionId = session.id;
+
+            socketBindings.set(socket.id, {
+              gameId: session.gameId,
+              teamId: session.teamId,
+              teamName: session.team.name,
+              sessionId: session.id,
+              sessionToken: session.sessionToken,
+              deviceId: session.deviceId,
+            });
+          }
+
+          if (!targetGameId || !targetTeamId || !sessionId) {
+            return;
+          }
+
+          const nextStatus =
+            resolvedVisibility === 'hidden'
+              ? TeamGameSessionStatus.RECONNECTING
+              : TeamGameSessionStatus.ACTIVE;
+
+          if (resolvedVisibility === 'visible') {
+            clearReconnectTimer(sessionId);
+          }
+
+          await prisma.teamGameSession.update({
+            where: { id: sessionId },
+            data: {
+              status: nextStatus,
+              lastSeenAt: now,
+              expiresAt: buildSessionExpiry(now),
+              disconnectedAt:
+                resolvedVisibility === 'hidden' ? now : null,
+              socketId: socket.id,
+            },
+          });
+
+          upsertPresence(
+            targetGameId,
+            targetTeamId,
+            targetTeamName,
+            resolvedVisibility === 'hidden' ? 'RECONNECTING' : 'ACTIVE',
+            socket.id,
+            sessionId,
+            now
+          );
+
+          emitLiveTeams(io, targetGameId);
+          io.to(targetGameId).emit('host:teamActivityChanged', {
+            gameId: targetGameId,
+            teamId: targetTeamId,
+            visibilityState: resolvedVisibility,
+          });
+
+          console.log(
+            `👁️ Team ${targetTeamName} (${targetTeamId}) visibility changed to ${resolvedVisibility} in game ${targetGameId}`
+          );
+        } catch (error) {
+          console.error('Failed to process team visibility change:', error);
+        }
+      }
+    );
 
     socket.on('host:requestLiveTeams', ({ gameId }: { gameId?: string }) => {
       const resolvedGameId = normalizeString(gameId);

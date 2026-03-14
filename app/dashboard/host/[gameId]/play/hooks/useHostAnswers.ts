@@ -1,14 +1,13 @@
-// File: app/dashboard/host/[gameId]/play/hooks/useHostAnswers.ts
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Socket } from 'socket.io-client';
 import type { TeamAnswerWithFavorite } from '../components/TeamAnswerGrid';
 import type {
   GameStateExpanded,
   HostTeamStatus,
   Question,
-  ReliableEmit
+  ReliableEmit,
 } from '../types/host-play.types';
 
 interface UseHostAnswersArgs {
@@ -27,7 +26,16 @@ export function useHostAnswers({
   setTeamStatus,
 }: UseHostAnswersArgs) {
   const [teamAnswers, setTeamAnswers] = useState<TeamAnswerWithFavorite[]>([]);
-  const [favoriteMap, setFavoriteMap] = useState<Record<string, boolean>>({});
+
+  const favoriteMap = useMemo<Record<string, boolean>>(() => {
+    const map: Record<string, boolean> = {};
+
+    teamAnswers.forEach((answer) => {
+      map[answer.id] = !!answer.favorite;
+    });
+
+    return map;
+  }, [teamAnswers]);
 
   const currentQuestionRef = useRef<string | null>(null);
   const pointSystemRef = useRef<'POOL' | 'FLAT' | null>(null);
@@ -54,14 +62,6 @@ export function useHostAnswers({
     }
   }, [gameState]);
 
-  useEffect(() => {
-    const map: Record<string, boolean> = {};
-    teamAnswers.forEach((answer) => {
-      map[answer.id] = !!answer.favorite;
-    });
-    setFavoriteMap(map);
-  }, [teamAnswers]);
-
   const fetchAnswers = useCallback(
     async (questionId: string, isList: boolean) => {
       const res = await fetch(
@@ -82,7 +82,7 @@ export function useHostAnswers({
         let arr: string[] = [];
 
         try {
-          arr = JSON.parse(answer.given);
+          arr = JSON.parse(answer.given) as string[];
         } catch {
           arr = [];
         }
@@ -111,7 +111,9 @@ export function useHostAnswers({
       const round = dto.game.rounds.find((r) => r.id === dto.currentRoundId);
       if (!round) return;
 
-      const question = round.questions.find((q) => q.id === dto.currentQuestionId);
+      const question = round.questions.find(
+        (q) => q.id === dto.currentQuestionId
+      );
       if (!question) return;
 
       await fetchAnswers(dto.currentQuestionId, question.type === 'LIST');
@@ -120,14 +122,22 @@ export function useHostAnswers({
   );
 
   const handleFavorite = useCallback((answerId: string, fav: boolean) => {
-    setFavoriteMap((prev) => ({ ...prev, [answerId]: fav }));
+    setTeamAnswers((prev) =>
+      prev.map((answer) =>
+        answer.id === answerId ? { ...answer, favorite: fav } : answer
+      )
+    );
 
     fetch(`/api/host/answers/${answerId}/favorite`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ favorite: fav }),
     }).catch(() => {
-      setFavoriteMap((prev) => ({ ...prev, [answerId]: !fav }));
+      setTeamAnswers((prev) =>
+        prev.map((answer) =>
+          answer.id === answerId ? { ...answer, favorite: !fav } : answer
+        )
+      );
     });
   }, []);
 
@@ -136,8 +146,11 @@ export function useHostAnswers({
       if (questionId !== currentQuestionRef.current) return;
 
       const res = await fetch(
-        `/api/host/answers?gameId=${gameId}&teamId=${teamId}&questionId=${questionId}`
+        `/api/host/answers?gameId=${gameId}&teamId=${teamId}&questionId=${questionId}`,
+        { cache: 'no-store' }
       );
+
+      if (!res.ok) return;
 
       const { answer: db } = (await res.json()) as {
         answer: TeamAnswerWithFavorite;
@@ -145,23 +158,26 @@ export function useHostAnswers({
 
       if (!db) return;
 
+      const nextAnswer: TeamAnswerWithFavorite = { ...db };
+
       if (
-        db.awardedPoints === 0 &&
+        nextAnswer.awardedPoints === 0 &&
         pointSystemRef.current === 'FLAT' &&
         pointValueRef.current != null
       ) {
-        db.awardedPoints = pointValueRef.current;
+        nextAnswer.awardedPoints = pointValueRef.current;
       }
 
       if (questionTypeRef.current === 'LIST') {
         let arr: string[] = [];
+
         try {
-          arr = JSON.parse(db.given);
+          arr = JSON.parse(nextAnswer.given) as string[];
         } catch {
           arr = [];
         }
 
-        db.items = arr.map((submitted) => ({
+        nextAnswer.items = arr.map((submitted) => ({
           submitted,
           isCorrect: null,
         }));
@@ -173,14 +189,26 @@ export function useHostAnswers({
         )
       );
 
-      setTeamAnswers((prev) => [...prev, db]);
+      setTeamAnswers((prev) => {
+        const existingIndex = prev.findIndex((answer) => answer.id === nextAnswer.id);
+
+        if (existingIndex >= 0) {
+          const next = [...prev];
+          next[existingIndex] = nextAnswer;
+          return next;
+        }
+
+        return [...prev, nextAnswer];
+      });
     },
     [gameId, setTeamStatus]
   );
 
   const handleQuestionAdvanceReset = useCallback(() => {
     setTeamAnswers([]);
-    setTeamStatus((prev) => prev.map((team) => ({ ...team, submitted: false })));
+    setTeamStatus((prev) =>
+      prev.map((team) => ({ ...team, submitted: false }))
+    );
   }, [setTeamStatus]);
 
   const handleScore = useCallback(
@@ -190,6 +218,8 @@ export function useHostAnswers({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ gameId, teamId, questionId, isCorrect }),
       });
+
+      if (!res.ok) return;
 
       const { ok, newScore } = (await res.json()) as {
         ok: boolean;
@@ -228,8 +258,16 @@ export function useHostAnswers({
       const res = await fetch('/api/host/score-list-answer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gameId, teamId, questionId, itemIndex, isCorrect }),
+        body: JSON.stringify({
+          gameId,
+          teamId,
+          questionId,
+          itemIndex,
+          isCorrect,
+        }),
       });
+
+      if (!res.ok) return;
 
       const { ok, newScore } = (await res.json()) as {
         ok: boolean;
@@ -244,7 +282,12 @@ export function useHostAnswers({
             return answer;
           }
 
-          const items = [...(answer.items || [])];
+          const items = [...(answer.items ?? [])];
+
+          if (!items[itemIndex]) {
+            return answer;
+          }
+
           items[itemIndex] = { ...items[itemIndex], isCorrect };
 
           return { ...answer, items };

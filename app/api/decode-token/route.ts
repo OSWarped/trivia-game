@@ -1,15 +1,15 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import jwt from 'jsonwebtoken';
+import { jwtVerify, type JWTPayload } from 'jose';
 
-interface DecodedToken {
-  userId: string; // User ID from the token
-  roles: string[]; // User roles (if any)
-  iat?: number; // Issued At (optional)
-  exp?: number; // Expiration Time (optional)
+interface DecodedToken extends JWTPayload {
+  userId?: string;
+  roles?: string[];
+  role?: string;
 }
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your_secret_key';
+const JWT_SECRET_KEY = new TextEncoder().encode(JWT_SECRET);
 
 export async function GET() {
   try {
@@ -22,7 +22,8 @@ export async function GET() {
     }
 
     // Decode and verify the token directly using jwt
-    const decoded = jwt.verify(token, JWT_SECRET) as DecodedToken;
+    const { payload } = await jwtVerify(token, JWT_SECRET_KEY);
+          const decoded = payload as DecodedToken;
 
     if (!decoded) {
       return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });

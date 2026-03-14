@@ -1,20 +1,27 @@
-
 import { cookies } from 'next/headers';
 import { PrismaClient } from '@prisma/client';
-import jwt from 'jsonwebtoken';
+import { SignJWT, jwtVerify, type JWTPayload } from 'jose';
 
 const prisma = new PrismaClient();
-const JWT_SECRET = process.env.JWT_SECRET || 'your_secret_key';
+const JWT_SECRET = process.env.JWT_SECRET ?? 'your_secret_key';
+const JWT_SECRET_KEY = new TextEncoder().encode(JWT_SECRET);
 
-interface DecodedToken {
+interface DecodedToken extends JWTPayload {
   userId: string;
   email: string;
-  roles: string[];
+  role?: string;
+  roles?: string[];
+}
+
+function isDecodedToken(payload: JWTPayload): payload is DecodedToken {
+  return (
+    typeof payload.userId === 'string' &&
+    typeof payload.email === 'string'
+  );
 }
 
 export async function getUserFromToken() {
   try {
-    // Retrieve cookies
     const cookieStore = await cookies();
     const token = cookieStore.get('token')?.value;
 
@@ -22,11 +29,15 @@ export async function getUserFromToken() {
       throw new Error('Authorization token is missing');
     }
 
-    // Decode the token
-    const decoded = jwt.verify(token, JWT_SECRET) as DecodedToken;
+    const { payload } = await jwtVerify(token, JWT_SECRET_KEY);
 
-    // Fetch the user from the database
-    const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
+    if (!isDecodedToken(payload)) {
+      throw new Error('Invalid token payload');
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: payload.userId },
+    });
 
     if (!user) {
       throw new Error('User not found');
@@ -38,7 +49,6 @@ export async function getUserFromToken() {
       role: user.role,
     };
   } catch (error) {
-    // Type-safe error handling
     const errorMessage =
       error instanceof Error
         ? error.message
@@ -49,22 +59,24 @@ export async function getUserFromToken() {
   }
 }
 
-
-// ✅ New function that accepts a provided token
 export async function getUserFromProvidedToken(token: string | null) {
   try {
     if (!token) {
-      return null; // ❌ Don't throw an error, just return null
+      return null;
     }
 
-    // Decode the token
-    const decoded = jwt.verify(token, JWT_SECRET) as DecodedToken;
+    const { payload } = await jwtVerify(token, JWT_SECRET_KEY);
 
-    // Fetch the user from the database
-    const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
+    if (!isDecodedToken(payload)) {
+      return null;
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: payload.userId },
+    });
 
     if (!user) {
-      return null; // ❌ Don't throw an error, just return null
+      return null;
     }
 
     return {
@@ -74,19 +86,29 @@ export async function getUserFromProvidedToken(token: string | null) {
     };
   } catch (error) {
     console.error('Error in getUserFromProvidedToken:', error);
-    return null; // ❌ Return null instead of throwing an error
+    return null;
   }
 }
 
-
-export function generateToken(payload: object) {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: "30m" }); // 30-minute expiry
+export async function generateToken(payload: {
+  userId: string;
+  email: string;
+  role?: string;
+  roles?: string[];
+}) {
+  return await new SignJWT(payload)
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime('30m')
+    .sign(JWT_SECRET_KEY);
 }
 
-export function verifyToken(token: string) {
+export async function verifyToken(token: string) {
   try {
-    return jwt.verify(token, JWT_SECRET);
+    const { payload } = await jwtVerify(token, JWT_SECRET_KEY);
+    return payload;
   } catch (error) {
-    return null; // Return null if verification fails
+    console.error('Token verification failed:', error);
+    return null;
   }
 }

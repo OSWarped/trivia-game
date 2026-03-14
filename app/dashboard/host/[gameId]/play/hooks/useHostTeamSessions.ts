@@ -39,7 +39,9 @@ export function useHostTeamSessions({
 }: UseHostTeamSessionsArgs) {
   const [teamStatus, setTeamStatus] = useState<HostTeamStatus[]>([]);
   const [connectionStatus, setConnectionStatus] =
-    useState<HostConnectionStatus>('connected');
+    useState<HostConnectionStatus>(() =>
+      socket?.connected ? 'connected' : 'disconnected'
+    );
 
   const refreshTeamStatus = useCallback(async () => {
     const res = await fetch(`/api/host/games/${gameId}/team-status`, {
@@ -63,6 +65,15 @@ export function useHostTeamSessions({
       })
     );
   }, [gameId]);
+
+  const joinAndRefresh = useCallback(async () => {
+    if (!socket) return;
+
+    setConnectionStatus('connected');
+    socket.emit('host:join', { gameId });
+    socket.emit('host:requestLiveTeams', { gameId });
+    await refreshTeamStatus();
+  }, [socket, gameId, refreshTeamStatus]);
 
   const handleLiveTeams = useCallback(
     async ({ gameId: incomingGameId }: LiveTeamsPayload) => {
@@ -262,13 +273,12 @@ export function useHostTeamSessions({
   useEffect(() => {
     if (!socket || !gameId) return;
 
-    const onDisconnect = () => setConnectionStatus('disconnected');
+    const onDisconnect = () => {
+      setConnectionStatus('disconnected');
+    };
 
-    const onConnect = async () => {
-      setConnectionStatus('connected');
-      socket.emit('host:join', { gameId });
-      socket.emit('host:requestLiveTeams', { gameId });
-      await refreshTeamStatus();
+    const onConnect = () => {
+      void joinAndRefresh();
     };
 
     socket.on('disconnect', onDisconnect);
@@ -278,11 +288,9 @@ export function useHostTeamSessions({
     socket.on('host:teamReconnected', handleTeamReconnected);
 
     if (socket.connected) {
-      socket.emit('host:join', { gameId });
-      socket.emit('host:requestLiveTeams', { gameId });
-      void refreshTeamStatus();
-    } else {
-      socket.once('connect', onConnect);
+      queueMicrotask(() => {
+        void joinAndRefresh();
+      });
     }
 
     return () => {
@@ -291,12 +299,11 @@ export function useHostTeamSessions({
       socket.off('host:liveTeams', handleLiveTeams);
       socket.off('score:update', handleScoreUpdate);
       socket.off('host:teamReconnected', handleTeamReconnected);
-      socket.off('connect', onConnect);
     };
   }, [
     socket,
     gameId,
-    refreshTeamStatus,
+    joinAndRefresh,
     handleLiveTeams,
     handleScoreUpdate,
     handleTeamReconnected,

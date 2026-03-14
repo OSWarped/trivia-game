@@ -1,7 +1,7 @@
 // app/hooks/useTeamSocket.ts
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSocket } from '@/components/SocketProvider';
 
 export interface TeamSocketSession {
@@ -50,7 +50,7 @@ export function useTeamSocket({
   onAuthenticated,
 }: UseTeamSocketOptions) {
   const socket = useSocket();
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [internalIsAuthenticated, setInternalIsAuthenticated] = useState(false);
 
   const sessionRef = useRef<TeamSocketSession | null>(session);
   const authInFlightRef = useRef(false);
@@ -106,23 +106,22 @@ export function useTeamSocket({
           finish();
 
           if (!ack) {
-            // Transitional fallback while socket resume ack is being wired server-side.
             socket.emit('team:join', {
               gameId: currentSession.gameId,
               teamId: currentSession.teamId,
               teamName: currentSession.teamName,
             });
-            setIsAuthenticated(true);
+            setInternalIsAuthenticated(true);
             return;
           }
 
           if (ack.ok) {
-            setIsAuthenticated(true);
+            setInternalIsAuthenticated(true);
             onAuthenticated?.(ack);
             return;
           }
 
-          setIsAuthenticated(false);
+          setInternalIsAuthenticated(false);
           onInvalidSession?.(ack);
         }
       );
@@ -130,35 +129,35 @@ export function useTeamSocket({
       return;
     }
 
-    // Legacy fallback.
     socket.emit('team:join', {
       gameId: currentSession.gameId,
       teamId: currentSession.teamId,
       teamName: currentSession.teamName,
     });
-    setIsAuthenticated(true);
+    setInternalIsAuthenticated(true);
     finish();
   }, [socket, enabled, onAuthenticated, onInvalidSession]);
 
   useEffect(() => {
     if (!socket || !enabled || !session) {
-      setIsAuthenticated(false);
       return;
     }
 
     const handleConnect = () => {
-      authenticate();
+      void authenticate();
     };
 
     const handleDisconnect = () => {
-      setIsAuthenticated(false);
+      setInternalIsAuthenticated(false);
     };
 
     socket.on('connect', handleConnect);
     socket.on('disconnect', handleDisconnect);
 
     if (socket.connected) {
-      authenticate();
+      queueMicrotask(() => {
+        void authenticate();
+      });
     } else {
       socket.connect();
     }
@@ -176,7 +175,7 @@ export function useTeamSocket({
       if (document.visibilityState !== 'visible') return;
 
       if (socket?.connected) {
-        authenticate();
+        void authenticate();
       } else {
         socket?.connect();
       }
@@ -184,7 +183,7 @@ export function useTeamSocket({
 
     const handlePageShow = () => {
       if (socket?.connected) {
-        authenticate();
+        void authenticate();
       } else {
         socket?.connect();
       }
@@ -192,7 +191,7 @@ export function useTeamSocket({
 
     const handleOnline = () => {
       if (socket?.connected) {
-        authenticate();
+        void authenticate();
       } else {
         socket?.connect();
       }
@@ -239,6 +238,10 @@ export function useTeamSocket({
       });
     };
   }, [socket, session?.gameId, session?.teamId]);
+
+  const isAuthenticated = useMemo(() => {
+    return Boolean(enabled && session && internalIsAuthenticated);
+  }, [enabled, session, internalIsAuthenticated]);
 
   return {
     socket,

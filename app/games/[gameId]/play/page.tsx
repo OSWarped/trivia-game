@@ -2,8 +2,7 @@
 
 import {
   useCallback,
-  useEffect,
-  useMemo,
+  useEffect,  
   useRef,
   useState,
   type JSX,
@@ -25,6 +24,24 @@ import { usePlaySocketSync } from './hooks/usePlaySocketSync';
 import { usePlayBootstrap } from './hooks/usePlayBootstrap';
 import { useAnswerSubmission } from './hooks/useAnswerSubmission';
 
+type OrderedOption = {
+  id: string;
+  text: string;
+};
+
+function isOrderedOption(value: unknown): value is OrderedOption {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+
+  return (
+    typeof candidate.id === 'string' &&
+    typeof candidate.text === 'string'
+  );
+}
+
 export default function PlayGamePage(): JSX.Element {
   const { gameId } = useParams<{ gameId: string }>();
   const router = useRouter();
@@ -35,6 +52,9 @@ export default function PlayGamePage(): JSX.Element {
   });
 
   const prevScoreRef = useRef<number | null>(null);
+  const scoreHighlightStartRef = useRef<number | null>(null);
+  const scoreHighlightEndRef = useRef<number | null>(null);
+
   const [highlightScore, setHighlightScore] = useState(false);
 
   const {
@@ -78,13 +98,41 @@ export default function PlayGamePage(): JSX.Element {
     const next = state.team.score;
 
     if (prev !== null && prev !== next) {
-      setHighlightScore(true);
-      const timeout = window.setTimeout(() => setHighlightScore(false), 1500);
-      prevScoreRef.current = next;
-      return () => window.clearTimeout(timeout);
+      if (scoreHighlightStartRef.current !== null) {
+        window.clearTimeout(scoreHighlightStartRef.current);
+        scoreHighlightStartRef.current = null;
+      }
+
+      if (scoreHighlightEndRef.current !== null) {
+        window.clearTimeout(scoreHighlightEndRef.current);
+        scoreHighlightEndRef.current = null;
+      }
+
+      scoreHighlightStartRef.current = window.setTimeout(() => {
+        setHighlightScore(true);
+
+        scoreHighlightEndRef.current = window.setTimeout(() => {
+          setHighlightScore(false);
+          scoreHighlightEndRef.current = null;
+        }, 1500);
+
+        scoreHighlightStartRef.current = null;
+      }, 0);
     }
 
     prevScoreRef.current = next;
+
+    return () => {
+      if (scoreHighlightStartRef.current !== null) {
+        window.clearTimeout(scoreHighlightStartRef.current);
+        scoreHighlightStartRef.current = null;
+      }
+
+      if (scoreHighlightEndRef.current !== null) {
+        window.clearTimeout(scoreHighlightEndRef.current);
+        scoreHighlightEndRef.current = null;
+      }
+    };
   }, [state?.team.score]);
 
   useEffect(() => {
@@ -165,46 +213,29 @@ export default function PlayGamePage(): JSX.Element {
     };
   }, [socket, router, gameId]);
 
-  type OrderedOption = {
-    id: string;
-    text: string;
-  };
+  const orderedOptions: OrderedOption[] =
+  state?.currentQuestion?.type === 'ORDERED'
+    ? (state.currentQuestion.options ?? []).flatMap((opt) => {
+        if (typeof opt === 'string') {
+          return [{ id: opt, text: opt }];
+        }
 
-  function isOrderedOption(value: unknown): value is OrderedOption {
-    if (typeof value !== 'object' || value === null) {
-      return false;
-    }
+        if (isOrderedOption(opt)) {
+          return [opt];
+        }
 
-    const candidate = value as Record<string, unknown>;
-
-    return (
-      typeof candidate.id === 'string' &&
-      typeof candidate.text === 'string'
-    );
-  }
-
-  const orderedOptions = useMemo<OrderedOption[]>(() => {
-    if (!state?.currentQuestion || state.currentQuestion.type !== 'ORDERED') {
-      return [];
-    }
-
-    const rawOptions = state.currentQuestion.options ?? [];
-
-    return rawOptions.flatMap((opt) => {
-      if (typeof opt === 'string') {
-        return [{ id: opt, text: opt }];
-      }
-
-      if (isOrderedOption(opt)) {
-        return [opt];
-      }
-
-      return [];
-    });
-  }, [state?.currentQuestion]);
+        return [];
+      })
+    : [];
 
   const handleScoreUpdate = useCallback(
-    ({ teamId: updatedTeamId, newScore }: { teamId: string; newScore: number }) => {
+    ({
+      teamId: updatedTeamId,
+      newScore,
+    }: {
+      teamId: string;
+      newScore: number;
+    }) => {
       if (updatedTeamId === teamId) {
         setState((prev) =>
           prev ? { ...prev, team: { ...prev.team, score: newScore } } : prev
@@ -306,7 +337,8 @@ export default function PlayGamePage(): JSX.Element {
             {gameInfo?.title ?? 'Trivia Game'}
           </h1>
           <p className="mt-2 text-sm text-slate-300">
-            Playing as <span className="font-semibold text-white">{state.team.name}</span>
+            Playing as{' '}
+            <span className="font-semibold text-white">{state.team.name}</span>
           </p>
         </header>
 

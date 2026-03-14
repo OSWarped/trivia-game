@@ -1,12 +1,12 @@
 // app/api/auth/login/route.ts
 import { NextResponse, NextRequest } from 'next/server'
-import { PrismaClient }             from '@prisma/client'
-import bcrypt                       from 'bcrypt'
-import jwt                          from 'jsonwebtoken'
+import { PrismaClient } from '@prisma/client'
+import bcrypt from 'bcrypt'
+import { SignJWT, } from 'jose';
 
-const prisma     = new PrismaClient()
-const JWT_SECRET = process.env.JWT_SECRET!
-
+const prisma = new PrismaClient()
+const JWT_SECRET = process.env.JWT_SECRET! || 'your_secret_key'
+const JWT_SECRET_KEY = new TextEncoder().encode(JWT_SECRET);
 export async function POST(req: NextRequest) {
   const { email, password } = await req.json()
 
@@ -16,12 +16,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
   }
 
-  // 2) sign a token
-  const token = jwt.sign(
-    { userId: user.id, email: user.email, role: user.role },
-    JWT_SECRET,
-    { expiresIn: '4h' }
-  )
+  // 2) sign a token with user info and set it as an HTTP-only cookie
+  const token = await new SignJWT({
+  userId: user.id,
+  email: user.email,
+  role: user.role,
+  roles: [user.role],
+})
+  .setProtectedHeader({ alg: 'HS256' })
+  .setIssuedAt()
+  .setExpirationTime('4h')
+  .sign(JWT_SECRET_KEY);
 
   // 3) build your response and set the cookie
   const res = NextResponse.json({ role: user.role })
@@ -33,7 +38,7 @@ export async function POST(req: NextRequest) {
     maxAge: 60 * 60 * 4, // 4 hours
     secure: process.env.NODE_ENV === 'production',
   });
-  
+
 
   return res
 }

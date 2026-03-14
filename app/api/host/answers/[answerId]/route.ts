@@ -1,10 +1,17 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { cookies } from 'next/headers'; // Import for accessing cookies
-import jwt from 'jsonwebtoken';
+import { jwtVerify, errors, type JWTPayload } from 'jose';
 
 const prisma = new PrismaClient();
 const SECRET_KEY = process.env.JWT_SECRET || 'your-secret-key';
+const SECRET_KEY_BUFFER = new TextEncoder().encode(SECRET_KEY);
+
+interface DecodedToken extends JWTPayload { 
+  userId?: string;
+  roles?: string[];
+  role?: string;
+}
 
 export async function PUT(
   req: Request,
@@ -32,7 +39,8 @@ export async function PUT(
     }
 
     // Verify the token
-    const user = jwt.verify(token, SECRET_KEY) as { id: string; roles: string[] };
+    const { payload } = await jwtVerify(token, SECRET_KEY_BUFFER);
+    const user = payload as { id: string; roles: string[] };
 
     if (!user.roles.includes('HOST')) {
       return NextResponse.json(
@@ -57,7 +65,10 @@ export async function PUT(
   } catch (error) {
     console.error('Error updating answer:', error);
 
-    if (error instanceof jwt.JsonWebTokenError) {
+    if (
+      error instanceof errors.JWTInvalid ||
+      error instanceof errors.JWSSignatureVerificationFailed
+    ) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 

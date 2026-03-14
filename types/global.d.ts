@@ -1,4 +1,3 @@
-/* eslint-disable no-var */
 // types/global.d.ts
 export {};
 

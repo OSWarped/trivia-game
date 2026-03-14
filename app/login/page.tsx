@@ -41,7 +41,7 @@ export default function LoginPage() {
       refreshUser().catch(() => {});
 
       if (result.role === 'ADMIN') {
-        router.push('/admin/workspace');
+        router.push('/admin');
       } else if (result.role === 'HOST') {
         router.push('/dashboard/host');
       } else {

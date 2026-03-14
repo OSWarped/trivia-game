@@ -55,10 +55,31 @@ export function useTeamSocket({
   const sessionRef = useRef<TeamSocketSession | null>(session);
   const authInFlightRef = useRef(false);
   const lastAuthAttemptRef = useRef(0);
+  const lastVisibilityRef = useRef<DocumentVisibilityState | null>(null);
 
   useEffect(() => {
     sessionRef.current = session;
   }, [session]);
+
+  const emitVisibilityChanged = useCallback(
+    (visibilityState: 'visible' | 'hidden') => {
+      const currentSession = sessionRef.current;
+
+      if (!socket || !enabled || !currentSession || !socket.connected) {
+        return;
+      }
+
+      socket.emit('team:visibilityChanged', {
+        gameId: currentSession.gameId,
+        teamId: currentSession.teamId,
+        teamName: currentSession.teamName,
+        visibilityState,
+        sessionToken: currentSession.sessionToken ?? null,
+        deviceId: currentSession.deviceId ?? null,
+      });
+    },
+    [socket, enabled]
+  );
 
   const authenticate = useCallback(() => {
     const currentSession = sessionRef.current;
@@ -171,8 +192,21 @@ export function useTeamSocket({
   useEffect(() => {
     if (!enabled || !session) return;
 
-    const handleVisible = () => {
-      if (document.visibilityState !== 'visible') return;
+    const handleVisibilityChange = () => {
+      const nextVisibility = document.visibilityState;
+
+      if (lastVisibilityRef.current === nextVisibility) {
+        return;
+      }
+
+      lastVisibilityRef.current = nextVisibility;
+
+      if (nextVisibility === 'hidden') {
+        emitVisibilityChanged('hidden');
+        return;
+      }
+
+      emitVisibilityChanged('visible');
 
       if (socket?.connected) {
         void authenticate();
@@ -182,6 +216,8 @@ export function useTeamSocket({
     };
 
     const handlePageShow = () => {
+      emitVisibilityChanged('visible');
+
       if (socket?.connected) {
         void authenticate();
       } else {
@@ -190,6 +226,8 @@ export function useTeamSocket({
     };
 
     const handleOnline = () => {
+      emitVisibilityChanged('visible');
+
       if (socket?.connected) {
         void authenticate();
       } else {
@@ -197,16 +235,18 @@ export function useTeamSocket({
       }
     };
 
-    document.addEventListener('visibilitychange', handleVisible);
+    lastVisibilityRef.current = document.visibilityState;
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('pageshow', handlePageShow);
     window.addEventListener('online', handleOnline);
 
     return () => {
-      document.removeEventListener('visibilitychange', handleVisible);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('pageshow', handlePageShow);
       window.removeEventListener('online', handleOnline);
     };
-  }, [socket, enabled, session, authenticate]);
+  }, [socket, enabled, session, authenticate, emitVisibilityChanged]);
 
   useEffect(() => {
     if (!socket || !enabled || !session || !heartbeatMs) return;

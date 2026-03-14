@@ -1,7 +1,14 @@
 // File: app/dashboard/host/[gameId]/play/hooks/useHostTeamSessions.ts
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from 'react';
 import type { Socket } from 'socket.io-client';
 import type {
   HostConnectionStatus,
@@ -33,38 +40,164 @@ interface TeamReconnectedPayload {
   teamName: string;
 }
 
+interface TeamActivityPayload {
+  gameId: string;
+  teamId?: string;
+}
+
+interface TeamActivityChangedPayload {
+  gameId: string;
+  teamId: string;
+  visibilityState?: 'visible' | 'hidden';
+}
+
+
+function normalizeHostTeamStatus(team: HostTeamStatus): HostTeamStatus {
+  return {
+    ...team,
+    score: team.score ?? 0,
+    submitted: team.submitted ?? false,
+    hasDispute: team.hasDispute ?? false,
+    hasPendingApproval: team.hasPendingApproval ?? false,
+
+    isInactiveNow: team.isInactiveNow ?? false,
+    inactiveStartedAt: team.inactiveStartedAt ?? null,
+    inactiveDurationMsCurrent: team.inactiveDurationMsCurrent ?? 0,
+    lastSeenAt: team.lastSeenAt ?? null,
+    lastRecoveredAt: team.lastRecoveredAt ?? null,
+    lastInactiveReason: team.lastInactiveReason ?? null,
+    activitySeverity: team.activitySeverity ?? 'NONE',
+
+    inactiveEventCountThisQuestion: team.inactiveEventCountThisQuestion ?? 0,
+    inactiveTotalMsThisQuestion: team.inactiveTotalMsThisQuestion ?? 0,
+    inactiveEventCountThisGame: team.inactiveEventCountThisGame ?? 0,
+    inactiveTotalMsThisGame: team.inactiveTotalMsThisGame ?? 0,
+
+    inactiveDuringLiveQuestion: team.inactiveDuringLiveQuestion ?? false,
+    inactiveBeforeSubmission: team.inactiveBeforeSubmission ?? false,
+    inactiveAfterSubmission: team.inactiveAfterSubmission ?? false,
+    highConcernThisQuestion: team.highConcernThisQuestion ?? false,
+
+    recentActivityEvents: team.recentActivityEvents ?? [],
+  };
+}
+
+function withLiveInactiveDuration(
+  team: HostTeamStatus,
+  nowMs: number
+): HostTeamStatus {
+  if (!team.isInactiveNow || !team.inactiveStartedAt) {
+    return team;
+  }
+
+  const inactiveStartedAtMs = Date.parse(team.inactiveStartedAt);
+
+  if (Number.isNaN(inactiveStartedAtMs)) {
+    return team;
+  }
+
+  const liveDurationMs = Math.max(0, nowMs - inactiveStartedAtMs);
+
+  return {
+    ...team,
+    inactiveDurationMsCurrent: Math.max(
+      team.inactiveDurationMsCurrent ?? 0,
+      liveDurationMs
+    ),
+  };
+}
+
+function isFlaggedTeam(team: HostTeamStatus): boolean {
+  return (
+    team.highConcernThisQuestion === true ||
+    team.activitySeverity === 'MEDIUM' ||
+    team.activitySeverity === 'HIGH'
+  );
+}
+
 export function useHostTeamSessions({
   gameId,
   socket,
 }: UseHostTeamSessionsArgs) {
-  const [teamStatus, setTeamStatus] = useState<HostTeamStatus[]>([]);
+  const [rawTeamStatus, setRawTeamStatus] = useState<HostTeamStatus[]>([]);
   const [connectionStatus, setConnectionStatus] =
     useState<HostConnectionStatus>(() =>
       socket?.connected ? 'connected' : 'disconnected'
     );
+  const [timerNowMs, setTimerNowMs] = useState<number>(() => Date.now());
+
+  const setTeamStatus: Dispatch<SetStateAction<HostTeamStatus[]>> = useCallback(
+    (value) => {
+      setRawTeamStatus((prev) => {
+        const next =
+          typeof value === 'function'
+            ? (value as (prevState: HostTeamStatus[]) => HostTeamStatus[])(prev)
+            : value;
+
+        return next.map(normalizeHostTeamStatus);
+      });
+    },
+    []
+  );
+
+  const teamStatus = useMemo(
+    () =>
+      rawTeamStatus.map((team) =>
+        withLiveInactiveDuration(team, timerNowMs)
+      ),
+    [rawTeamStatus, timerNowMs]
+  );
+
+  const inactiveTeamCount = useMemo(
+    () => teamStatus.filter((team) => team.isInactiveNow).length,
+    [teamStatus]
+  );
+
+  const flaggedTeamCount = useMemo(
+    () => teamStatus.filter(isFlaggedTeam).length,
+    [teamStatus]
+  );
+
+  const pendingApprovalCount = useMemo(
+    () => teamStatus.filter((team) => team.hasPendingApproval).length,
+    [teamStatus]
+  );
+
+  const lockedTeamCount = useMemo(
+    () => teamStatus.filter((team) => team.transferMode === 'LOCKED').length,
+    [teamStatus]
+  );
 
   const refreshTeamStatus = useCallback(async () => {
-    const res = await fetch(`/api/host/games/${gameId}/team-status`, {
-      cache: 'no-store',
-    });
+    try {
+      const res = await fetch(`/api/host/games/${gameId}/team-status`, {
+        cache: 'no-store',
+      });
 
-    if (!res.ok) {
-      console.error(`Failed to load team status for game ${gameId}`);
-      return;
+      if (!res.ok) {
+        console.error(`Failed to load team status for game ${gameId}`);
+        return;
+      }
+
+      const dto = (await res.json()) as HostTeamStatus[];
+
+      setRawTeamStatus((prev) =>
+        dto.map((incoming) => {
+          const existing = prev.find((team) => team.id === incoming.id);
+          const normalizedIncoming = normalizeHostTeamStatus(incoming);
+
+          return normalizeHostTeamStatus({
+            ...normalizedIncoming,
+            submitted: existing?.submitted ?? normalizedIncoming.submitted,
+          });
+        })
+      );
+    } catch (error) {
+      console.error(`Failed to refresh team status for game ${gameId}`, error);
     }
-
-    const dto = (await res.json()) as HostTeamStatus[];
-
-    setTeamStatus((prev) =>
-      dto.map((incoming) => {
-        const existing = prev.find((team) => team.id === incoming.id);
-        return {
-          ...incoming,
-          submitted: existing?.submitted ?? incoming.submitted,
-        };
-      })
-    );
   }, [gameId]);
+
+
 
   const joinAndRefresh = useCallback(async () => {
     if (!socket) return;
@@ -83,11 +216,37 @@ export function useHostTeamSessions({
     [gameId, refreshTeamStatus]
   );
 
+  const handleTeamActivityChanged = useCallback(
+  async ({ gameId: incomingGameId }: TeamActivityChangedPayload) => {
+    if (incomingGameId !== gameId) return;
+    await refreshTeamStatus();
+  },
+  [gameId, refreshTeamStatus]
+);
+
+  const handleTeamBecameInactive = useCallback(
+    async ({ gameId: incomingGameId }: TeamActivityPayload) => {
+      if (incomingGameId !== gameId) return;
+      await refreshTeamStatus();
+    },
+    [gameId, refreshTeamStatus]
+  );
+
+  const handleTeamRecovered = useCallback(
+    async ({ gameId: incomingGameId }: TeamActivityPayload) => {
+      if (incomingGameId !== gameId) return;
+      await refreshTeamStatus();
+    },
+    [gameId, refreshTeamStatus]
+  );
+
   const handleScoreUpdate = useCallback(
     ({ teamId, newScore }: ScoreUpdatePayload) => {
-      setTeamStatus((prev) =>
+      setRawTeamStatus((prev) =>
         prev.map((team) =>
-          team.id === teamId ? { ...team, score: newScore } : team
+          team.id === teamId
+            ? normalizeHostTeamStatus({ ...team, score: newScore })
+            : team
         )
       );
     },
@@ -271,6 +430,25 @@ export function useHostTeamSessions({
   );
 
   useEffect(() => {
+    const hasInactiveTeams = rawTeamStatus.some(
+      (team) => team.isInactiveNow && team.inactiveStartedAt
+    );
+
+    if (!hasInactiveTeams) {
+      setTimerNowMs(Date.now());
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      setTimerNowMs(Date.now());
+    }, 1000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [rawTeamStatus]);
+
+  useEffect(() => {
     if (!socket || !gameId) return;
 
     const onDisconnect = () => {
@@ -284,8 +462,12 @@ export function useHostTeamSessions({
     socket.on('disconnect', onDisconnect);
     socket.on('connect', onConnect);
     socket.on('host:liveTeams', handleLiveTeams);
+    socket.on('host:teamActivityChanged', handleTeamActivityChanged);
+    socket.on('host:teamBecameInactive', handleTeamBecameInactive);
+    socket.on('host:teamRecovered', handleTeamRecovered);
     socket.on('score:update', handleScoreUpdate);
     socket.on('host:teamReconnected', handleTeamReconnected);
+    socket.on('host:teamActivityChanged', handleTeamActivityChanged);
 
     if (socket.connected) {
       queueMicrotask(() => {
@@ -297,14 +479,21 @@ export function useHostTeamSessions({
       socket.off('disconnect', onDisconnect);
       socket.off('connect', onConnect);
       socket.off('host:liveTeams', handleLiveTeams);
+      socket.off('host:teamActivityChanged', handleTeamActivityChanged);
+      socket.off('host:teamBecameInactive', handleTeamBecameInactive);
+      socket.off('host:teamRecovered', handleTeamRecovered);
       socket.off('score:update', handleScoreUpdate);
       socket.off('host:teamReconnected', handleTeamReconnected);
+      socket.off('host:teamActivityChanged', handleTeamActivityChanged);
     };
   }, [
     socket,
     gameId,
     joinAndRefresh,
     handleLiveTeams,
+    handleTeamActivityChanged,
+    handleTeamBecameInactive,
+    handleTeamRecovered,
     handleScoreUpdate,
     handleTeamReconnected,
   ]);
@@ -313,6 +502,11 @@ export function useHostTeamSessions({
     teamStatus,
     setTeamStatus,
     connectionStatus,
+    inactiveTeamCount,
+    flaggedTeamCount,
+    pendingApprovalCount,
+    lockedTeamCount,
+    refreshTeamStatus,
     revokeTeamSession,
     unlockTeamSession,
     resetTeamPin,

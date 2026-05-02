@@ -6,5 +6,9 @@ interface AdminLayoutProps {
 }
 
 export default function AdminLayout({ children }: AdminLayoutProps) {
-  return <AdminFrame>{children}</AdminFrame>;
+  return (
+    <div className="admin-theme">
+      <AdminFrame>{children}</AdminFrame>
+    </div>
+  );
 }

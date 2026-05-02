@@ -73,12 +73,12 @@ export default function AdminEventsPage() {
 
   async function saveEvent(): Promise<void> {
     if (!siteIdInput.trim()) {
-      setError('Site is required.');
+      setError('Location is required.');
       return;
     }
 
     if (!nameInput.trim()) {
-      setError('Event name is required.');
+      setError('Trivia night name is required.');
       return;
     }
 
@@ -115,7 +115,7 @@ export default function AdminEventsPage() {
   }
 
   async function deleteEvent(eventId: string): Promise<void> {
-    if (!window.confirm('Delete this event?')) {
+    if (!window.confirm('Delete this trivia night?')) {
       return;
     }
 
@@ -141,15 +141,15 @@ export default function AdminEventsPage() {
   }
 
   if (loading) {
-    return <LoadingCard label="Loading events..." />;
+    return <LoadingCard label="Loading trivia nights..." />;
   }
 
   return (
     <div className="space-y-6">
       <AdminPageHeader
-        eyebrow="Structure"
-        title="Events"
-        description="Events should stay visible even before the first game exists, and you can manage them directly here."
+        eyebrow="Locations"
+        title="Trivia Nights"
+        description="Use this setup area for recurring nights or series at each location. Most admins can start from Games instead."
       />
 
       {error ? (
@@ -160,15 +160,15 @@ export default function AdminEventsPage() {
 
       <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
         <AdminSectionCard
-          title="Browse Events"
-          description="Search by event or site, open the event workspace, or manage the core event record."
+          title="Browse Trivia Nights"
+          description="Search by trivia night or location, open the workspace, or manage the core record."
         >
           <div className="space-y-4">
             <input
               type="text"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search events..."
+              placeholder="Search trivia nights..."
               className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none"
             />
 
@@ -195,7 +195,7 @@ export default function AdminEventsPage() {
                       href={`/admin/events/${event.id}`}
                       className="rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                     >
-                      Open Event
+                      Open Trivia Night
                     </Link>
                     <button
                       type="button"
@@ -217,7 +217,7 @@ export default function AdminEventsPage() {
 
               {filteredEvents.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500">
-                  No events matched that search.
+                  No trivia nights matched that search.
                 </div>
               ) : null}
             </div>
@@ -225,18 +225,18 @@ export default function AdminEventsPage() {
         </AdminSectionCard>
 
         <AdminSectionCard
-          title={editingEventId ? 'Edit Event' : 'Add Event'}
-          description="Event records now live independently from games, so you can create the structure first and schedule games later."
+          title={editingEventId ? 'Edit Trivia Night' : 'Add Trivia Night'}
+          description="Create a recurring night first when a location has more than one trivia series."
         >
           <div className="space-y-4">
             <label className="grid gap-2 text-sm font-medium text-slate-700">
-              Site
+              Location
               <select
                 value={siteIdInput}
                 onChange={(event) => setSiteIdInput(event.target.value)}
                 className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
               >
-                <option value="">Select a site...</option>
+                <option value="">Select a location...</option>
                 {sites.map((site) => (
                   <option key={site.id} value={site.id}>
                     {site.name}
@@ -246,7 +246,7 @@ export default function AdminEventsPage() {
             </label>
 
             <label className="grid gap-2 text-sm font-medium text-slate-700">
-              Event Name
+              Trivia Night Name
               <input
                 type="text"
                 value={nameInput}
@@ -262,7 +262,7 @@ export default function AdminEventsPage() {
                 disabled={saving}
                 className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
               >
-                {saving ? 'Saving...' : editingEventId ? 'Save Event' : 'Create Event'}
+                {saving ? 'Saving...' : editingEventId ? 'Save Trivia Night' : 'Create Trivia Night'}
               </button>
 
               {(editingEventId || siteIdInput || nameInput) ? (

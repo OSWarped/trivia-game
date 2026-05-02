@@ -118,9 +118,9 @@ export default function AdminGamesPage() {
   return (
     <div className="space-y-6">
       <AdminPageHeader
-        eyebrow="Game Operations"
+        eyebrow="Daily Work"
         title="Games"
-        description="This is the primary admin work surface: search, filter, create, and jump straight into game editing."
+        description="Start here to schedule trivia, finish drafts, find upcoming games, or jump into hosting."
       />
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -151,15 +151,22 @@ export default function AdminGamesPage() {
       </div>
 
       <AdminSectionCard
-        title="Create a Game"
-        description="Admins should not have to leave the main games workspace just to put a new game on the schedule."
+        title="Schedule a Game"
+        description="Pick where the game belongs, set the date and host, then add questions when you are ready."
       >
-        <GameCreatePanel seasons={seasons} users={users} onCreated={loadData} />
+        <GameCreatePanel
+          seasons={seasons}
+          users={users}
+          onCreated={loadData}
+          title="New Trivia Game"
+          description="Choose the location, trivia night, and season in one step. If something is missing, add it from Locations first."
+          submitLabel="Schedule Game"
+        />
       </AdminSectionCard>
 
       <AdminSectionCard
-        title="Find and Filter"
-        description="Keep the result set focused so the page still feels fast when the schedule gets large."
+        title="Find Games"
+        description="Use quick filters when you know what you are looking for, or search by game, location, trivia night, season, join code, or host."
       >
         <div className="space-y-4">
           <GamesFiltersBar
@@ -180,7 +187,7 @@ export default function AdminGamesPage() {
 
       <AdminSectionCard
         title="Results"
-        description="Every row gives the same primary actions: Open, Edit Content, and Host View."
+        description="Open the game plan, edit its questions, or switch to the host view."
       >
         <GamesTable games={filteredGames} />
       </AdminSectionCard>

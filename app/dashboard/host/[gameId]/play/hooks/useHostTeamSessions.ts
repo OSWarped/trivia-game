@@ -434,10 +434,7 @@ export function useHostTeamSessions({
       (team) => team.isInactiveNow && team.inactiveStartedAt
     );
 
-    if (!hasInactiveTeams) {
-      setTimerNowMs(Date.now());
-      return;
-    }
+    if (!hasInactiveTeams) return;
 
     const intervalId = window.setInterval(() => {
       setTimerNowMs(Date.now());

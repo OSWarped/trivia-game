@@ -17,8 +17,8 @@ export default function GameCreatePanel({
   seasons,
   users,
   presetSeasonId,
-  title = 'Add New Game',
-  description = 'Create a new game in the right season without leaving this workspace.',
+  title = 'New Trivia Game',
+  description = 'Choose where this game belongs, then schedule it and assign a host.',
   submitLabel = 'Create Game',
   onCreated,
 }: GameCreatePanelProps) {
@@ -57,7 +57,7 @@ export default function GameCreatePanel({
     event.preventDefault();
 
     if (!seasonId) {
-      setError('Please choose a season for this game.');
+      setError('Please choose where this game belongs.');
       setSuccess(null);
       return;
     }
@@ -117,7 +117,7 @@ export default function GameCreatePanel({
   if (seasons.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500">
-        No seasons are available here yet. Create a season first, then add games to it.
+        No trivia schedules are available here yet. Add a location, trivia night, and season before scheduling games.
       </div>
     );
   }
@@ -132,13 +132,15 @@ export default function GameCreatePanel({
       <form className="space-y-4" onSubmit={handleSubmit}>
         {!presetSeasonId ? (
           <label className="block space-y-2">
-            <span className="text-sm font-medium text-slate-700">Season</span>
+            <span className="text-sm font-medium text-slate-700">
+              Location / Trivia Night / Season
+            </span>
             <select
               value={seasonId}
               onChange={(e) => setSeasonId(e.target.value)}
               className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
             >
-              <option value="">Select a season</option>
+              <option value="">Select where this game belongs</option>
               {seasons.map((season) => (
                 <option key={season.id} value={season.id}>
                   {season.siteName} • {season.eventName} • {season.name}
@@ -159,7 +161,7 @@ export default function GameCreatePanel({
             type="text"
             value={gameTitle}
             onChange={(e) => setGameTitle(e.target.value)}
-            placeholder="Week 3 Trivia Night"
+            placeholder="Thursday Trivia - Week 3"
             className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none"
           />
         </label>
@@ -238,7 +240,7 @@ export default function GameCreatePanel({
             {saving ? 'Creating...' : submitLabel}
           </button>
           <span className="text-xs text-slate-500">
-            A join code is generated automatically. Scheduled games start as SCHEDULED; unscheduled games start as DRAFT.
+            A join code is generated automatically. Games with a date start as scheduled; games without one stay as drafts.
           </span>
         </div>
       </form>

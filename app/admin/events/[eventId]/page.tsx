@@ -100,31 +100,31 @@ export default function AdminEventDetailPage({ params }: EventPageProps) {
       />
 
       <AdminPageHeader
-        eyebrow="Event Workspace"
+        eyebrow="Trivia Night"
         title={event.name}
         description={`${event.site.name}${event.site.address ? ` • ${event.site.address}` : ''}`}
-        actions={[{ href: '/admin/games', label: 'Open Games', tone: 'primary' }]}
+        actions={[{ href: '/admin/games', label: 'Schedule a Game', tone: 'primary' }]}
       />
 
       <RecordTabs tabs={tabs} currentPath={pathname} />
 
       <div className="grid gap-4 md:grid-cols-3">
-        <StatCard label="Games" value={games.length} hint="Games tied to this event" />
-        <StatCard label="Seasons" value={seasons.length} hint="Season containers in this event" />
-        <StatCard label="Site" value={event.site.name} hint={event.site.address ?? 'No address saved'} />
+        <StatCard label="Games" value={games.length} hint="Games tied to this trivia night" />
+        <StatCard label="Seasons" value={seasons.length} hint="League or score-tracking periods" />
+        <StatCard label="Location" value={event.site.name} hint={event.site.address ?? 'No address saved'} />
       </div>
 
       <AdminSectionCard
-        title="Add Game in this Event"
-        description="Pick any season in this event and create the next scheduled game without leaving the event workspace."
+        title="Schedule a Game in this Trivia Night"
+        description="Pick a season, set the date and host, then add questions when ready."
       >
-        <GameCreatePanel seasons={seasons} users={users} onCreated={loadData} submitLabel="Add Game to Event" />
+        <GameCreatePanel seasons={seasons} users={users} onCreated={loadData} submitLabel="Schedule Game" />
       </AdminSectionCard>
 
       <div className="grid gap-6 xl:grid-cols-[0.75fr_1.25fr]">
         <AdminSectionCard
           title="Seasons"
-          description="Seasons organize the event, but every season still leads back to a direct game workflow."
+          description="Seasons track scores over time. Casual games can use a default season."
         >
           <div className="space-y-3">
             {seasons.map((season) => (

@@ -27,8 +27,8 @@ export default function GamesTable({
           <tr className="text-left text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
             <th className="px-3 py-2">Date</th>
             <th className="px-3 py-2">Game</th>
-            <th className="px-3 py-2">Site</th>
-            <th className="px-3 py-2">Event</th>
+            <th className="px-3 py-2">Location</th>
+            <th className="px-3 py-2">Trivia Night</th>
             <th className="px-3 py-2">Season</th>
             <th className="px-3 py-2">Status</th>
             <th className="px-3 py-2">Host</th>

@@ -1,3 +1,5 @@
+import Card from "./Card";
+
 interface AdminSectionCardProps {
   title: string;
   description?: string;
@@ -10,7 +12,7 @@ export default function AdminSectionCard({
   children,
 }: AdminSectionCardProps) {
   return (
-    <section className="rounded-3xl border border-white/10 bg-white/80 p-5 shadow-xl backdrop-blur-sm">
+    <Card className="rounded-3xl p-5">
       <div className="mb-4">
         <h2 className="text-xl font-semibold text-slate-900">{title}</h2>
         {description ? (
@@ -18,6 +20,6 @@ export default function AdminSectionCard({
         ) : null}
       </div>
       {children}
-    </section>
+    </Card>
   );
 }

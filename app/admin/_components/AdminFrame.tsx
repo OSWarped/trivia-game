@@ -4,12 +4,9 @@ import Link from 'next/link';
 import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  CalendarRange,
   FolderKanban,
-  LayoutDashboard,
   MapPinned,
-  Shield,
-  Trophy,
+  UsersRound,
 } from 'lucide-react';
 import AppBackground from '@/components/AppBackground';
 import { useAuth } from '@/context/AuthContext';
@@ -19,12 +16,9 @@ interface AdminFrameProps {
 }
 
 const NAV_ITEMS = [
-  { href: '/admin', label: 'Overview', icon: LayoutDashboard },
   { href: '/admin/games', label: 'Games', icon: FolderKanban },
-  { href: '/admin/sites', label: 'Sites', icon: MapPinned },
-  { href: '/admin/events', label: 'Events', icon: CalendarRange },
-  { href: '/admin/seasons', label: 'Seasons', icon: Trophy },
-  { href: '/admin/users', label: 'Users', icon: Shield },
+  { href: '/admin/sites', label: 'Locations', icon: MapPinned },
+  { href: '/admin/users', label: 'People', icon: UsersRound },
 ];
 
 export default function AdminFrame({ children }: AdminFrameProps) {
@@ -47,7 +41,7 @@ export default function AdminFrame({ children }: AdminFrameProps) {
       <AppBackground variant="dashboard">
         <div className="flex min-h-screen items-center justify-center px-4 py-8">
           <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-white/80 p-6 text-slate-700 shadow-xl backdrop-blur-sm">
-            Loading admin workspace...
+            Loading admin...
           </div>
         </div>
       </AppBackground>
@@ -61,13 +55,13 @@ export default function AdminFrame({ children }: AdminFrameProps) {
           <aside className="h-fit rounded-3xl border border-white/10 bg-white/80 p-4 shadow-xl backdrop-blur-sm">
             <div className="mb-6 px-3 pt-2">
               <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                Admin Workspace
+                Admin
               </div>
               <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">
                 Quizam Admin
               </h1>
               <p className="mt-2 text-sm text-slate-600">
-                Game-first tools for fast editing and cleaner navigation.
+                Schedule games, manage locations, and keep host access simple.
               </p>
             </div>
 

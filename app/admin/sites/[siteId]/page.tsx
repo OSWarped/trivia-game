@@ -111,17 +111,17 @@ export default function AdminSiteDetailPage({ params }: SitePageProps) {
       />
 
       <AdminPageHeader
-        eyebrow="Site Workspace"
+        eyebrow="Location"
         title={site.name}
         description={site.address ?? 'No address on file'}
-        actions={[{ href: '/admin/games', label: 'Open Games', tone: 'primary' }]}
+        actions={[{ href: '/admin/games', label: 'Schedule a Game', tone: 'primary' }]}
       />
 
       <RecordTabs tabs={tabs} currentPath={pathname} />
 
       <div className="grid gap-4 md:grid-cols-3">
-        <StatCard label="Games" value={games.length} hint="Games tied to this site" />
-        <StatCard label="Events" value={events.length} hint="Event containers at this site" />
+        <StatCard label="Games" value={games.length} hint="Games tied to this location" />
+        <StatCard label="Trivia Nights" value={events.length} hint="Recurring nights at this location" />
         <StatCard
           label="Address"
           value={site.address ? 'On file' : 'Missing'}
@@ -130,16 +130,16 @@ export default function AdminSiteDetailPage({ params }: SitePageProps) {
       </div>
 
       <AdminSectionCard
-        title="Add Game at this Site"
-        description="Choose any season at this venue and create a new game without bouncing through multiple admin pages."
+        title="Schedule a Game Here"
+        description="Choose one of this location's trivia nights and seasons, then set the date and host."
       >
-        <GameCreatePanel seasons={seasons} users={users} onCreated={loadData} submitLabel="Add Game to Site" />
+        <GameCreatePanel seasons={seasons} users={users} onCreated={loadData} submitLabel="Schedule Game" />
       </AdminSectionCard>
 
       <div className="grid gap-6 xl:grid-cols-[0.72fr_1.28fr]">
         <AdminSectionCard
-          title="Events at this Site"
-          description="These event containers stay available, but they no longer block the path to game work."
+          title="Trivia Nights"
+          description="These are the recurring trivia nights or series at this location."
         >
           {events.length > 0 ? (
             <div className="space-y-3">
@@ -156,16 +156,16 @@ export default function AdminSiteDetailPage({ params }: SitePageProps) {
             </div>
           ) : (
             <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500">
-              No events are attached to this site yet.
+              No trivia nights are attached to this location yet.
             </div>
           )}
         </AdminSectionCard>
 
         <AdminSectionCard
-          title="Games at this Site"
-          description="This keeps the site workspace useful without forcing you through multiple pages before editing a game."
+          title="Games at this Location"
+          description="Open a game plan, edit content, or switch into host view."
         >
-          <GamesTable games={games} emptyMessage="No games exist for this site yet." />
+          <GamesTable games={games} emptyMessage="No games exist for this location yet." />
         </AdminSectionCard>
       </div>
     </div>

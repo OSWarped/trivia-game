@@ -83,7 +83,7 @@ export default function AdminSeasonsPage() {
 
   async function saveSeason(): Promise<void> {
     if (!eventIdInput.trim()) {
-      setError('Event is required.');
+      setError('Trivia night is required.');
       return;
     }
 
@@ -160,9 +160,9 @@ export default function AdminSeasonsPage() {
   return (
     <div className="space-y-6">
       <AdminPageHeader
-        eyebrow="Structure"
+        eyebrow="Locations"
         title="Seasons"
-        description="Season records now stay visible even before any games have been scheduled into them."
+        description="Use seasons when a trivia night tracks standings over several games. Most scheduling still starts from Games."
       />
 
       {error ? (
@@ -174,14 +174,14 @@ export default function AdminSeasonsPage() {
       <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
         <AdminSectionCard
           title="Browse Seasons"
-          description="Search by season, event, or site, then open the season workspace or manage the season record here."
+          description="Search by season, trivia night, or location, then open the season workspace or manage the season record here."
         >
           <div className="space-y-4">
             <input
               type="text"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search seasons..."
+              placeholder="Search seasons, trivia nights, or locations..."
               className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none"
             />
 
@@ -242,17 +242,17 @@ export default function AdminSeasonsPage() {
 
         <AdminSectionCard
           title={editingSeasonId ? 'Edit Season' : 'Add Season'}
-          description="You can build out season structure first, then attach games to it later."
+          description="Create a season for score tracking, leagues, finals, or any recurring block of games."
         >
           <div className="space-y-4">
             <label className="grid gap-2 text-sm font-medium text-slate-700">
-              Event
+              Trivia Night
               <select
                 value={eventIdInput}
                 onChange={(event) => setEventIdInput(event.target.value)}
                 className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
               >
-                <option value="">Select an event...</option>
+                <option value="">Select a trivia night...</option>
                 {events.map((event) => (
                   <option key={event.id} value={event.id}>
                     {event.siteName} • {event.name}

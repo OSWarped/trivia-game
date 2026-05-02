@@ -162,8 +162,8 @@ export default function AdminUsersPage() {
     <div className="space-y-6">
       <AdminPageHeader
         eyebrow="Access"
-        title="Users"
-        description="User administration stays available here, but the rest of the admin experience now stays centered on game work."
+        title="People"
+        description="Manage admins and hosts. Players do not need accounts to join games."
       />
 
       {error ? (
@@ -174,7 +174,7 @@ export default function AdminUsersPage() {
 
       <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <AdminSectionCard
-          title="User Directory"
+          title="People Directory"
           description="Search by name, email, or role."
         >
           <div className="space-y-4">
@@ -274,7 +274,6 @@ export default function AdminUsersPage() {
               >
                 <option value="HOST">HOST</option>
                 <option value="ADMIN">ADMIN</option>
-                <option value="PLAYER">PLAYER</option>
               </select>
             </label>
 

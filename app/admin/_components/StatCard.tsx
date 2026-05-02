@@ -1,3 +1,5 @@
+import Card from "./Card";
+
 interface StatCardProps {
   label: string;
   value: string | number;
@@ -6,7 +8,7 @@ interface StatCardProps {
 
 export default function StatCard({ label, value, hint }: StatCardProps) {
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/80 p-5 shadow-xl backdrop-blur-sm">
+    <Card className="rounded-3xl p-5">
       <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
         {label}
       </div>
@@ -14,6 +16,6 @@ export default function StatCard({ label, value, hint }: StatCardProps) {
         {value}
       </div>
       {hint ? <div className="mt-2 text-sm text-slate-600">{hint}</div> : null}
-    </div>
+    </Card>
   );
 }

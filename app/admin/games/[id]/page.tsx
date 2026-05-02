@@ -278,13 +278,13 @@ export default function AdminGameWorkspacePage({ params }: AdminGameWorkspacePag
           >
             <div className="space-y-3 text-sm text-slate-700">
               <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                <span>Site</span>
+                <span>Location</span>
                 <Link href={`/admin/sites/${game.season.event.site.id}`} className="font-medium text-slate-900 transition hover:underline">
                   {game.season.event.site.name}
                 </Link>
               </div>
               <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                <span>Event</span>
+                <span>Trivia Night</span>
                 <Link href={`/admin/events/${game.season.event.id}`} className="font-medium text-slate-900 transition hover:underline">
                   {game.season.event.name}
                 </Link>

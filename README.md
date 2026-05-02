@@ -34,3 +34,12 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Admin UI Card Styles
+
+This project includes a shared `Card` component used by the admin UI to provide consistent card styling across the dashboard. A public demo is available at `/cards-demo` when running the dev server.
+
+Files added/updated:
+- `app/admin/_components/Card.tsx` — shared Card with variants (default, outlined, elevated, accent, interactive)
+- `app/cards-demo/page.tsx` — public demo route for visual testing
+- Updated admin cards to use the shared component (e.g., `AdminSectionCard`, `StatCard`, `LoadingCard`).

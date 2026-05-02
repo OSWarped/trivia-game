@@ -134,15 +134,15 @@ export default function AdminSeasonDetailPage({ params }: SeasonPageProps) {
       </div>
 
       <AdminSectionCard
-        title="Add Game to this Season"
-        description="This is the fastest place to expand a season schedule while staying in context."
+        title="Schedule a Game in this Season"
+        description="Use this when the game should count toward this season's standings."
       >
         <GameCreatePanel
           seasons={seasonOption}
           users={users}
           presetSeasonId={season.id}
           onCreated={loadData}
-          submitLabel="Add Game to Season"
+          submitLabel="Schedule Game"
         />
       </AdminSectionCard>
 
@@ -153,10 +153,10 @@ export default function AdminSeasonDetailPage({ params }: SeasonPageProps) {
         >
           <div className="space-y-3 text-sm text-slate-700">
             <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-              Site: {season.event.site.name}
+              Location: {season.event.site.name}
             </div>
             <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-              Event: {season.event.name}
+              Trivia night: {season.event.name}
             </div>
             <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
               Active season: {season.active ? 'Yes' : 'No'}

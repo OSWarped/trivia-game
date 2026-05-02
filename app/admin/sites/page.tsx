@@ -159,15 +159,19 @@ export default function AdminSitesPage() {
   }
 
   if (loading) {
-    return <LoadingCard label="Loading sites..." />;
+    return <LoadingCard label="Loading locations..." />;
   }
 
   return (
     <div className="space-y-6">
       <AdminPageHeader
-        eyebrow="Structure"
-        title="Sites"
-        description="Sites need less day-to-day attention, but still need a clean home for venue setup and navigation into events."
+        eyebrow="Setup"
+        title="Locations"
+        description="Locations are the places that host trivia. Open one to see its trivia nights, seasons, and games in context."
+        actions={[
+          { href: '/admin/events', label: 'Manage Trivia Nights' },
+          { href: '/admin/seasons', label: 'Manage Seasons' },
+        ]}
       />
 
       {error ? (
@@ -178,15 +182,15 @@ export default function AdminSitesPage() {
 
       <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
         <AdminSectionCard
-          title="Venue List"
-          description="Search venues, open a site workspace, or manage the basic site record."
+          title="Location List"
+          description="Search locations, open a location workspace, or manage the basic venue record."
         >
           <div className="space-y-4">
             <input
               type="text"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search sites..."
+              placeholder="Search locations..."
               className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none"
             />
 
@@ -202,7 +206,7 @@ export default function AdminSitesPage() {
                       {site.address ?? 'No address'}
                     </div>
                     <div className="mt-3 flex flex-wrap gap-3 text-xs font-medium uppercase tracking-[0.12em] text-slate-500">
-                      <span>{site.eventCount} events</span>
+                      <span>{site.eventCount} trivia nights</span>
                       <span>{site.gameCount} games</span>
                       <span>{site.upcomingCount} upcoming</span>
                     </div>
@@ -213,7 +217,7 @@ export default function AdminSitesPage() {
                       href={`/admin/sites/${site.id}`}
                       className="rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                     >
-                      Open Site
+                      Open Location
                     </Link>
                     <button
                       type="button"
@@ -235,7 +239,7 @@ export default function AdminSitesPage() {
 
               {summarizedSites.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500">
-                  No sites matched that search.
+                  No locations matched that search.
                 </div>
               ) : null}
             </div>
@@ -243,12 +247,12 @@ export default function AdminSitesPage() {
         </AdminSectionCard>
 
         <AdminSectionCard
-          title={editingSiteId ? 'Edit Site' : 'Add Site'}
-          description="Basic site setup can stay simple while games remain the center of daily admin work."
+          title={editingSiteId ? 'Edit Location' : 'Add Location'}
+          description="Create the location once, then add trivia nights and seasons from its workspace."
         >
           <div className="space-y-4">
             <label className="grid gap-2 text-sm font-medium text-slate-700">
-              Site Name
+              Location Name
               <input
                 type="text"
                 value={nameInput}
@@ -274,7 +278,7 @@ export default function AdminSitesPage() {
                 disabled={saving}
                 className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
               >
-                {saving ? 'Saving...' : editingSiteId ? 'Save Site' : 'Create Site'}
+                {saving ? 'Saving...' : editingSiteId ? 'Save Location' : 'Create Location'}
               </button>
 
               {(editingSiteId || nameInput || addressInput) ? (

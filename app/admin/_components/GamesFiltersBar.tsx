@@ -31,7 +31,7 @@ export default function GamesFiltersBar({
         type="text"
         value={search}
         onChange={(event) => onSearchChange(event.target.value)}
-        placeholder="Search by game, join code, site, event, season, or host"
+        placeholder="Search by game, join code, location, trivia night, season, or host"
         className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none"
       />
 
@@ -53,7 +53,7 @@ export default function GamesFiltersBar({
         onChange={(event) => onSiteIdChange(event.target.value)}
         className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
       >
-        <option value="ALL">All sites</option>
+        <option value="ALL">All locations</option>
         {sites.map((site) => (
           <option key={site.id} value={site.id}>
             {site.name}

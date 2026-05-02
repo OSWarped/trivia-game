@@ -1,9 +1,6 @@
+"use client";
 import React from "react";
 import Card from "../_components/Card";
-
-export const metadata = {
-  title: "Admin Card Variants Demo",
-};
 
 export default function CardsDemoPage() {
   return (

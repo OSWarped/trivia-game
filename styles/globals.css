@@ -2,6 +2,37 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Card theme tokens — tweak these to change card appearance globally. */
+:root{
+  --card-bg: rgba(255,255,255,0.92);
+  --card-border: rgba(15,23,42,0.06);
+  --card-text: #0f172a;
+  --card-accent: #6366f1;
+}
+
+/* Dark mode overrides */
+.dark :root{
+  --card-bg: rgba(15,23,42,0.6);
+  --card-border: rgba(255,255,255,0.04);
+  --card-text: #e6eef8;
+  --card-accent: #8b5cf6;
+}
+
+/* Optional: admin-scoped theme. Wrap admin layout with `.admin-theme` to apply. */
+.admin-theme{
+  --card-bg: rgba(255,255,255,0.85);
+  --card-border: rgba(15,23,42,0.08);
+  --card-text: #0f172a;
+  --card-accent: #4f46e5;
+}
+
+/* Helper fallback for cards (ensures native CSS properties are set too) */
+.card{
+  background: var(--card-bg);
+  border-color: var(--card-border);
+  color: var(--card-text);
+}
+
 .form-container {
     display: flex;
     flex-direction: column;

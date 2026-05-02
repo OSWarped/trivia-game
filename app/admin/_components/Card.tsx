@@ -22,33 +22,33 @@ interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
 
 const defaultTokens: Record<Variant, TokenSet> = {
   default: {
-    bg: "rgba(255,255,255,0.9)",
+    bg: "rgba(255,255,255,0.86)",
     border: "rgba(15,23,42,0.06)",
-    text: "#0f172a",
-    accent: "#6366f1",
+    text: "#071233",
+    accent: "#4f46e5",
   },
   outlined: {
-    bg: "transparent",
-    border: "rgba(148,163,184,0.24)",
+    bg: "rgba(255,255,255,0.02)",
+    border: "rgba(148,163,184,0.16)",
     text: "#0f172a",
     accent: "#6366f1",
   },
   elevated: {
-    bg: "#ffffff",
+    bg: "rgba(255,255,255,0.98)",
     border: "transparent",
-    text: "#0f172a",
+    text: "#071233",
     accent: "#6366f1",
   },
   accent: {
-    bg: "linear-gradient(90deg, #eef2ff 0%, #ffffff 100%)",
+    bg: "linear-gradient(180deg, rgba(239,246,255,0.9) 0%, rgba(255,255,255,0.95) 100%)",
     border: "transparent",
     text: "#3730a3",
     accent: "#6366f1",
   },
   interactive: {
-    bg: "#ffffff",
+    bg: "rgba(255,255,255,0.98)",
     border: "rgba(15,23,42,0.06)",
-    text: "#0f172a",
+    text: "#071233",
     accent: "#6366f1",
   },
 };
@@ -61,7 +61,7 @@ export default function Card({
   children,
   ...rest
 }: CardProps) {
-  const base = "rounded-2xl p-4 transition-shadow transition-transform will-change-transform";
+  const base = "card rounded-3xl p-5 transition-shadow transition-transform will-change-transform";
 
   const resolved: TokenSet = { ...defaultTokens[variant], ...(tokens || {}) };
 
@@ -74,11 +74,11 @@ export default function Card({
   };
 
   const variantExtras: Record<Variant, string> = {
-    default: "shadow-sm backdrop-blur-sm",
-    outlined: "",
-    elevated: "shadow-lg",
+    default: "",
+    outlined: "bg-opacity-60",
+    elevated: "shadow-[var(--card-elevated-shadow)]",
     accent: "",
-    interactive: "shadow-sm hover:shadow-md hover:-translate-y-0.5 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/40",
+    interactive: "hover:shadow-[0_18px_40px_rgba(2,6,23,0.12)] hover:-translate-y-0.5 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--card-accent)]/30",
   };
 
   const classNames = [

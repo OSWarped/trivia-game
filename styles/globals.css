@@ -8,6 +8,9 @@
   --card-border: rgba(15,23,42,0.06);
   --card-text: #0f172a;
   --card-accent: #6366f1;
+  --card-shadow: 0 6px 20px rgba(2,6,23,0.08), 0 1px 0 rgba(255,255,255,0.02) inset;
+  --card-elevated-shadow: 0 20px 40px rgba(2,6,23,0.12), 0 2px 0 rgba(255,255,255,0.02) inset;
+  --card-blur: 8px;
 }
 
 /* Dark mode overrides */
@@ -31,6 +34,9 @@
   background: var(--card-bg);
   border-color: var(--card-border);
   color: var(--card-text);
+  box-shadow: var(--card-shadow);
+  backdrop-filter: blur(var(--card-blur));
+  -webkit-backdrop-filter: blur(var(--card-blur));
 }
 
 .form-container {

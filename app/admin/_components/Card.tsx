@@ -22,20 +22,20 @@ interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
 
 const defaultTokens: Record<Variant, TokenSet> = {
   default: {
-    bg: "rgba(255,255,255,0.86)",
-    border: "rgba(15,23,42,0.06)",
+    bg: "rgba(255,255,255,0.88)",
+    border: "rgba(15,23,42,0.08)",
     text: "#071233",
     accent: "#4f46e5",
   },
   outlined: {
     bg: "rgba(255,255,255,0.02)",
-    border: "rgba(148,163,184,0.16)",
+    border: "rgba(148,163,184,0.18)",
     text: "#0f172a",
     accent: "#6366f1",
   },
   elevated: {
     bg: "rgba(255,255,255,0.98)",
-    border: "transparent",
+    border: "rgba(15,23,42,0.04)",
     text: "#071233",
     accent: "#6366f1",
   },
@@ -47,7 +47,7 @@ const defaultTokens: Record<Variant, TokenSet> = {
   },
   interactive: {
     bg: "rgba(255,255,255,0.98)",
-    border: "rgba(15,23,42,0.06)",
+    border: "rgba(15,23,42,0.1)",
     text: "#071233",
     accent: "#6366f1",
   },
